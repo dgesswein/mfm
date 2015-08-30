@@ -1,0 +1,53 @@
+// prucode.hp
+
+#ifndef __PRUCODE_HP__
+#define __PRUCODE_HP__
+
+// Definitions
+
+// Refer to this mapping in the file - pruss_intc_mapping.h
+#define PRU0_PRU1_INTERRUPT     17
+#define PRU1_PRU0_INTERRUPT     18
+#define PRU0_ARM_INTERRUPT      19
+#define PRU1_ARM_INTERRUPT      20
+#define ARM_PRU0_INTERRUPT      21
+#define ARM_PRU1_INTERRUPT      22
+
+#define CONST_DMTIMER2       C1
+#define CONST_ECAP           C3
+#define CONST_PRUCFG         C4
+#define CONST_PRURAM         C24
+#define CONST_IEP            C26
+#define CONST_PRUSHAREDRAM   C28
+#define CONST_DDR            C31
+
+// Address for the Constant table Block Index Register (CTBIR)
+#define CTBIR          0x22020
+
+// Address for the Constant table Programmable Pointer Register 0(CTPPR_0)
+#define CTPPR_0         0x22028
+
+// Address for the Constant table Programmable Pointer Register 1(CTPPR_1)
+#define CTPPR_1         0x2202C
+
+#define PRU0_CONTROL_REG 0x00022000
+#define PRU0_CYCLE_COUNTER_REG 0x0002200c
+
+#define GPIO0 0x44e07000
+#define GPIO1 0x4804c000
+#define GPIO2 0x481Ac000
+#define GPIO_IRQSTATUS_0      0x02c
+#define GPIO_IRQSTATUS_1      0x030
+#define GPIO_IRQSTATUS_RAW_0  0x024
+#define GPIO_IRQSTATUS_RAW_1  0x028
+#define GPIO_IRQSTATUS_SET_0  0x034
+#define GPIO_IRQSTATUS_SET_1  0x038
+#define GPIO_DATIN            0x138
+#define GPIO_LEVELDECTECT0    0x140
+#define GPIO_LEVELDECTECT1    0x144
+#define GPIO_RISINGDETECT     0x148
+#define GPIO_FALLINGDETECT    0x14c
+#define GPIO_CLEARDATAOUT     0x190
+#define GPIO_SETDATAOUT       0x194
+
+#endif // __PRUCODE_HP__

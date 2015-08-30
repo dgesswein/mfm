@@ -1,0 +1,76 @@
+This code is intended to be used to read MFM disks using a beaglebone
+board with a disk interface daughter card. A makefile is provided to
+build mfm_read and mfm_util on the beaglebone.
+
+The site for this code is http://www.pdp8online.com/mfm/mfm.shtml
+
+The Makefile assumes am335x_pru_package-master is in the parent directory
+of the source. This provides libprussdrv.a for accessing the PRUs, the
+PRU assembler, and necessary include files.  The version I used to build it
+is at https://github.com/beagleboard/am335x_pru_package. The Debian
+distribution includes a version of this package with bugs so for now you
+still need to download the current version.
+
+The mfm_util program can also be built on a little endian Linux system.
+See the pdp8online site above for more information on building.
+
+For reading disks the code running on the PRU is controlled by commands
+from the ARM which are documented in cmd.h and prucode0.p. The commands
+do disk control such as seeking, checking status, and reading a track.
+The track is read as the timing of rising edges of the MFM data signal. The
+time is represented as delta time between the edges. These delta transitions
+are put in a shared DDR memory buffer as 16 bit words with a count stored in
+the PRU local memory. The ARM reads the count and deltas for processing.
+The raw transitions can be stored for later processing and/or decoded back
+into the disk contents. The mfm_util program is used to decode the
+saved transitions into the decoded disk contents.
+
+See mfm_read_util_doc.* for how to run the programs.
+
+All the code I created is released under GPLv3 or later.
+
+Source file organization
+mfm_read.c	Top file for reading MFM disks
+mfm_util.c	Top file for processing existing MFM delta transitions file
+
+For mfm_read
+analyze.c	Try to determine the track format of a disk drive
+deltas_read.c	Routines for transferring deltas from PRU
+drive.c		Routines for controlling the disk drive
+pru_setup.c	Routines for initializing the PRU
+prucode0.p	The assembly program running in the PRU
+cmd.h		The PRU code commands, return status, and various memory
+		location definitions
+
+Used by both
+crc_ecc.c	Routines for performing CRC and ECC operations
+mfm_decoder.c	Routines for performing the MFM decoding
+msg.c		Routines for printing messages
+parse_cmdline.c	Routines for parsing and printing the command line options
+wd_mfm_decoder.c	Routines for processing "Western Digital" format
+xebec_mfm_decoder.c	Routines for processing Xebec format tracks
+emu_tran_file.c Routines for reading and writing emulation and transition files
+mfm_decoder.h	Defines for data structures used by the code
+Makefile	Makefile for building the two executables and PRU code
+<other>.h	Various header files which define function prototypes
+
+Other files
+crc_reverse.c	Routines to be manually used for determining CRC data for a disk
+setup_mfm_read  Script to configure the beaglebone pins
+mfm_read-00A0.dts Device tree file to configure pins
+
+The DRIVE_PARAMS structure in mfm_decoder.h defines most of the information
+for decoding the track. It can either be set from the command line or by
+analyze_disk routine. Some decoding information which is hardcoded in the
+routines might be better moved into the structure.
+
+See emu_tran_file.c header for data file formats. 
+
+The decoded disk contents is the concatenated sector data. It is in the
+order specified in the sector headers, not the physical order on disk.
+This will be different if the drive was formatted with interleave.
+If the sector header was bad the sector data will be all zeros. If the
+data area had a CRC error the data read will be written to the file.
+
+David Gesswein
+djg@pdp8online.com

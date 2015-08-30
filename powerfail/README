@@ -1,0 +1,9 @@
+This code is intended to be used to cleanly shut down the MFM disk emulator
+when power is turned off.  A makefile is provided to build powerfail. 
+
+The site for this code is http://www.pdp8online.com/mfm/mfm.shtml
+
+All the code I created is released under GPLv3 or later.
+
+David Gesswein
+djg@pdp8online.com

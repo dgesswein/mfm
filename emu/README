@@ -1,0 +1,51 @@
+This code is intended to be used to emulate MFM disks using a beaglebone
+board with a disk interface daughter card. A makefile is provided to
+build mfm_emu. It requires files from the mfm_read/mfm_util programs.
+
+The site for this code is http://www.pdp8online.com/mfm/mfm.shtml
+
+The Makefile assumes am335x_pru_package-master is in the parent directory
+of the source. This provides libprussdrv.a for accessing the PRUs, the
+PRU assembler, and necessary include files.  The version I used to build it
+is at https://github.com/beagleboard/am335x_pru_package. The Debian
+distribution includes a version of this package with bugs so for now you
+still need to download the current version.
+
+See the pdp8online site above for more information on building.
+
+For emulating disks the code running on PRU 0 is controlled by commands
+from the ARM which are documented in cmd.h and prucode0.p. The commands
+tell PRU 0 to start processing track data or exit. The emulation uses
+track data as MFM clock and data bits. This data is converted to pulse
+timing to control a pulse width modulator (PWM) for generating the MFM signal
+to the controller. The write data from the controller pulse timing is decoded
+and converted back to clock and data bits. This is written in the proper
+spot in the emulation data file. The MFM clock and data bits are transferred
+in the PRU DDR memory buffer to PRU 1. PRU 1 handles converting the bits
+to PWM data and converting the capture time delta data back to MFM bits.
+PRU 0 handles actual generation/reading of the MFM signal line and handling
+select, head line changes, and seeks. The ARM handles reading and writing
+the file and transferring to the DDR memory buffer. It also sends commands
+and gets interrupts from PRU 0 to perform the needed operations.
+More information is in the headers of the various routines.
+
+See mfm_emu_doc.* for how to run the program.
+
+All the code I created is released under GPLv3 or later.
+
+Source file organization
+mfm_emu.c	Top file for reading MFM disks
+prucode0.p	The assembly program running in PRU 0
+prucode1.p	The assembly program running in PRU 1
+cmd.h		The PRU code commands, return status, and various memory
+		location definitions
+parse_cmdline.c	Routines for parsing and printing the command line options
+Makefile	Makefile for building the two executables and PRU code
+<other>.h	Various header files which define function prototypes
+
+Other files
+setup_emu  Script to configure the beaglebone pins
+emu-00A0.dts Device tree file to configure pins
+
+David Gesswein
+djg@pdp8online.com
