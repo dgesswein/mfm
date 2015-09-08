@@ -71,9 +71,9 @@ clean :
 %_revb.bin: %.p prucode.hp $(INCDIR)/cmd.h
 	$(PASM) -b -L -DREVB $< $*_revb
 
-$(OBJDIR)/%.o: %.c $(INCLUDES) obj
+$(OBJDIR)/%.o: %.c $(INCLUDES) | obj
 	$(CC) $(CFLAGS) -c -o $@ $<
-$(OBJDIR)/%.o: ../mfm/%.c $(INCLUDES) obj
+$(OBJDIR)/%.o: ../mfm/%.c $(INCLUDES) | obj
 	$(CC) $(CFLAGS) -c -o $@ $<
 obj:
 	mkdir $@

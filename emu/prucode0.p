@@ -452,7 +452,7 @@ headok2:
    LBCO     END_INDEX_TIME, CONST_PRURAM, PRU0_END_INDEX_TIME, 4
       // Make sure we can't trigger glitch logic in select_head
    MOV      r1, 0x12345678
-   SBCO     r1, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
+   SBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
       // Not waiting a command
    SBCO     RZERO, CONST_PRURAM, PRU0_WAITING_CMD, 4
       // Make sure we have the current head select etc.
@@ -688,8 +688,9 @@ settle_lp:
    SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
 
       // Copy current value and get new head and select
-   LBCO     r1, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
    CALL     get_select_head
+   LBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
+   SBCO     r24, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4 // Update
       // If they are the same report a glitch for debugging
    QBEQ     glitch, r24, r1
 
@@ -783,7 +784,7 @@ handle_cyl_change:
    JMP      waitsel
 
 glitch:
-   SBCO     r4, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
+   SBCO     r24, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
    LBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
    ADD      r1, r1, 1
    SBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4

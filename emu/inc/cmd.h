@@ -110,6 +110,7 @@
 // Last cylinder requested from ARM
 #define PRU0_DRIVE0_LAST_ARM_CYL     0xa4
 #define PRU0_DRIVE1_LAST_ARM_CYL     0xa8
+#define PRU0_LAST_SELECT_HEAD        0xac
 
    // Bits 0-n indicate track 0-n been modified in cylinder data
 #define PRU1_DRIVE0_TRK_DIRTY        0x30

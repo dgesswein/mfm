@@ -74,7 +74,7 @@ clean :
 %.bin: %.p prucode.hp $(INCDIR)/cmd.h
 	$(PASM) -b $<
 
-$(OBJDIR)/%.o: %.c $(INCLUDES) obj
+$(OBJDIR)/%.o: %.c $(INCLUDES) | obj
 	$(CC) $(CFLAGS) -c -o $@ $<
 obj:
 	mkdir $@
