@@ -1127,9 +1127,9 @@ checkstuff:
    
       // Done write, switch back to read
 write_done:
-// If it writs only zeros at the end we don't handle it. Halt if this occurs
-LBCO     r0, CONST_ECAP, TSCTR, 4     // Clear counter
-MOV      r1, 2000/5
+// If it writes only zeros at the end we don't handle it. Halt if this occurs
+LBCO     r0, CONST_ECAP, TSCTR, 4     // Get time since last edge on MFM data
+MOV      r1, 2000/5                   // Check if more than 10 microseconds
 QBLE     noextra, r1, r0
    MOV      r24, (1 << GPIO1_TEST)
    MOV      r25, GPIO1 | GPIO_SETDATAOUT

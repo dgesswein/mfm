@@ -45,15 +45,21 @@
 //       existing fields.
 //    Next 8 bits are unused and should be zero.
 //
-// Emulator file header format
+// Emulator file header format. See code for which fields are present
+//    in which file version.
 //    uint8_t[8] File id string 0xee 0x4d 0x46 0x4d 0x0d 0x0a 0x1a 0x00
-//    uint32_t File type and version. 0x02010100. 
+//    uint32_t File type and version. Current 0x02020200. 
 //    uint32_t Offset to start of first track header in bytes.
 //    uint32_t Size of the data portion of each track in bytes.
 //    uint32_t Size of the header portion of each track in bytes.
 //    uint32_t Number of cylinders of track data in file.
 //    uint32_t Number of heads/tracks of data per cylinder.
-//    uint32_t Bit rate in Hz. Only 10 MHz currently supported.
+//    uint32_t Bit rate in Hz.
+//    uint32_t command line length in bytes
+//    uint8_t[n] Command line used to create emulator file. 0 terminated.
+//    uint32_t Note length in bytes
+//    uint8_t[n] Note string. 0 terminated.
+//    uint32_t Start of track time from index in nanoseconds
 // Emulator file track header format
 //    uint32_t 0x12345678, Value to mark header.
 //    int32_t Cylinder number of track
@@ -64,9 +70,10 @@
 //    uint32_t of MFM clock and data bits for length specified in file header.
 //        Bit 31 is the first bit.
 //
-// Transition file header format
+// Transition file header format. See code for which fields are present
+//    in which file version.
 //    uint8_t[8] File id string 0xee 0x4d 0x46 0x4d 0x0a 0x1a 0x0a 0x0d
-//    uint32_t File type and version. 0x01010100, or 0x01020100
+//    uint32_t File type and version. Current 0x01020200
 //    uint32_t Offset to start of first track header in bytes.
 //    uint32_t Size of the header portion of each track in bytes.
 //    uint32_t Number of cylinders of track data in file.
@@ -74,9 +81,9 @@
 //    uint32_t Transition count rate in Hz. Only 200 MHz currently supported.
 //    uint32_t Length of command line used when capturing.
 //    uint8_t  Command line used when capturing. Zero terminated.
-//    The following two are only present in version 0x01020100
 //    uint32_t Length of note option.
 //    uint8_t  Note option text. Zero terminated.
+//    uint32_t Start time of data from index in nanoseconds.
 //    uint32_t Checksum of header. Calculated over bytes using crc64 in
 //       this program suite. Polynomial 0x140a0445 length 32 initial value
 //       0xffffffff.

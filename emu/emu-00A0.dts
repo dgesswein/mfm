@@ -82,12 +82,12 @@
                     0x028 0x3f // IN   P8_14 = gpio0_26
                     0x02c 0x3f // IN   P8_17 = gpio0_27
                     0x070 0x0f // OUT  P9_11 = gpio0_30
-                    0x078 0x07 // OUT  P9_12 = gpio1_28
-                    0x074 0x07 // OUT  P9_13 = gpio0_31
-                    0x040 0x07 // OUT  P9_14 = gpio1_18
-                    0x184 0x07 // OUT  P9_24 = gpio0_15
-                    0x180 0x07 // OUT  P9_26 = gpio0_14
-                    0x07c 0x07 // OUT  P8_26 = gpio1_29 TESTING
+                    0x078 0x0f // OUT  P9_12 = gpio1_28
+                    0x074 0x0f // OUT  P9_13 = gpio0_31
+                    0x040 0x0f // OUT  P9_14 = gpio1_18
+                    0x184 0x0f // OUT  P9_24 = gpio0_15
+                    0x180 0x0f // OUT  P9_26 = gpio0_14
+                    0x07c 0x0f // OUT  P8_26 = gpio1_29 TESTING
                     // Rev B GPIO
                     0x038 0x37 // IN   P8_16 = gpio1_14, pullup
                     0x0d8 0x3f // IN   P8_31 = gpio0_10
