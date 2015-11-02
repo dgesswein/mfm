@@ -15,6 +15,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/01/15 DJG Renamed formats and other comment changes
 // 05/17/15 DJG Added formats MIGHTYFRAME, ADAPTEC, NEWBURYDATA, SYMBOLICS, and
 //          partially implement format RUSSIAN. Also code cleanup amd check for
 //          trumcation of emulation file.
@@ -257,15 +258,13 @@ void mfm_init_sector_status_list(SECTOR_STATUS sector_status_list[],
 // generating emulation file from unknown format disk data
 //
 // drive_params: Drive parameters
-// bytes: bytes to process
-// bytes_crc_len: Length of bytes including CRC
 // cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
+// deltas: MFM delta time transition data to analyze
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Or together of the status of each sector decoded
-static SECTOR_DECODE_STATUS mfm_decode_track_deltas(DRIVE_PARAMS *drive_params, int cyl,
-      int head, uint16_t deltas[], int *seek_difference,
+static SECTOR_DECODE_STATUS mfm_decode_track_deltas(DRIVE_PARAMS *drive_params,
+      int cyl, int head, uint16_t deltas[], int *seek_difference,
       SECTOR_STATUS sector_status_list[])
 {
    // This is the raw MFM data decoded with above
@@ -356,8 +355,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
-         drive_params->controller == CONTROLLER_RUSSIAN ||
-         drive_params->controller == CONTROLLER_SYMBOLICS) {
+         drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
+         drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786)  {
@@ -690,6 +689,7 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // drive_params: Drive parameters
 // bytes: bytes to process
 // bytes_crc_len: Length of bytes including CRC
+// state: Where we are in the decoding process
 // cyl,head: Physical Track data from
 // sector_index: Sequential sector counter
 // seek_difference: Return of difference between expected cyl and header
@@ -803,8 +803,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
-            drive_params->controller == CONTROLLER_RUSSIAN ||
-            drive_params->controller == CONTROLLER_SYMBOLICS) {
+            drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
+            drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786) {

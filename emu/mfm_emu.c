@@ -17,6 +17,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 11/01/15 DJG Fixed incorrect printing of select and head for rev B board.
 // 07/30/15 DJG Modified to support revision B board.
 // 05/17/15 DJG Added DMA setup, printing/logging errors if PRU halts due
 //    to internal checks.
@@ -467,10 +468,17 @@ static void *emu_proc(void *arg)
          }
          b = pru_read_word(MEM_PRU0_DATA,PRU0_CUR_SELECT_HEAD);
          if (cyl[i] != new_cyl[i]) {
+            int sel, head;
+            if (board_get_revision() == 0) {
+               sel = (((b >> 22) & 0x3) | ((b >> 24) & 0xc)) ^ 0xf;
+               head = ((b >> 2) & 0xf) ^ 0xf;
+            } else {
+               sel = ((b >> 22) & 0x3)  ^ 0x3;
+               head = ((b >> 8) & 0xf) ^ 0xf;
+            }
+
             msg(MSG_INFO,"  Drive %d Cyl %d->%d select %d, head %d dirty %x\n",
-               i, cyl[i], new_cyl[i],
-               (((b >> 22) & 0x3) | ((b >> 24) & 0xc)) ^ 0xf, 
-               ((b >> 2) & 0xff) ^ 0xf, dirty);
+               i, cyl[i], new_cyl[i], sel, head, dirty);
          }
          if (dirty) {
             total_writes++;

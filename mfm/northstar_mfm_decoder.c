@@ -7,6 +7,8 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 11/01/15 DJG Use new drive_params field and comment changes
+//
 // Copyright 2015 David Gesswein.
 // This file is part of MFM disk utilities.
 //
@@ -78,7 +80,7 @@ static inline float filter(float v, float *delay)
 //   Data immediately follows header
 //      512 bytes data
 //      16 bit checksum of data
-//      16 bit complement if checksum of data
+//      16 bit complement of checksum of data
 //      
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -137,10 +139,8 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 //
 //
 // drive_params: Drive parameters
-// bytes: bytes to process
-// bytes_crc_len: Length of bytes including CRC
 // cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
+// deltas: MFM delta data to decode
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Or together of the status of each sector decoded
@@ -308,6 +308,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             mfm_mark_data_location(all_raw_bits_count);
             // Figure out the length of data we should look for
             bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
+                mfm_controller_info[drive_params->controller].data_trailer_bytes +
+
                 drive_params->sector_size +
                 drive_params->data_crc.length / 8;
             bytes_needed = bytes_crc_len;

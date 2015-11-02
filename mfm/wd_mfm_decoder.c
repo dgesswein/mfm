@@ -12,6 +12,9 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 11/01/15 DJG Renamed RUSSIAN to ELEKTRONIKA_85 and SYMBOLICS to
+//    SYMBOLICS_3620 to allow support for other models.Use new drive_params 
+//    field and comment changes
 // 05/17/15 DJG Added new formats ADAPTEC, NEWBURYDATA, SYMBOLICS, MIGHTYFRAME,
 //   and partially implemented RUSSIAN. Corrected format comments.
 //   Code cleanup.
@@ -192,7 +195,11 @@ static inline float filter(float v, float *delay)
 //      Sector data for sector size
 //      CRC/ECC code
 //
-//   CONTROLLER_RUSSIAN, Russian drive. No information.
+//   CONTROLLER_Elektronika 85?, Russian DECpro 350 clone. 
+//   I'm using the standard WD1006 decoder for it currently. From
+//   Russian documentation it probably only used cyl9 bit and doesn't
+//   support larger disks. It also may not use the sector size and bad
+//   block flag.
 //   5 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
@@ -207,7 +214,7 @@ static inline float filter(float v, float *delay)
 //      Sector data for sector size
 //      CRC/ECC code
 //
-//   CONTROLLER_SYMBOLICS, Symbolics ?.
+//   CONTROLLER_SYMBOLICS_3620, Symbolics 3620.
 //   7 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe
@@ -320,7 +327,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 || 
-          drive_params->controller == CONTROLLER_RUSSIAN) {
+          drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
@@ -443,7 +450,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_SYMBOLICS) {
+      } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
          sector_status.cyl = (bytes[3] << 8) | bytes[4];
          sector_status.head = bytes[5];
          sector_status.sector = bytes[6];
@@ -452,7 +459,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             msg(MSG_INFO, "Invalid header id bytes %02x, %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], bytes[2], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
-            sector_status.status |= SECT_BAD_DATA;
+            sector_status.status |= SECT_BAD_HEADER;
          }
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
@@ -480,9 +487,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       int id_byte_expected = 0xf8;
       if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
          id_byte_expected = 0xfb;
-      } else if (drive_params->controller == CONTROLLER_RUSSIAN) {
+      } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
          id_byte_expected = 0x80;
-      } else if (drive_params->controller == CONTROLLER_SYMBOLICS) {
+      } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
          if (bytes[2] != 0xf8) {
             msg(MSG_INFO, "Invalid data id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], bytes[2], exp_cyl, sector_status.cyl,
@@ -525,10 +532,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 //
 //
 // drive_params: Drive parameters
-// bytes: bytes to process
-// bytes_crc_len: Length of bytes including CRC
 // cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
+// deltas: MFM delta data to decode
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Or together of the status of each sector decoded
@@ -683,6 +688,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   mfm_mark_data_location(all_raw_bits_count);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
+                        mfm_controller_info[drive_params->controller].data_trailer_bytes + 
                         drive_params->sector_size +
                         drive_params->data_crc.length / 8;
                   bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
