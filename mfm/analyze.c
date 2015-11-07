@@ -173,7 +173,7 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
                   previous_good_header_count = good_header_count;
                }
                if (drive_params_list_index >= drive_params_list_len) {
-                  msg(MSG_FATAL, "Too many header formats found %s\n", 
+                  msg(MSG_FATAL, "Too many header formats found %d\n", 
                     drive_params_list_index);
                   exit(1);
                }

@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 11/07/15 DJG Added SYMBOLICS_3640 format
 // 11/01/15 DJG Renamed RUSSIAN to ELEKTRONIKA_85 and SYMBOLICS to
 //    SYMBOLICS_3620 to allow support for other models.Use new drive_params 
 //    field and comment changes
@@ -225,6 +226,35 @@ static inline float filter(float v, float *delay)
 //      byte 6 sector number
 //      bytes 7-8 16 bit CRC
 //   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      byte 2 0xf8
+//      bytes 3-10 0 (unknown if part of sector data or header)
+//      Sector data for sector size
+//      CRC/ECC code
+//
+//   CONTROLLER_SYMBOLICS_3640, Symbolics 3640.
+//      Closest documentation 
+//      http://bitsavers.trailing-edge.com/pdf/symbolics/3600_series/Lisp_Machine_Hardware_Memos.pdf
+//
+//   11 byte header
+//      byte 0 0xa1
+//      byte 1 0x5a
+//      byte 2 0x96 
+//      byte 3 0x0e 
+//      byte 4 0x0e 
+//      byte 5 0x9e 
+//      byte 6 0x01 
+//      All the following fields the data is LSB first so needs to
+//      be bit reversed.
+//      byte 7 sector bits 7-5 head number bits 1,0  (lsb first)
+//      byte 8 head number bits 7,6 cyl bit 3,2,1,0 (lsb first)
+//      byte 9 rest of cylinder
+//      byte 10 odd parity of bytes 7-9.
+//   Data
+//      Between header and data is a bunch of 0 bits followed by a 1 bit
+//      to syncronize the decoding. 
+//
 //      byte 0 0xa1
 //      byte 1 0xf8
 //      byte 2 0xf8
@@ -461,6 +491,53 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
+         // Bytes that seem to always be at the start of the header. We
+         // check the various unknow bits so if they change we can see what
+         // they represent.
+         uint8_t header_start[] = {0xa1,0x5a,0x96,0x0e,0x0e,0x9e,0x01};
+         // This reverses the bit ordering in a byte. The controller writes
+         // the header data LSB first not the normal MSB first.
+         static unsigned char rev_lookup[16] = {
+            0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
+            0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf };
+         #define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[n>>4])
+         // Calculate the even parity of a byte
+         static unsigned char parity_lookup[16] = {
+            0x0, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x1,
+            0x1, 0x0, 0x0, 0x1, 0x0, 0x1, 0x1, 0x0 };
+         #define EPARITY(n) (parity_lookup[n&0xf] ^ parity_lookup[n>>4])
+
+         sector_status.cyl = (REV_BYTE(bytes[8]) >> 4) | (REV_BYTE(bytes[9]) << 4);
+         sector_status.head = (REV_BYTE(bytes[7]) >> 6) | ((REV_BYTE(bytes[8]) & 0x3) << 2);
+         sector_status.sector = REV_BYTE(bytes[7]) & 0x7;
+         if ((bytes[7] & 0x1c) != 0 || (bytes[8] & 0x30) != 0 || 
+               (bytes[10] & 0xfe) != 0 ) {
+            msg(MSG_INFO,"Unexpected bits set %02x %02x %02x on cyl %d,%d head %d,%d sector %d\n",
+                bytes[7], bytes[8], bytes[10], exp_cyl, sector_status.cyl,
+                exp_head, sector_status.head, sector_status.sector);
+         }
+         // Header has an odd parity check bit
+         if ((EPARITY(bytes[7]) ^ EPARITY(bytes[8]) ^ EPARITY(bytes[9]) ^
+                EPARITY(bytes[10])) != 1) {
+            msg(MSG_INFO,"Header parity mismatch\n");
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         // Not encoded in header so use what was provided.
+         sector_size = drive_params->sector_size;
+
+         if (memcmp(bytes, header_start, sizeof(header_start)) != 0) {
+            int i;
+
+            sector_status.status |= SECT_BAD_HEADER;
+            for (i = 0; i < sizeof(header_start); i++) {
+                if (bytes[i] != header_start[i]) {
+                   msg(MSG_INFO, "Header byte %d differ %02x %02x on cyl %d,%d head %d,%d sector %d\n",
+                      i, bytes[i], header_start[i], exp_cyl, sector_status.cyl,
+                      exp_head, sector_status.head, sector_status.sector);
+                }
+             }
+         }
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -482,9 +559,16 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          msg(MSG_INFO,"Alternate cylinder set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
-      *state = MARK_DATA;
+      // The 3640 doesn't have a 0xa1 header, search for its special sync
+      if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
+         *state = MARK_DATA1;
+      } else {
+         *state = MARK_DATA;
+      }
    } else { // Data
+      // Value and where to look for header mark byte
       int id_byte_expected = 0xf8;
+      int id_byte_index = 1;
       if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
@@ -496,8 +580,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
+         id_byte_expected = 0xe0;
+         id_byte_index = 0;
       }
-      if (bytes[1] != id_byte_expected && crc == 0) {
+      if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
                bytes[1], id_byte_expected,
                sector_status.cyl, sector_status.head, sector_status.sector);
@@ -600,6 +687,8 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int sector_index = 0;
    // Count all the raw bits for emulation file
    int all_raw_bits_count = 0;
+   // Bit count of start of header for Symbolics 3640
+   int header_raw_bit_count = 0;
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
@@ -673,6 +762,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 #endif
             if ((raw_word & 0xffff) == 0x4489
                   && zero_count >= MARK_NUM_ZEROS) {
+               header_raw_bit_count = tot_raw_bit_cntr;
                zero_count = 0;
                bytes[0] = 0xa1;
                byte_cntr = 1;
@@ -701,6 +791,27 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                raw_bit_cntr = 0;
                decoded_word = 0;
                decoded_bit_cntr = 0;
+            }
+         } else if (state == MARK_DATA1) {
+            if ((tot_raw_bit_cntr - header_raw_bit_count) > 530 && 
+                  ((raw_word & 0xf) == 0x9)) {
+               state = PROCESS_DATA;
+               mfm_mark_data_location(all_raw_bits_count);
+               // Figure out the length of data we should look for
+               bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
+                     mfm_controller_info[drive_params->controller].data_trailer_bytes + 
+                     drive_params->sector_size +
+                     drive_params->data_crc.length / 8;
+               bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+               if (bytes_needed >= sizeof(bytes)) {
+                  msg(MSG_FATAL,"Too many bytes needed %d\n", bytes_needed);
+                  exit(1);
+               }
+               // Resync decoding to the mark
+               raw_bit_cntr = 0;
+               decoded_word = 0;
+               decoded_bit_cntr = 0;
+               byte_cntr = 0;
             }
          } else {
             int entry_state = state;

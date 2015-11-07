@@ -15,6 +15,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/07/15 DJG Added Symbolics 3640 support
 // 11/01/15 DJG Renamed formats and other comment changes
 // 05/17/15 DJG Added formats MIGHTYFRAME, ADAPTEC, NEWBURYDATA, SYMBOLICS, and
 //          partially implement format RUSSIAN. Also code cleanup amd check for
@@ -356,7 +357,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_ADAPTEC ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
-         drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
+         drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+         drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786)  {
@@ -707,6 +709,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    // Length of ECC correction. 0 is no correction.
    int ecc_span = 0;
    SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
+   // Start byte for CRC decoding
+   int start;
 
    if (*state == PROCESS_HEADER) {
       crc_info = drive_params->header_crc;
@@ -754,11 +758,17 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             crc = 1; // Non zero indicates error
          }
       } else {
-         msg(MSG_FATAL, "Invalid CRC legth %d\n",crc_info.length);
+         msg(MSG_FATAL, "Invalid CRC/checksum length %d\n",crc_info.length);
          exit(1);
       }
+   } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
+      if (*state == PROCESS_HEADER) {
+         crc = 0;
+      } else {
+         start = mfm_controller_info[drive_params->controller].data_crc_ignore;
+         crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
+      }
    } else {
-      int start;
       if (*state == PROCESS_HEADER) {
          start = mfm_controller_info[drive_params->controller].header_crc_ignore;
       } else {
@@ -804,7 +814,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ADAPTEC ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
-            drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
+            drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+            drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786) {
