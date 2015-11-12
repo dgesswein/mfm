@@ -685,7 +685,10 @@ int analyze_chs(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
       // for the DEC RQDX3 so it is tested first.
       rc = analyze_chs_headers(drive_params, deltas, max_deltas, cyl, head);
    }
-   analyze_sectors(drive_params, cyl, deltas, max_deltas);
+   // Don't check sectors if we didn't figure out format
+   if (rc != 0) {
+      analyze_sectors(drive_params, cyl, deltas, max_deltas);
+   }
 
    return rc;
 }
