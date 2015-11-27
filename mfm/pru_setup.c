@@ -17,6 +17,7 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 11/22/15 DJG Add 15 MHz data rate support.
 // 05/17/15 DJG Added routines to allow dumping of state if PRU halts
 //   due to error.
 // 01/04/15 DJG Added pru_set_clock to set the PRU clock to generate the
@@ -455,6 +456,20 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
    uint32_t rc = 0;
    uint32_t orig_control_reg[2];
    int pru_num;
+   struct {
+     int bitrate;
+     int pre_divide;
+     int mult;
+     int post_divide;
+   } rates[] = {
+      // This assumes input clock is 24 MHz. We pre divide by 1, multiply by 
+      // 33 and divide by 4 to get clock of 198 MHz. That
+      // divided by 18 gives desired 11 MHz bit rate.
+      { 11000000, 1, 33, 4},
+      // This gives 195 MHz, divided by 13 gives 15 MHz rate
+      { 15000000, 2, 65, 4},
+   };
+   int ndx;
 
    fd = open("/dev/mem", O_RDWR);
    ptr = mmap(0, map_length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 
@@ -474,31 +489,34 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
       // Select normal 200 MHz clock
       *(ptr + CLKSEL_PRU_ICSS_OCP_CLK/4) = 0;
       rc = 200000000; // Default clock works for this
-   } else if (tgt_bitrate_hz == 11000000) {
-      // This assumes input clock is 24 MHz. We multiply by 33 and divide by
-      // first n of 1 and second divider of 4 to get clock of 198 MHz. That
-      // divided by 18 gives desired 11 MHz bit rate.
+   } else {
+      for (ndx = 0; ndx < ARRAYSIZE(rates); ndx++) {
+         if (rates[ndx].bitrate == tgt_bitrate_hz) {
+            break;
+         }
+      }
+      if (ndx >= ARRAYSIZE(rates)) { 
+         msg(MSG_FATAL, "Don't know how to set target bitrate to %d Hz\n",
+            tgt_bitrate_hz);
+         exit(1);
+      }
+      // Turn off spread spectrum
       *(ptr + CM_SSC_DELTAMSTEP_DPLL_DISP/4) = 0;
       *(ptr + CM_SSC_MODFREQDIV_DPLL_DISP/4) = 0;
+      // Set to bypass so we can update
       *(ptr + CM_CLKMODE_DPLL_DISP/4) = 4;
       wait_bits(ptr + CM_IDLEST_DPLL_DISP/4, 0x100, 0x100, "PLL bypass");
-      // Select effective M 396, N 10 to give 1980 MHz clock
-      *(ptr + CM_CLKSEL_DPLL_DISP/4) = (33 << 8) | (1-1);
-      // Enable clock and post divide by 10 to give 198 MHz clock. 
-      // 198/18 (18 is PWM period) give 11 MHz target bit rate
-      *(ptr + CM_DIV_M2_DPLL_DISP/4) = 0x100 | 4;
+      *(ptr + CM_CLKSEL_DPLL_DISP/4) = (rates[ndx].mult << 8) | 
+         (rates[ndx].pre_divide - 1);
+      *(ptr + CM_DIV_M2_DPLL_DISP/4) = 0x100 | rates[ndx].post_divide;
       // Enable PLL
       *(ptr + CM_CLKMODE_DPLL_DISP/4) = 7;
       // Verify locked and out of bypass
       wait_bits(ptr + CM_IDLEST_DPLL_DISP/4, 0x101, 0x1,"Locked and not bypass");
       // Select display clock for PRU
       *(ptr + CLKSEL_PRU_ICSS_OCP_CLK/4) = 1;
-      rc = 198000000;
-   } else {
-      // 15 MHz for RLL will be 65/8 giving 195 MHz clock
-      msg(MSG_FATAL, "Don't know how to set target bitrate to %d hz\n",
-         tgt_bitrate_hz);
-      exit(1);
+      rc = 24000000 * rates[ndx].mult / rates[ndx].pre_divide / 
+         rates[ndx].post_divide;
    }
    // Restore PRU state
    for (pru_num = 0; pru_num < 2 && halt == PRU_SET_CLOCK_HALT; pru_num++) {

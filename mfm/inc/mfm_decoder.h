@@ -51,13 +51,15 @@ typedef struct {
    // CRC/ECC used for header and data area
    CRC_INFO header_crc, data_crc;
    // Track format
-   // Update controller_names list below if enum changed.
+   // Update mfm_controller_info list below if enum changed.
+   // ORDER IN THE TWO LISTS MUST MATCH
    enum {CONTROLLER_NONE, CONTROLLER_NEWBURYDATA,
       CONTROLLER_WD_1006, CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
+      CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_OMTI_5510, CONTROLLER_DEC_RQDX3, 
+      CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
-      CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE
@@ -203,7 +205,7 @@ DEF_EXTERN struct {
    int separate_data;
 } mfm_controller_info[]
 
-// Keep sorted by header length. Must match order of controller enum
+// Keep sorted by header length. MUST MATCH order of controller enum
 #ifdef DEF_DATA
    = {
       {"CONTROLLER_NONE",        0, 10000000,      0, 
@@ -231,12 +233,22 @@ DEF_EXTERN struct {
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0,
          0, 1},
+      {"Elektronika_85",      256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, 
+         16, 1},
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0,
          0, 1},
       {"DEC_RQDX3",            256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0,
+         0, 1},
+      {"Seagate_ST11M",        256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0,
@@ -257,11 +269,6 @@ DEF_EXTERN struct {
          0, 1, CINFO_CHS,
          11, 1, 0, 1,
          0, 1},
-      {"Elektronika_85",      256, 10000000,      0, 
-         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
-         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 0, 0, 
-         16, 1},
 // This format is detected by special case code so it doesn't need to
 // be sorted by number
       {"Mightyframe",          256, 10000000,      0, 

@@ -6,6 +6,7 @@
 
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
+// 11/22/15 DJG Add special logic for ST11M controller detection
 // 11/01/15 DJG Analyze header and data together. The Elektronika_85 has
 //    same header format as other drives but the data area is different.
 //    Only CHS changed. TODO LBA should be redone to match
@@ -674,7 +675,9 @@ int analyze_chs(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
    int rc;
 
    rc = analyze_chs_headers(drive_params, deltas, max_deltas, cyl, head);
-   if (rc != 1) {
+     // For the ST11M only the first two heads are used on the first
+     // cylinder. Retry on the next to get proper number of heads.
+   if (rc != 1 || drive_params->controller == CONTROLLER_SEAGATE_ST11M) {
       cyl = cyl + 1;
       head = 1;
       msg(MSG_INFO,"Retrying on cylinder %d head %d\n", cyl, head);

@@ -15,6 +15,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/13/15 DJG Added Seagate ST11M support
 // 11/07/15 DJG Added Symbolics 3640 support
 // 11/01/15 DJG Renamed formats and other comment changes
 // 05/17/15 DJG Added formats MIGHTYFRAME, ADAPTEC, NEWBURYDATA, SYMBOLICS, and
@@ -357,6 +358,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_ADAPTEC ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
+         drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -814,6 +816,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ADAPTEC ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
+            drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,

@@ -17,6 +17,9 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 11/22/15 DJG Added 15 MHz bitrate and fixed PRU0_DEFAULT_PULSE_WIDTH.
+//    Set bit pattern to 1010... when initializing new image. Some
+//    controllers don't like all zeros.
 // 11/01/15 DJG Fixed incorrect printing of select and head for rev B board.
 // 07/30/15 DJG Modified to support revision B board.
 // 05/17/15 DJG Added DMA setup, printing/logging errors if PRU halts due
@@ -594,7 +597,7 @@ int main(int argc, char *argv[])
    uint32_t index_start, index_end, last_index_start = 0xffffffff;
    uint32_t bit_period = 0;
    int track_size;
-   uint32_t *zeros;
+   uint32_t *data;
 
    board_initialize();
 
@@ -609,18 +612,21 @@ int main(int argc, char *argv[])
       drive_params.cmdline = parse_print_cmdline(&drive_params, 0);
       // Assume 3600 RPM, 60 RPS. Make round number of words
       track_size = ceil(1/60.0 * drive_params.sample_rate_hz / 8 / 4)*4;
-      zeros = calloc(1,track_size);
+      data = calloc(1,track_size);
+      for (i = 0; i < ARRAYSIZE(data); i++) {
+         data[i] = 0xaaaaaaaa;
+      }
       drive_params.fd[0] = emu_file_write_header(drive_params.filename[0],
          drive_params.num_cyl, drive_params.num_head, drive_params.cmdline,
          drive_params.note, drive_params.sample_rate_hz, 
          drive_params.start_time_ns, track_size);
       for (cyl = 0; cyl < drive_params.num_cyl; cyl++) {
          for (head = 0; head < drive_params.num_head; head++) {
-            emu_file_write_track_bits(drive_params.fd[0], zeros, track_size / 4, 
+            emu_file_write_track_bits(drive_params.fd[0], data, track_size / 4, 
                cyl, head, track_size);
          }
       }
-      free(zeros);
+      free(data);
       emu_file_close(drive_params.fd[0], 1);
       sample_rate_hz = drive_params.sample_rate_hz;
    }
@@ -724,7 +730,8 @@ int main(int argc, char *argv[])
    }
 
    pru_write_word(MEM_PRU0_DATA, PRU0_BIT_PRU_CLOCKS, bit_period);
-   pru_write_word(MEM_PRU0_DATA, PRU0_DEFAULT_PULSE_WIDTH, bit_period*2);
+   // Actual pulse width is 1 more than specified
+   pru_write_word(MEM_PRU0_DATA, PRU0_DEFAULT_PULSE_WIDTH, bit_period*2-1);
 
    // Setup PRU1 rate-specific values
    unsigned idx = 0;

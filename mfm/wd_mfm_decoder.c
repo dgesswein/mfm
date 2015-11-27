@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 11/13/15 DJG Added Seagate ST11M format
 // 11/07/15 DJG Added SYMBOLICS_3640 format
 // 11/01/15 DJG Renamed RUSSIAN to ELEKTRONIKA_85 and SYMBOLICS to
 //    SYMBOLICS_3620 to allow support for other models.Use new drive_params 
@@ -197,16 +198,13 @@ static inline float filter(float v, float *delay)
 //      CRC/ECC code
 //
 //   CONTROLLER_Elektronika 85?, Russian DECpro 350 clone. 
-//   I'm using the standard WD1006 decoder for it currently. From
-//   Russian documentation it probably only used cyl9 bit and doesn't
-//   support larger disks. It also may not use the sector size and bad
-//   block flag.
+//   From Russian documentation it probably only used cyl9 bit and doesn't
+//   support larger disks. 
 //   5 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
 //      byte 2 low 8 bits of cylinder
-//      byte 3 bits 0-3 head number. bits 5-6 sector size, bit 7 bad block flag
-//         sector size is 0 256 bytes, 1 512 bytes, 2 1024 bytes, 3 128 bytes
+//      byte 3 bits 0-3 head number. 
 //      byte 4 sector number
 //      bytes 5-6 16 bit CRC
 //   Data
@@ -272,6 +270,32 @@ static inline float filter(float v, float *delay)
 //         sector size is 0 256 bytes, 1 512 bytes, 2 1024 bytes, 3 128 bytes
 //      byte 4 bits 0-4 sector number, bit 5 high bit of head number
 //      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
+//   CONTROLLER_SEAGATE_ST11M
+//   No manual
+//   The first two tracks of the first cylinder is used by the controller. The
+//      entire first cylinder will be written to the extract file though
+//      the unused tracks are likely to be unreadable so zeros. You will need
+//      to remove the first cylinder to have only the normal data area.
+//   6 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 0-3 Head. 6-7 upper 2 bits of cylinder.  
+//         0xff for first cylinder used by controller.
+//      byte 3 Low 8 bits of cylinder
+//      byte 4 Sector
+//      byte 5 4 if track has been assigned spare, 8 if it is the spare.
+//   The tracks are formatted such that they can contain 18 sectors but
+//      only 17 used. If a single bad sector is on the track it will be
+//      marked bad with 0xff in byte 2-4 and the extra sector area used.
+//      More than one and an alternate track is assigned.
+//   When a track is assigned a spare the header for the bad track will
+//      have the cylinder and head of the replacement track.
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xf8
@@ -356,8 +380,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_WD_1006 || 
-          drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
+      } else if (drive_params->controller == CONTROLLER_WD_1006) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
@@ -372,6 +395,28 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.head = bytes[3] & 0xf;
          sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
          bad_block = (bytes[3] & 0x80) >> 7;
+
+         sector_status.sector = bytes[4];
+
+         if (cyl_high == -1) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
+         int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
+         int cyl_high;
+
+         cyl_high = cyl_high_lookup[(bytes[1] & 0xf) ^ 0xe];
+         sector_status.cyl = 0;
+         if (cyl_high != -1) {
+            sector_status.cyl = cyl_high << 8;
+         }
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = bytes[3] & 0xf;
+         sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[4];
 
@@ -537,6 +582,55 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                       exp_head, sector_status.head, sector_status.sector);
                 }
              }
+         }
+      } else if (drive_params->controller == CONTROLLER_SEAGATE_ST11M) {
+         if (bytes[2] == 0xff) {
+            if (bytes[3] == 0xff) {
+               // Bad block. Everything other than unknown byte set to 0xff
+               // Set what we know and mark bad so it won't be used.
+               sector_status.cyl = exp_cyl;
+               sector_status.head = exp_head;
+               sector_status.status |= SECT_BAD_HEADER;
+               msg(MSG_INFO,"Spare sector used on cyl %d, head %d, physical sector %d\n",
+                  sector_status.cyl, sector_status.head, *sector_index);
+            } else {
+               // Controller area only had sector and possibly cylinder
+               sector_status.cyl = bytes[3];
+               sector_status.head = exp_head;
+               sector_status.sector = bytes[4];
+            }
+         } else {
+            uint8_t byte5 = bytes[5];
+            uint8_t byte2 = bytes[2];
+
+            sector_status.cyl = (((bytes[2] & 0xc0) << 2) | bytes[3]) + 1;
+            sector_status.head = bytes[2] & 0xf;
+            if (byte5 == 0x4) {
+               msg(MSG_INFO, "Cylinder %d head %d assigned alternate cyl %d head %d. Extract data not fixed\n",
+                  exp_cyl, exp_head, sector_status.cyl, sector_status.head);
+               byte5 = 0;
+            }
+            if (byte5 == 0x8) {
+               is_alternate = 1;
+               // Clear various bits set so check below doesn't report
+               // unexpected values
+               byte5 = 0;
+               byte2 = byte2 & ~0x20;
+            }
+            if (byte5 != 0x0 || (bytes[4] & 0xe0) != 0 || 
+                 (byte2 & 0x30) != 0) {
+               msg(MSG_INFO, "Unexpected bytes  %02x, %02x, %02x on cyl %d,%d head %d,%d sector %d\n",
+                     bytes[2], bytes[4], byte5, exp_cyl, sector_status.cyl,
+                     exp_head, sector_status.head, sector_status.sector);
+            }
+            sector_status.sector = bytes[4];
+         }
+         sector_size = drive_params->sector_size;
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
          }
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
