@@ -287,7 +287,7 @@ DEF_EXTERN struct {
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          3, 0, 0, 0, 
          0, 0},
-      {"NorthStar_Advantage",  256, 10000000, 360000,
+      {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2,3,
          0, 1, CINFO_CHS,
          7, 0, 0, 0, 

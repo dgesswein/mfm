@@ -15,6 +15,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/24/15 DJG Code cleanup
 // 11/13/15 DJG Added Seagate ST11M support
 // 11/07/15 DJG Added Symbolics 3640 support
 // 11/01/15 DJG Renamed formats and other comment changes
@@ -971,9 +972,9 @@ void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params) {
 
    if (drive_params->emu_track_data_bytes > 0 && current_track_words_ndx*4 >=
           drive_params->emu_track_data_bytes) {
-      msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes\n",
+      msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes, need %d words\n",
            current_track_words_ndx*4 - drive_params->emu_track_data_bytes+
-           (bit_count+7)/8);
+           (bit_count+7)/8, current_track_words_ndx);
    }
 }
 
@@ -1043,12 +1044,18 @@ static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
 }
 
 // Write the raw decoded clock and data words into the current track word
-// buffer.
+// buffer. This routine only called if bits left in raw_word plus bits
+// about to be added are >= 32 bits.
+//
+// drive_params: Drive parameters
+// all_raw_bits_count: How many bits left in raw_word to process
+// int_bit_pos: Number of zeros that are being added before next one
+// raw_word: bits accululated so far
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word)
 {
    uint32_t tmp;
-   int tmp_bit_pos = int_bit_pos;
+   // Get shift to move unprocessed bits to MSB
    int shift = 32 - all_raw_bits_count;
 
    // If we aren't generating an emulation output file don't process the
@@ -1058,11 +1065,14 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
       return 0;
    }
 
+   // Shift unprocessed bits to MSB
    tmp = raw_word << shift;
-   tmp_bit_pos -= shift;
-   if (tmp_bit_pos == 0) {
+   // If the LSB after shift is where int_bit_pos says a one goes then add it
+   int_bit_pos -= shift;
+   if (int_bit_pos == 0) {
       tmp |= 1;
    }
+   // Save word
    if (current_track_words_ndx < ARRAYSIZE(current_track_words)) {
       current_track_words[current_track_words_ndx++] = tmp;
    } else {
@@ -1071,16 +1081,18 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
       exit(1);
    }
 
-   while (tmp_bit_pos >= 32) {
-
+   // Add any more zeros in int_bit_pos until it is less than 32. Those
+   // bits will be added to raw_word by caller.
+   while (int_bit_pos >= 32) {
       if (current_track_words_ndx < ARRAYSIZE(current_track_words)) {
          current_track_words[current_track_words_ndx++] = 0;
-         tmp_bit_pos -= 32;
+         int_bit_pos -= 32;
       } else {
          msg(MSG_FATAL, "Current track words overflow\n");
          exit(1);
       }
    }
-   return tmp_bit_pos;
+   // This will be all_raw_bits_count on next call
+   return int_bit_pos;
 }
 

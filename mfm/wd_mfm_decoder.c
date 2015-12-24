@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 12/24/15 DJG Comment changes
 // 11/13/15 DJG Added Seagate ST11M format
 // 11/07/15 DJG Added SYMBOLICS_3640 format
 // 11/01/15 DJG Renamed RUSSIAN to ELEKTRONIKA_85 and SYMBOLICS to
@@ -287,7 +288,8 @@ static inline float filter(float v, float *delay)
 //      byte 1 0xfe
 //      byte 2 0-3 Head. 6-7 upper 2 bits of cylinder.  
 //         0xff for first cylinder used by controller.
-//      byte 3 Low 8 bits of cylinder
+//      byte 3 Low 8 bits of cylinder. Controller cylinder and first user
+//         cylinder are both 0.
 //      byte 4 Sector
 //      byte 5 4 if track has been assigned spare, 8 if it is the spare.
 //   The tracks are formatted such that they can contain 18 sectors but
@@ -301,6 +303,41 @@ static inline float filter(float v, float *delay)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//   Oleksandr Kapitanenko sent me more information he determined for the
+//   emulator he is working on. In this description side is what I call
+//      head, track is what I call cylinder.
+//      sync length = 10
+//      gap_byte = 0x4E
+//      gap1 = 19
+//      gap2 = 0
+//      gap3 = 20
+//
+//      CRC:
+//      crc_order = 32
+//      crc_poly = 0x41044185
+//      crc_direct = 1
+//      crc_init = 0
+//      crc_xor = 0
+//      crc_refin = 0
+//      crc_refout = 0
+//      Track:
+//      (gap1 0x4E x 19 bytes)
+//      repeat:
+//      (sync 0x00 x 10 bytes) 0xA1 0xFE (side 1 byte)(track 1 byte)(sector 1
+//      byte) 0x00 (CRC 4 bytes Big endian)(0x00 x 5  bytes)
+//      (sync 0x00 x 10 bytes) 0xA1 0xF8 (512 bytes payload)(CRC 4 bytes Big
+//      endian)(0x00 x 2 bytes)(gap3 0x4E x 20 bytes)
+//
+//      Track 0 is reserved for storing low level format information and bad
+//      sector map. It has special data in sector index fields: side is always
+//      0xFF for all sides
+//
+//      Tracks 1 an onwards are used for host computer data. Sector ID field
+//      details:
+//      Track #: starts from 0 , so Track 0 and Track 1 will have track field
+//      =0, Track 2 =1, Track 3 =2 and so on.
+//      Bits 9 and 8 of track number are stored in bits 7 and 6 of side byte.
+//
 //
 // state: Current state in the decoding
 // bytes: bytes to process

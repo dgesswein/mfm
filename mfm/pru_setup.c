@@ -17,6 +17,7 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 12/24/15 DJG Comment cleanup
 // 11/22/15 DJG Add 15 MHz data rate support.
 // 05/17/15 DJG Added routines to allow dumping of state if PRU halts
 //   due to error.
@@ -466,7 +467,8 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
       // 33 and divide by 4 to get clock of 198 MHz. That
       // divided by 18 gives desired 11 MHz bit rate.
       { 11000000, 1, 33, 4},
-      // This gives 195 MHz, divided by 13 gives 15 MHz rate
+      // This gives 195 MHz, divided by 13 gives 15 MHz rate. Pre divide
+      // by 2, multiply by 64 and divide by 4.
       { 15000000, 2, 65, 4},
    };
    int ndx;

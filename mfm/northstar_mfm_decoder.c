@@ -3,10 +3,17 @@
 //   http://www.classiccmp.org/dunfield/miscpm/advtech.pdf
 // The format is 187 0xff, 3 0x55, 40 0xff at start of track.
 // Each sector starts with 67 0x00, 0x01, 9 byte header, 512 data bytes,
-// 4 byte crc, 45 ?
+// 4 byte crc, 45 unspecified bytes
+// The 3 0x55 is used to syncronize finding the sector locations. The
+// controller uses fixed delays from where it finds that pattern to start
+// looking for the sector headers.
+// It appears the controller uses the time from index to the 0x55 pattern
+// as an estimate of drive RPM and ajusts the time it looks for the
+// sector based on it. This code does not implement that method.
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 12/24/15 DJG Comment cleanup
 // 11/01/15 DJG Use new drive_params field and comment changes
 //
 // Copyright 2015 David Gesswein.

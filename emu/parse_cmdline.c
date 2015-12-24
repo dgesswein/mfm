@@ -1,4 +1,4 @@
-#define VERSION "1.0pre10"
+#define VERSION "1.0pre11"
 // Parse the command line.
 //
 // Call parse_cmdline to parse the command line
