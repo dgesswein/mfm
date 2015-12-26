@@ -446,7 +446,6 @@ void emu_file_write_track_bits(int fd, uint32_t *words, int num_words,
    uint32_t value;
    int i;
 
-printf("Words %d\n",num_words);
    if (fd != -1) {
       value = TRACK_ID_VALUE;
       emu_file_write(fd, &value, sizeof(value));
