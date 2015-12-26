@@ -3,9 +3,18 @@
 //   http://www.classiccmp.org/dunfield/miscpm/advtech.pdf
 // The format is 187 0xff, 3 0x55, 40 0xff at start of track.
 // Each sector starts with 67 0x00, 0x01, 9 byte header, 512 data bytes,
-// 4 byte crc, 45 ?
+// 4 byte crc, 45 unspecified bytes
+// The 3 0x55 is used to syncronize finding the sector locations. The
+// controller uses fixed delays from where it finds that pattern to start
+// looking for the sector headers.
+// It appears the controller uses the time from index to the 0x55 pattern
+// as an estimate of drive RPM and ajusts the time it looks for the
+// sector based on it. This code does not implement that method.
 //
 // TODO: Too much code is being duplicated adding new formats. 
+//
+// 12/24/15 DJG Comment cleanup
+// 11/01/15 DJG Use new drive_params field and comment changes
 //
 // Copyright 2015 David Gesswein.
 // This file is part of MFM disk utilities.
@@ -78,7 +87,7 @@ static inline float filter(float v, float *delay)
 //   Data immediately follows header
 //      512 bytes data
 //      16 bit checksum of data
-//      16 bit complement if checksum of data
+//      16 bit complement of checksum of data
 //      
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -137,10 +146,8 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 //
 //
 // drive_params: Drive parameters
-// bytes: bytes to process
-// bytes_crc_len: Length of bytes including CRC
 // cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
+// deltas: MFM delta data to decode
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Or together of the status of each sector decoded
@@ -308,6 +315,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             mfm_mark_data_location(all_raw_bits_count);
             // Figure out the length of data we should look for
             bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
+                mfm_controller_info[drive_params->controller].data_trailer_bytes +
+
                 drive_params->sector_size +
                 drive_params->data_crc.length / 8;
             bytes_needed = bytes_crc_len;

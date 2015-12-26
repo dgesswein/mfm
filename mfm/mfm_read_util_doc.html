@@ -1,0 +1,362 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+	<title></title>
+	<meta name="generator" content="LibreOffice 4.4.5.2 (Linux)"/>
+	<meta name="author" content="David Gesswein"/>
+	<meta name="created" content="2013-12-28T10:05:51"/>
+	<meta name="changed" content="2015-11-23T20:43:24.060941054"/>
+	<style type="text/css">
+		@page { margin: 0.79in }
+		p { margin-bottom: 0.08in }
+		p.hanging-indent { margin-left: 0.39in; text-indent: -0.2in }
+		a:link { so-language: zxx }
+	</style>
+</head>
+<body lang="en-US" dir="ltr">
+<p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
+mfm_read can analyze and/or read a MFM disk and write raw MFM
+transition data, decoded data, or emulation data to files.  
+</p>
+<p class="hanging-indent" style="margin-left: 0.2in">mfm_util can
+read transition and convert to emulation or decoded data. It can also
+read emulation file data and convert to decoded data.</p>
+<p style="margin-bottom: 0in">mfm_read and mfm_util both use similar
+command options.</p>
+<p style="margin-bottom: 0in">--analyze  -a [=cyl,head]</p>
+<p style="margin-left: 0.49in; margin-bottom: 0in">Analyze disk
+format. If cylinder and head is specified it will analyze the
+specified track for header format. No spaces can be in the optional
+parameters. --analyze=10,4</p>
+<p style="margin-bottom: 0in">--begin_time -b #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+nanoseconds to delay from index to start reading track</p>
+<p style="margin-bottom: 0in">--cylinders  -c #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+cylinders.</p>
+<p style="margin-bottom: 0in">--data_crc  -j #h,#h,#h[,#h]</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The CRC/ECC
+parameters for the sector data area.  Initial value, polynomial,
+polynomial length, maximum ECC span.</p>
+<p style="margin-bottom: 0in">--drive  -d #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Drive number to
+select for reading. Only valid for read command. Drives are number 1
+to 4. 
+</p>
+<p style="margin-bottom: 0in">--emulation_file -m filename</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
+emulation bit data to. No file created if not specified</p>
+<p style="margin-bottom: 0in">--extracted_data_file  -e filename</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
+decoded data to. No file created if not specified.</p>
+<p style="margin-bottom: 0in">--format  -f WD_1006 | OMTI_5510 | 
+DEC_RQDX3 | Xebec_104786 | Olivetti  (and others)</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
+Use --format list to show currently known formats.</p>
+<p style="margin-bottom: 0in">--head_3bit  -3</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Selects header 3
+bit head encoding used by WD 1003 controller. Default is 4 bit. This
+will not be detected by analyze. The wrong number of heads may be
+selected.</p>
+<p style="margin-bottom: 0in">--header_crc  -g #h,#h,#h[,#h]</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The CRC/ECC
+parameters for the sector header. Initial value, polynomial,
+polynomial length, maximum ECC span.</p>
+<p style="margin-bottom: 0in">--heads  -h #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+heads.</p>
+<p style="margin-bottom: 0in">--interleave  -i # | #,#,#,#,...</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The logical sector
+numbers from header in physical sector order or the interleave value</p>
+<p style="margin-bottom: 0in">--note -n “string”</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">String is stored in
+header of transition and emulation file for information about image.
+mfm_util will display.</p>
+<p style="margin-bottom: 0in">--retries  -r #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Select number of
+retries on read errors. Only valid for read command. Default 50.</p>
+<p style="margin-bottom: 0in">--sector_length  -l #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The sector data
+area length in bytes. Default is 512.</p>
+<p style="margin-bottom: 0in">--sectors  -s #[,#]</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+sectors per track, lowest sector number.</p>
+<p style="margin-bottom: 0in">--transitions_file  -t filename</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
+raw MFM transitions to. No file created if not specified. Only valid
+for read command.</p>
+<p style="margin-bottom: 0in">--quiet  -q #h</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Bit mask to select
+which messages don't print. 0 is print all messages. Default is 1 (no
+debug messages). Higher bits are more important messages in general.</p>
+<p style="margin-bottom: 0in">--unbuffered_seek  -u</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Use
+unbuffered/ST506 seeks. Default is buffered/ST412.</p>
+<p style="margin-bottom: 0in">--version -v</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Print program
+version number.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Long options can be abbreviated to the
+shortest unique name. Option values can't have spaces unless quoted
+as a string.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in"># is a number. #h is a number which may
+be decimal, octal if starts with a 0, or hex starting with 0x.</p>
+<p style="margin-bottom: 0in">The Cyclic Redundancy Check (CRC) /
+Error Correcting Code (ECC) parameters consists of a initial value
+which the CRC register is set to before starting the CRC, the CRC bit
+length, a CRC polynomial, and a maximum ECC span. The ECC span should
+be zero if ECC correction should not be used.</p>
+<p style="margin-bottom: 0in"> 
+</p>
+<p style="margin-bottom: 0in">32 bit or longer polynomials may be
+usable for ECC even if the original controller only used them for
+CRC. The quality of the polynomial chosen determines the
+miss-correction probability.  Most 32 bit polynomials specify 5 bit
+correction though some say they can be used for up to 11 bit
+correction.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Emulation file is for use by the
+mfm_emu program to emulate a disk drive.  For mfm_read it is an
+output. For mfm_util it is an output if a transitions file is
+specified otherwise it is an input. 
+</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">If extract file is specified mfm_read
+will attempt to decode the track data. If the disk format is known an
+extract file should be specified even if one is not needed since
+mfm_read will then reread tracks that have errors until it exceeds
+the error count or gets a successful read of the track. The extract
+format is the sector data from the drive written in logical sector
+order. If controllers use alternate cylinders the data for those
+cylinders are not currently moved to the logical cylinder location.
+The extract file will not be corrected for controllers that use
+logical to physical mapping other than interleave.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Begin_time is for drives that have a
+sector straddle the start of the index pulse. For reading to work
+properly all the data must be read consecutively. Set this parameter
+to the time in nanoseconds the first physical sector is delayed from
+the index pulse. It is needed for Corvus model H and NorthStar
+Advantage drives.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">NOTE: Some computers use different
+format on different tracks. Analyze can only handle one format at a
+time. This may cause it to determine the wrong number of cylinders or
+other parameters. The published specification for the drive should be
+checked against what analyze determine and the command arguments
+adjusted as needed.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Examples:</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">To read an unknown format drive</p>
+<p style="margin-bottom: 0in">   mfm_read --analyze
+--transitions_file raw_data --extracted_data_file extracted_data
+–note “Drive from TI Professional computer read November 7 2014”</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Analyze is conservative on maximum ECC
+burst length for correction. You may rerun with the command line
+printed and change the header or data _crc last parameter to increase
+ECC span with higher probability of miss correction. If you expected
+sector doesn't match sector found on some of the tracks the drive may
+have different interleave on some tracks. Try rerunning with the
+command parameters printed except leave off –interleave.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">To store raw transitions without
+decoding (change parameters to match your drive)</p>
+<p style="margin-bottom: 0in">   mfm_read --transitions_file raw_data
+--drive 1 --heads 6 --cylinders 640</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">To process previously read raw
+transitions data if analyze determined decoding parameters or they
+were manually specifed when file created:</p>
+<p style="margin-bottom: 0in">   mfm_util --transitions_file raw_out2
+--extracted_data_file /tmp/decoded_out 
+</p>
+<p style="margin-bottom: 0in">Otherwise specify parameters for your
+drive like:</p>
+<p style="margin-bottom: 0in">   mfm_util --sectors 17,0 --heads 6
+--cylinders 640 --header_crc 0x2605fb9c,0x104c981,32,0 --data_crc 
+0xd4d7ca20,0x104c981,32,0 --format OMTI_5510 --sector_length 512
+--interleave 0,3,6,9,12,15,1,4,7,10,13,16,2,5,8,11,14
+--transitions_file raw_out2 --extracted_data_file /tmp/decoded_out 
+</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">--emulation_file may be specified
+instead of  --transitions_file to convert emulation file to extracted
+data.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Analysis typical messages. Explanation
+in italic:</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">AM33XX</p>
+<p style="margin-bottom: 0in">File prucode0.bin open passed</p>
+<p style="margin-bottom: 0in">   <i>Informational messages from PRU
+access routines.</i></p>
+<p style="margin-bottom: 0in">Found drive at select 2</p>
+<p style="margin-bottom: 0in">   <i>Informational. Select line drive
+responded to.</i></p>
+<p style="margin-bottom: 0in">Returning to track 0</p>
+<p style="margin-bottom: 0in">   <i>Informational. This operation may
+take a while.</i></p>
+<p style="margin-bottom: 0in">Drive RPM 3594.4</p>
+<p style="margin-bottom: 0in">   <i>Informational. Drive should be
+close to 3600 RPM</i></p>
+<p style="margin-bottom: 0in">Matches count 34 for controller
+OMTI_5510</p>
+<p style="margin-bottom: 0in">Header CRC: Polynomial 0x104c981 length
+32 initial value 0x2605fb9c</p>
+<p style="margin-bottom: 0in">Sector length 512</p>
+<p style="margin-bottom: 0in">Data CRC: Polynomial 0x104c981 length
+32 initial value 0xd4d7ca20</p>
+<p style="margin-bottom: 0in">Number of heads 6 number of sectors 17
+first sector 0</p>
+<p style="margin-left: 0.15in; margin-bottom: 0in">I<i>nformational.
+What we found about the disk format. Sometimes multiple formats will
+be shown. The code will retry on a different cylinder to try to
+determine correct format. The  matches can either be false matches or
+some drives  such as DEC RQDX3 use multiple formats. This code does
+not deal well with that. You can manually read with the different
+formats and put the data back together.</i></p>
+<p style="margin-bottom: 0in">Interleave (not checked): 0 3 6 9 12 15
+1 4 7 10 13 16 2 5 8 11 14</p>
+<p style="margin-left: 0.15in; margin-bottom: 0in"><i>Informational.
+If it can't determine interleave the disk can still be read and
+decoded. Interleave is only checked if interleave is specified on the
+command line. Too many drives have tracks with different interleave
+which generated confusing messages.</i></p>
+<p style="margin-bottom: 0in">Drive supports buffered seeks (ST412)</p>
+<p style="margin-bottom: 0in">    <i>Informational. </i>
+</p>
+<p style="margin-bottom: 0in">No sectors readable from cylinder 640</p>
+<p style="margin-bottom: 0in">Stopping end of disk search due to two
+unreadable tracks in a row 
+</p>
+<p style="margin-bottom: 0in">Number of cylinders 640, 33.4 MB</p>
+<p style="margin-bottom: 0in">    <i>Informational.  The method we
+used to determine the number of cylinders and size determined.</i></p>
+<p style="margin-bottom: 0in">Command line to read disk: 
+</p>
+<p style="margin-bottom: 0in">--sectors 17,0 --heads 6 --cylinders
+640 --header_crc 0x2605fb9c,0x104c981,32,0 --data_crc 
+0xd4d7ca20,0x104c981,32,0 --format OMTI_5510 --sector_length 512
+--retries 50 --drive 2 --interleave
+0,3,6,9,12,15,1,4,7,10,13,16,2,5,8,11,14</p>
+<p style="margin-left: 0.1in; margin-bottom: 0in"><i>This is the
+options needed to decode the disk with mfm_read. For mfm_util remove
+--retries and --drive from options. Change header_crc and/or data_crc
+last parameter if you wish to use different  ECC maximum span. Remove
+interleave if you get expected sector doesn't match sector found
+errors.</i></p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">It is recommended to verify results of
+analysis since it can make mistakes.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Decoding messages:</p>
+<p style="margin-bottom: 0in">AM33XX</p>
+<p style="margin-bottom: 0in">File prucode0.bin open passed 
+</p>
+<p style="margin-bottom: 0in">   <i>Informational messages from PRU
+access routines in mfm_read.</i></p>
+<p style="margin-bottom: 0in">Returning to track 0</p>
+<p style="margin-bottom: 0in">   <i>Informational. This operation may
+take a while. Only mfm_read.</i></p>
+<p style="margin-bottom: 0in">Retries failed cyl 22 head 0</p>
+<p style="margin-bottom: 0in">   <i>Unable to recover all data from
+the specified track. Only mfm_read.</i></p>
+<p style="margin-bottom: 0in">Bad sectors on cylinder 22 head 0: 3
+15H</p>
+<p style="margin-left: 0.12in; margin-bottom: 0in"><i>Indicates that
+for the specified track that data of sector 3 has uncorrected errors
+and the header for sector 15 has errors. If the header has an error
+the data will be all zero.</i></p>
+<p style="margin-bottom: 0in">ECC Corrections on cylinder 56 head 5:
+1(2) 13(4) 15(1H) 
+</p>
+<p style="margin-left: 0.12in; margin-bottom: 0in"><i>Informational.
+Indicates that for the specified track that data of sectors 1 and 13
+were corrected and the header of sector 15 corrected. The number in
+the parenthesis is the length of the bit pattern corrected. Unless
+the ECC correction had a false correction the data is good.</i></p>
+<p style="margin-bottom: 0in">Cyl 59 head 2 Missed sector between
+12(4) and 1(6)</p>
+<p style="margin-left: 0.12in; margin-bottom: 0in"> <i>Informational.
+Indicates that the sectors found didn't match the interleave
+specified. The first number is the sector header number and the
+number in parenthesis the physical sector starting with 0. A bad
+sector message will be printed if the data is bad. Some disks vary
+the interleave. Try again without the interleave option.</i></p>
+<p style="margin-bottom: 0in">Good data after 20 Retries cyl 219 head
+0</p>
+<p style="margin-bottom: 0in">   <i>Informational. Indicates we
+recovered good data by retrying the read.</i></p>
+<p style="margin-bottom: 0in">Found cyl 0 to 639, head 0 to 5, sector
+0 to 16</p>
+<p style="margin-bottom: 0in">   <i>Informational. Should match what
+was specified</i></p>
+<p style="margin-bottom: 0in">Expected 65280 sectors got 65276 good
+sectors, 0 bad header, 4 bad data 
+</p>
+<p style="margin-bottom: 0in">11 sectors corrected with ECC. Max bits
+in burst corrected 5 
+</p>
+<p style="margin-bottom: 0in">   <i>Summary of errors during the
+read. We have 4 sectors with bad data.</i></p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Errors:</p>
+<p style="margin-bottom: 0in">Command 4 fault 300 status 1002c</p>
+<p style="margin-bottom: 0in">Not Write fault</p>
+<p style="margin-bottom: 0in">Not Seek complete</p>
+<p style="margin-bottom: 0in">Not Index</p>
+<p style="margin-bottom: 0in">Ready</p>
+<p style="margin-bottom: 0in">Drive selected</p>
+<p style="margin-bottom: 0in">Not Track 0</p>
+<p style="margin-left: 0.12in; margin-bottom: 0in"><i>This indicates
+a command failed. See cmd.h for definitions. Status is the drive
+status bits which are decoded in text below. This error was the drive
+did not give seek complete in the expected time. These are normally
+fatal and the program will exit. Some are recovered from during
+analysis and are informational.</i></p>
+</body>
+</html>

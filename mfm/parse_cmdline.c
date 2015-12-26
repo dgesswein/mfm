@@ -1,4 +1,4 @@
-#define VERSION "1.0pre9"
+#define VERSION "1.0pre11"
 // Parse the command line.
 //
 // Call parse_cmdline to parse the command line
@@ -10,6 +10,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 11/01/15 DJG Validate options required when format is specified.
 // 05/17/15 DJG Made drive -d and data_crc -j so -d would be drive in all
 //    of the MFM programs.
 // 01/04/15 DJG Suppressed printing command line options that weren't set
@@ -561,6 +562,19 @@ void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
          && !drive_params->analyze && (drive_params->opt_mask & min_read_opts)
              != min_read_opts) {
       msg(MSG_FATAL, "Generating extract file without analyze requires options:");
+      for (i = 0; i < 32; i++) {
+         int bit = (1 << i);
+         if (!(drive_params->opt_mask & bit) && (min_read_opts & bit)) {
+            msg(MSG_FATAL, " %s", long_options[i].name);
+         }
+      }
+      msg(MSG_FATAL, "\n");
+      exit(1);
+   } 
+   if (drive_params->controller != CONTROLLER_NONE
+         && !drive_params->analyze && (drive_params->opt_mask & min_read_opts)
+             != min_read_opts) {
+      msg(MSG_FATAL, "Format specified without analyze requires options:");
       for (i = 0; i < 32; i++) {
          int bit = (1 << i);
          if (!(drive_params->opt_mask & bit) && (min_read_opts & bit)) {

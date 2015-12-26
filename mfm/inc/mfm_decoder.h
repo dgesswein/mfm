@@ -1,7 +1,6 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 
-// 11/09/14 DJG Updated for new command line options
 //
 // MFM is 17 or 18 sectors. This allows growth for RLL/ESDI
 #define MAX_SECTORS 50
@@ -52,12 +51,15 @@ typedef struct {
    // CRC/ECC used for header and data area
    CRC_INFO header_crc, data_crc;
    // Track format
-   // Update controller_names list below if enum changed.
+   // Update mfm_controller_info list below if enum changed.
+   // ORDER IN THE TWO LISTS MUST MATCH
    enum {CONTROLLER_NONE, CONTROLLER_NEWBURYDATA,
       CONTROLLER_WD_1006, CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
+      CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_OMTI_5510, CONTROLLER_DEC_RQDX3, 
+      CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ADAPTEC, 
-      CONTROLLER_SYMBOLICS, CONTROLLER_RUSSIAN,
+      CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE
@@ -126,7 +128,14 @@ DEF_EXTERN struct {
 } mfm_all_poly[]
 #ifdef DEF_DATA
    = {
+  // Length 1 for parity (Symbolics 3640. Doesn't really use length
+  {0, 1, 0},
+  // Length 16 for Northstar header checksum
+  {0, 16, 0},
+  // Length 32 for Northstar data checksum
+  {0, 32, 0},
   {0x00a00805, 32, 5},
+  // Don't move this without fixing the Northstar reference
   {0x1021, 16, 0},
   {0x8005, 16, 0},
   {0x140a0445, 32, 5},
@@ -157,7 +166,7 @@ DEF_EXTERN struct {
 // Smallest sector size should be first in list
 DEF_EXTERN int mfm_all_sector_size[]
 #ifdef DEF_DATA
- = {256, 512, 524, 528, 1024, 1164, 2048, 4096, -1}
+ = {256, 512, 524, 1024, 1160, 1164, 2048, 4096, -1}
   // -1 marks end of array
 #endif
 ;
@@ -189,77 +198,104 @@ DEF_EXTERN struct {
    int header_bytes, data_header_bytes; 
       // These bytes at start of header and data header ignored
    int header_crc_ignore, data_crc_ignore;
+      // These bytes at the end of the data area are included in the CRC
+      // but should not be written to the extract file.
+   int data_trailer_bytes;
+      // 1 if data area is separate from header. 0 if one CRC covers both
+   int separate_data;
 } mfm_controller_info[]
 
-// Keep sorted by header length. Must match order of controller enum
+// Keep sorted by header length. MUST MATCH order of controller enum
 #ifdef DEF_DATA
    = {
       {"CONTROLLER_NONE",        0, 10000000,      0, 
          0,0, 0,0,
          0,0, CINFO_NONE,
-         0, 0, 0, 0},
+         0, 0, 0, 0, 
+         0, 0},
       {"NewburyData",          256, 10000000,      0, 
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         4, 2, 0, 0},
+         4, 2, 0, 0, 
+         0, 1},
       {"WD_1006",              256, 10000000,      0, 
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 0, 0},
+         5, 2, 0, 0,
+         0, 1},
       {"Olivetti",             256, 10000000,      0,
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 2, 2},
+         5, 2, 2, 2, 
+         0, 1},
       {"MacBottom",            256, 10000000,      0,
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 0, 0},
+         5, 2, 0, 0,
+         0, 1},
+      {"Elektronika_85",      256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, 
+         16, 1},
       {"OMTI_5510",            256, 10000000,      0,
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         6, 2, 0, 0},
+         6, 2, 0, 0,
+         0, 1},
       {"DEC_RQDX3",            256, 10000000,      0,
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         6, 2, 0, 0},
+         6, 2, 0, 0,
+         0, 1},
+      {"Seagate_ST11M",        256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0,
+         0, 1},
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
-         6, 2, 0, 0},
-      {"Symbolics",           256, 10000000,      0, 
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         6, 2, 0, 0,
+         0, 1},
+      {"Symbolics_3620",       256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         7, 3, 3, 3},
-      {"Russian",              256, 10000000,      0, 
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
-         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-// For now gets confused with WD_1006 since not all information known so
-// make not work
-         //5, 2, 0, 0},
-         1, 2, 0, 0},
+         7, 3, 3, 3,
+         0, 1},
+      {"Symbolics_3640",       256, 10000000,      0, 
+         0, 1, 3, ARRAYSIZE(mfm_all_poly), 
+         0, 1, CINFO_CHS,
+         11, 1, 0, 1,
+         0, 1},
 // This format is detected by special case code so it doesn't need to
 // be sorted by number
       {"Mightyframe",          256, 10000000,      0, 
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_NONE,
-         5, 2, 0, 0},
+         5, 2, 0, 0, 
+         0, 1},
 // END of WD type controllers
       {"Xebec_104786",         256, 10000000,      0,
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         9, 2, 0, 0},
+         9, 2, 0, 0, 
+         0, 1},
       {"Corvus_H",             512, 11000000,  312000,
-         0, ARRAYSIZE(mfm_all_poly), 0, ARRAYSIZE(mfm_all_poly), 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         3, 0, 0, 0},
-      {"NorthStar_Advantage",  256, 10000000, 360000,
-         1, 2, 0,1,
+         3, 0, 0, 0, 
+         0, 0},
+      {"NorthStar_Advantage",  256, 10000000, 230000,
+         1, 2, 2,3,
          0, 1, CINFO_CHS,
-         7, 0, 0, 0},
+         7, 0, 0, 0, 
+         0, 1},
       {NULL, 0, 0, 0,
          0,0, 0,0, CINFO_NONE,
-         0, 0, 0, 0},
+         0, 0, 0, 0, 
+         0, 0},
    }
 #endif
 ;
@@ -327,10 +363,11 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 
 // Define states for processing the data. MARK_ID is looking for the 0xa1 byte
 // before a header and MARK_DATA is same for the data portion of the sector.
+// MARK_DATA1 is looking for special Symbolics 3640 mark code.
 // PROCESS_HEADER is processing the header bytes and PROCESS_DATA processing
 // the data bytes. HEADER_SYNC and DATA_SYNC are looking for the one bit to sync to
 // in CONTROLLER_XEBEC_104786. Not all decoders use all states.
-typedef enum { MARK_ID, MARK_DATA, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_DATA
+typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_DATA
 } STATE_TYPE;
 
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],

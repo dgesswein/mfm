@@ -8,6 +8,9 @@
 // whatever existing data (possibly at the normal MFM 10 MHz will be seen.
 //
 // Copyright 2015 David Gesswein.
+//
+// 11/01/15 DJG Comment fixes
+//
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -66,7 +69,7 @@ static inline float filter(float v, float *delay)
 // The format is
 //   CONTROLLER_CORVUS_H,
 //   3 byte header + 2 byte CRC
-//      byte 0 head upper 3 bits, sectors number lower 5
+//      byte 0 head upper 3 bits, sector number lower 5
 //      byte 1 low byte of cylinder
 //      byte 2 high byte of cylinder
 //      Sector data for sector size
@@ -126,10 +129,8 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
 //
 //
 // drive_params: Drive parameters
-// bytes: bytes to process
-// bytes_crc_len: Length of bytes including CRC
 // cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
+// deltas: MFM delta data to decode
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Or together of the status of each sector decoded

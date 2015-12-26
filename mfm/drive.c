@@ -7,11 +7,11 @@
 // drive_rpm get drive rpm
 // drive_read_track read a track of deltas from a drive. It steps the
 //    head if necessary.
-// drive_step steps the head without adjusting the current cylinder. Use to
-//    fix after seek errors.
+// drive_step steps the head the requested number of cylinders.
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 12/24/2015 DJG Fix comment
 // 07/30/2015 DJG Added support for revision B board.
 // 05/16/2015 DJG Changes for drive_file.c
 //

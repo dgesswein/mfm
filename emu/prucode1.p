@@ -38,6 +38,8 @@
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 
 //
+// 11/20/15 DJG Fixed occasional abort due to data not being ready by
+//    increasing WRITE_READ_TIME
 // 05/20/15 DJG Significant change to switch to DMA (on PRU1) for reading
 //    from DRAM and how data is syncronized to simulated rotation time.
 // 01/04/15 DJG Added logic to allow bit rate to be varied and the
@@ -126,9 +128,9 @@
 #define READ_BUF_2_ADDR               (READ_BUF_1_ADDR + DMA_SIZE)
 
    // Time in PRU clocks from write end to output read data
-#define WRITE_READ_TIME 2500/5
+#define WRITE_READ_TIME 2900/5
    // Time from read time requested to bits we generate
-   // 7 microseconds in PRU clocks. This allows for completing DMA
+   // 8.5 microseconds in PRU clocks. This allows for completing DMA
 #define NEW_READ_TIME 8500/5
 
 

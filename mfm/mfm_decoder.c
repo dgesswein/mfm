@@ -15,6 +15,10 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/24/15 DJG Code cleanup
+// 11/13/15 DJG Added Seagate ST11M support
+// 11/07/15 DJG Added Symbolics 3640 support
+// 11/01/15 DJG Renamed formats and other comment changes
 // 05/17/15 DJG Added formats MIGHTYFRAME, ADAPTEC, NEWBURYDATA, SYMBOLICS, and
 //          partially implement format RUSSIAN. Also code cleanup amd check for
 //          trumcation of emulation file.
@@ -257,15 +261,13 @@ void mfm_init_sector_status_list(SECTOR_STATUS sector_status_list[],
 // generating emulation file from unknown format disk data
 //
 // drive_params: Drive parameters
-// bytes: bytes to process
-// bytes_crc_len: Length of bytes including CRC
 // cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
+// deltas: MFM delta time transition data to analyze
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Or together of the status of each sector decoded
-static SECTOR_DECODE_STATUS mfm_decode_track_deltas(DRIVE_PARAMS *drive_params, int cyl,
-      int head, uint16_t deltas[], int *seek_difference,
+static SECTOR_DECODE_STATUS mfm_decode_track_deltas(DRIVE_PARAMS *drive_params,
+      int cyl, int head, uint16_t deltas[], int *seek_difference,
       SECTOR_STATUS sector_status_list[])
 {
    // This is the raw MFM data decoded with above
@@ -356,8 +358,10 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
-         drive_params->controller == CONTROLLER_RUSSIAN ||
-         drive_params->controller == CONTROLLER_SYMBOLICS) {
+         drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
+         drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+         drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+         drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786)  {
@@ -690,6 +694,7 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // drive_params: Drive parameters
 // bytes: bytes to process
 // bytes_crc_len: Length of bytes including CRC
+// state: Where we are in the decoding process
 // cyl,head: Physical Track data from
 // sector_index: Sequential sector counter
 // seek_difference: Return of difference between expected cyl and header
@@ -707,6 +712,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    // Length of ECC correction. 0 is no correction.
    int ecc_span = 0;
    SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
+   // Start byte for CRC decoding
+   int start;
 
    if (*state == PROCESS_HEADER) {
       crc_info = drive_params->header_crc;
@@ -754,11 +761,17 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             crc = 1; // Non zero indicates error
          }
       } else {
-         msg(MSG_FATAL, "Invalid CRC legth %d\n",crc_info.length);
+         msg(MSG_FATAL, "Invalid CRC/checksum length %d\n",crc_info.length);
          exit(1);
       }
+   } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
+      if (*state == PROCESS_HEADER) {
+         crc = 0;
+      } else {
+         start = mfm_controller_info[drive_params->controller].data_crc_ignore;
+         crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
+      }
    } else {
-      int start;
       if (*state == PROCESS_HEADER) {
          start = mfm_controller_info[drive_params->controller].header_crc_ignore;
       } else {
@@ -803,8 +816,10 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
-            drive_params->controller == CONTROLLER_RUSSIAN ||
-            drive_params->controller == CONTROLLER_SYMBOLICS) {
+            drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
+            drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+            drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+            drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786) {
@@ -957,9 +972,9 @@ void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params) {
 
    if (drive_params->emu_track_data_bytes > 0 && current_track_words_ndx*4 >=
           drive_params->emu_track_data_bytes) {
-      msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes\n",
+      msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes, need %d words\n",
            current_track_words_ndx*4 - drive_params->emu_track_data_bytes+
-           (bit_count+7)/8);
+           (bit_count+7)/8, current_track_words_ndx);
    }
 }
 
@@ -1029,12 +1044,18 @@ static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
 }
 
 // Write the raw decoded clock and data words into the current track word
-// buffer.
+// buffer. This routine only called if bits left in raw_word plus bits
+// about to be added are >= 32 bits.
+//
+// drive_params: Drive parameters
+// all_raw_bits_count: How many bits left in raw_word to process
+// int_bit_pos: Number of zeros that are being added before next one
+// raw_word: bits accululated so far
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word)
 {
    uint32_t tmp;
-   int tmp_bit_pos = int_bit_pos;
+   // Get shift to move unprocessed bits to MSB
    int shift = 32 - all_raw_bits_count;
 
    // If we aren't generating an emulation output file don't process the
@@ -1044,11 +1065,14 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
       return 0;
    }
 
+   // Shift unprocessed bits to MSB
    tmp = raw_word << shift;
-   tmp_bit_pos -= shift;
-   if (tmp_bit_pos == 0) {
+   // If the LSB after shift is where int_bit_pos says a one goes then add it
+   int_bit_pos -= shift;
+   if (int_bit_pos == 0) {
       tmp |= 1;
    }
+   // Save word
    if (current_track_words_ndx < ARRAYSIZE(current_track_words)) {
       current_track_words[current_track_words_ndx++] = tmp;
    } else {
@@ -1057,16 +1081,18 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
       exit(1);
    }
 
-   while (tmp_bit_pos >= 32) {
-
+   // Add any more zeros in int_bit_pos until it is less than 32. Those
+   // bits will be added to raw_word by caller.
+   while (int_bit_pos >= 32) {
       if (current_track_words_ndx < ARRAYSIZE(current_track_words)) {
          current_track_words[current_track_words_ndx++] = 0;
-         tmp_bit_pos -= 32;
+         int_bit_pos -= 32;
       } else {
          msg(MSG_FATAL, "Current track words overflow\n");
          exit(1);
       }
    }
-   return tmp_bit_pos;
+   // This will be all_raw_bits_count on next call
+   return int_bit_pos;
 }
 

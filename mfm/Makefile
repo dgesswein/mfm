@@ -41,7 +41,7 @@ endif
 PRU_PACKAGE_PATH = ../am335x_pru_package-master
 PASM = pasm
 LIB_PATH =
-INCL_PATH = -I $(INCDIR)/
+INCL_PATH = -I $(INCDIR)/ -I /usr/include/libiberty/
 ifneq ($(wildcard $(PRU_PACKAGE_PATH)),)
    $(info Using local copy of am335x_pru_package)
    PASM = $(PRU_PACKAGE_PATH)/pru_sw/utils/pasm

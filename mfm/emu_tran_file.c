@@ -104,6 +104,7 @@
 //    Clock transition count clock frequency is in file header. For 200 MHz
 //    a count of 40 indicates 5 MHz pulse spacing.
 //
+// 12/24/15 DJG Cleanup and output valid MFM data if needing to pad track
 // 05/16/15 DJG Added routines needed for analyze to work on transition and
 //    emulation files.
 // 01/04/15 Added using sample rate field to emulation file. Added
@@ -148,8 +149,10 @@
 // Only for CLOCKS_TO_NS
 #include "mfm_decoder.h"
 
-// Maximum number of delta bytes in a track we support
-#define MAX_BYTE_DELTAS 256000
+// Maximum number of delta bytes in a track we support. For 60 RPM and
+// 10 MHz rate should have 166666 deltas. For future RLL 50 RPM and 15 MHz
+// should have 300000. Padded more.
+#define MAX_BYTE_DELTAS 400000
 // EMU file header marker
 #define TRACK_ID_VALUE 0x12345678
 // File header marker
@@ -453,8 +456,16 @@ void emu_file_write_track_bits(int fd, uint32_t *words, int num_words,
       // Cylinder -1 is end of file marker so don't write data. Otherwise
       // pad with zero or truncate if longer than track_bytes.
       if (cyl != -1) {
+         uint32_t fill;
+         // Fill with valid MFM pattern
+         // Pick word that won't put two ones in a row
+         if (num_words == 0 || words[num_words-1] & 1) {
+            fill = 0x55555555;
+         } else {
+            fill = 0xaaaaaaaa;
+         }
          for (i = num_words; i < track_bytes/4; i++) {
-            words[i] = 0;
+            words[i] = fill;
          }
          emu_file_write(fd, words, track_bytes);
       }
@@ -810,6 +821,8 @@ int tran_file_write_header(char *fn, int num_cyl, int num_head,
 // fd: File descriptor to read from
 // seek_cyl: Cylinder number to find
 // seek_head: head number to find
+// start_first_track: Byte location of first track in file
+// return: 0 if track found else 1
 int tran_file_seek_track(int fd, int seek_cyl, int seek_head, 
       int start_first_track) {
    int done = 0;
@@ -851,10 +864,10 @@ int tran_file_seek_track(int fd, int seek_cyl, int seek_head,
 // cyl: Cylinder number of track read
 // head: head number of track read
 // return: Number of deltas read in words. -1 if end of file found.
-int tran_file_read_track_deltas(int fd, uint16_t deltas[], int max_deltas, int *cyl,
-      int *head)
+int tran_file_read_track_deltas(int fd, uint16_t deltas[], int max_deltas, 
+    int *cyl, int *head)
 {
-   uint8_t deltas_in[MAX_BYTE_DELTAS*16];
+   uint8_t deltas_in[MAX_BYTE_DELTAS];
    uint32_t value;
    CRC_INFO poly = trans_initial_poly;
    int32_t num_bytes;
@@ -918,7 +931,7 @@ int tran_file_read_track_deltas(int fd, uint16_t deltas[], int max_deltas, int *
 // head: head number of track
 void tran_file_write_track_deltas(int fd, uint16_t *deltas, int num_deltas, int cyl, int head)
 {
-   uint8_t deltas_out[MAX_BYTE_DELTAS*16];
+   uint8_t deltas_out[MAX_BYTE_DELTAS];
    int deltas_ndx = 0;
    uint32_t value;
    int i;
@@ -979,4 +992,3 @@ if (deltas[i] == 0) {
    // but worse with internal flash
    // posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
 }
-
