@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 12/31/15 DJG Add additional step pulse checks to work with Symbolics
+//    1 microsecond step pulse width.
 // 07/12/15 DJG Added additional check for step pulse to prevent missing
 //    step when it occurs right after change in head select.
 // 06/29/15 DJG Handle unbuffered/ST506 step pulses while waiting for
@@ -497,7 +499,7 @@ next_mfm:
    CALL     set_track0
    SET      r30, R30_READY_BIT    
    SET      r30, R30_SEEK_COMPLETE_BIT 
-   QBBC     step, r31, R31_STEP_BIT  // Got step pulse
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
       // Switch to PWM mode
    SBCO     RZERO, CONST_ECAP, ECCTL1, 4
       // Default width for a 1 at current data rate
@@ -520,6 +522,7 @@ SBCO r0, CONST_PRURAM, 0xf4, 4
    XOUT     10, PRU0_BUF_STATE, 4
 wait_bit_set:
    XIN      10, PRU1_BUF_STATE, 4              
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
    QBNE     wait_bit_set, PRU1_STATE, STATE_READ_BIT_SET
 
    XIN      10, TRACK_BIT, 4
@@ -543,6 +546,7 @@ SBCO TRACK_BIT, CONST_PRURAM, 0xf8, 4
    SBBO     r24, r25, 0, 4
    HALT
 wait_wrap:
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
    CALL     check_rotation
    CALL     set_index
       // Loop until CYCLE counter wraps (less than previous read in r1)
@@ -556,6 +560,7 @@ nowrap:
    SBBO     r24, r25, 0, 4
    HALT
 no_time_err:
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
    CALL     check_rotation
    CALL     set_index
       // Loop until CYCLE counter is greater than data start time (r26)
@@ -686,6 +691,8 @@ settle_lp:
       // Clear interrupt status flag in interrupt controller
    MOV      r0, GPIO0_EVT
    SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
+
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
 
       // Copy current value and get new head and select
    CALL     get_select_head
