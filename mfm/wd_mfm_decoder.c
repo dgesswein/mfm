@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 12/31/15 DJG Fixes to Symblics 3640 and ext2emu changes
 // 12/24/15 DJG Comment changes
 // 11/13/15 DJG Added Seagate ST11M format
 // 11/07/15 DJG Added SYMBOLICS_3640 format
@@ -249,16 +250,14 @@ static inline float filter(float v, float *delay)
 //      byte 7 sector bits 7-5 head number bits 1,0  (lsb first)
 //      byte 8 head number bits 7,6 cyl bit 3,2,1,0 (lsb first)
 //      byte 9 rest of cylinder
-//      byte 10 odd parity of bytes 7-9.
+//      byte 10 bit 0 odd parity of bytes 7-9.
 //   Data
 //      Between header and data is a bunch of 0 bits followed by a 1 bit
 //      to syncronize the decoding. 
 //
-//      byte 0 0xa1
-//      byte 1 0xf8
-//      byte 2 0xf8
-//      bytes 3-10 0 (unknown if part of sector data or header)
-//      Sector data for sector size
+//      byte 0 0xe0
+//      Sector data for sector size (1160 bytes)
+//      first byte of sector data was always zero so it may be part of header.
 //      CRC/ECC code
 //
 //   CONTROLLER_MIGHTYFRAME, Mightyframe, variant of WD_1006
@@ -584,11 +583,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
             0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf };
          #define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[n>>4])
-         // Calculate the even parity of a byte
-         static unsigned char parity_lookup[16] = {
-            0x0, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x1,
-            0x1, 0x0, 0x0, 0x1, 0x0, 0x1, 0x1, 0x0 };
-         #define EPARITY(n) (parity_lookup[n&0xf] ^ parity_lookup[n>>4])
 
          sector_status.cyl = (REV_BYTE(bytes[8]) >> 4) | (REV_BYTE(bytes[9]) << 4);
          sector_status.head = (REV_BYTE(bytes[7]) >> 6) | ((REV_BYTE(bytes[8]) & 0x3) << 2);
@@ -599,9 +593,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                 bytes[7], bytes[8], bytes[10], exp_cyl, sector_status.cyl,
                 exp_head, sector_status.head, sector_status.sector);
          }
-         // Header has an odd parity check bit
-         if ((EPARITY(bytes[7]) ^ EPARITY(bytes[8]) ^ EPARITY(bytes[9]) ^
-                EPARITY(bytes[10])) != 1) {
+         if (parity64(&bytes[7], 4, &drive_params->header_crc) != 1) {
             msg(MSG_INFO,"Header parity mismatch\n");
             sector_status.status |= SECT_BAD_HEADER;
          }
@@ -690,7 +682,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          msg(MSG_INFO,"Alternate cylinder set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
-      // The 3640 doesn't have a 0xa1 header, search for its special sync
+      // The 3640 doesn't have a 0xa1 data header, search for its special sync
       if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          *state = MARK_DATA1;
       } else {
@@ -713,11 +705,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          id_byte_expected = 0xe0;
-         id_byte_index = 0;
+         id_byte_index = 1;
       }
       if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
-               bytes[1], id_byte_expected,
+               bytes[id_byte_index], id_byte_expected,
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_DATA;
       }
@@ -733,8 +725,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
+         int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
          // TODO: Make handling of correction data for extract cleaner
-         if (mfm_write_sector(&bytes[2], drive_params, &sector_status,
+         if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
                sector_status_list, &bytes[1], drive_params->sector_size +
                drive_params->data_crc.length / 8 + 1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
@@ -891,6 +884,10 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                      cyl, head, sector_index, zero_count, byte_cntr, raw_word, tot_raw_bit_cntr);
             }
 #endif
+            if ((raw_word & 0xffff) == 0x4489) {
+   //printf("mark at %d zero %d\n", tot_raw_bit_cntr, zero_count);
+}
+//printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
             if ((raw_word & 0xffff) == 0x4489
                   && zero_count >= MARK_NUM_ZEROS) {
                header_raw_bit_count = tot_raw_bit_cntr;
@@ -899,14 +896,14 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                byte_cntr = 1;
                if (state == MARK_ID) {
                   state = PROCESS_HEADER;
-                  mfm_mark_header_location(all_raw_bits_count);
+                  mfm_mark_header_location(all_raw_bits_count, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
                         drive_params->header_crc.length / 8;
                   bytes_needed = bytes_crc_len + HEADER_IGNORE_BYTES;
                } else {
                   state = PROCESS_DATA;
-                  mfm_mark_data_location(all_raw_bits_count);
+                  mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
                         mfm_controller_info[drive_params->controller].data_trailer_bytes + 
@@ -927,7 +924,11 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             if ((tot_raw_bit_cntr - header_raw_bit_count) > 530 && 
                   ((raw_word & 0xf) == 0x9)) {
                state = PROCESS_DATA;
-               mfm_mark_data_location(all_raw_bits_count);
+               mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
+               // Write sector assumes one sync byte at the start of the data
+               // so we store the 0x01 sync byte.
+               bytes[0] = 0x01;
+               byte_cntr = 1;
                // Figure out the length of data we should look for
                bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
                      mfm_controller_info[drive_params->controller].data_trailer_bytes + 
@@ -942,7 +943,6 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                raw_bit_cntr = 0;
                decoded_word = 0;
                decoded_bit_cntr = 0;
-               byte_cntr = 0;
             }
          } else {
             int entry_state = state;

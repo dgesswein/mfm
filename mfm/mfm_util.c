@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 12/31/15 DJG Added ext2emu functionality
 // 07/30/15 DJG Added support for revision B board.
 // 05/17/15 DJG Added ability to analyze transition and emulation files.
 //              Added ability to analyze specific cylinder and head.
@@ -48,6 +49,8 @@
 
 #define MAX_DELTAS 131072
 
+void ext2emu(int argc, char *argv[]);
+
 // Main routine
 int main (int argc, char *argv[])
 {
@@ -63,7 +66,13 @@ int main (int argc, char *argv[])
    EMU_FILE_INFO emu_file_info;
    TRAN_FILE_INFO tran_file_info;
 
-   // If they specified a transistions file get options that were stored
+   // Handle extracted data to emulator file conversion
+   if (strcmp(basename(argv[0]),"ext2emu") == 0) {
+      ext2emu(argc, argv);
+      return 0;
+   }
+
+   // If they specified a transitions file get options that were stored
    // in it.
    parse_cmdline(argc, argv, &drive_params, "tm", 1, 1, 1);
    if (drive_params.transitions_filename != NULL ||
@@ -84,6 +93,7 @@ int main (int argc, char *argv[])
       } else {
          drive_params.emu_fd = emu_file_read_header(
             drive_params.emulation_filename, &emu_file_info, 0);
+         drive_params.start_time_ns = emu_file_info.start_time_ns;
          drive_params.emu_file_info = &emu_file_info;
          orig_cmdline = emu_file_info.decode_cmdline;
          orig_note = emu_file_info.note;
@@ -116,7 +126,7 @@ int main (int argc, char *argv[])
    // were in the transition file header.
    parse_cmdline(argc, argv, &drive_params, "rd", 0, 0, 0);
    // Save final parameters
-   drive_params.cmdline = parse_print_cmdline(&drive_params, 0);
+   drive_params.cmdline = parse_print_cmdline(&drive_params, 0, 0);
 
    // And do some checking
    parse_validate_options(&drive_params, 0);
@@ -145,12 +155,12 @@ int main (int argc, char *argv[])
       analyze_disk(&drive_params, deltas, MAX_DELTAS, 1);
       msg(MSG_INFO,"\n");
       // Print analysis results
-      parse_print_cmdline(&drive_params, 1);
+      parse_print_cmdline(&drive_params, 1, 0);
       // If we are also converting data set up for it. Otherwise exit
       if ((drive_params.transitions_filename != NULL && 
             drive_params.emulation_filename != NULL) ||
             drive_params.extract_filename != NULL) {
-         // Go back to begining of file
+         // Go back to beginning of file
          if (drive_params.tran_fd != -1) {
             tran_file_seek_track(drive_params.tran_fd, 0, 0,
                   drive_params.tran_file_info->file_header_size_bytes);
@@ -236,3 +246,662 @@ int main (int argc, char *argv[])
    mfm_decode_done(&drive_params);
    return 0;
 }
+
+
+// Reverse bit ordering in word
+// value: Value to reverse
+// len_bits: Number of bits in value
+// return: Reversed value
+uint32_t reverse_bits(uint32_t value, int len_bits) {
+   uint32_t new_value = 0;
+   int i;
+
+   for (i = 0; i < len_bits; i++) {
+      new_value = (new_value << 1) | (value & 1);
+      value >>= 1;
+   } 
+   return new_value;
+}
+
+
+// Non zero if the sector number has already been used
+static int *sector_used_list;
+// Size of sector_used_list in bytes
+static int list_size_bytes;
+// Number of sector used in the list
+static int sector_used_count;
+// Sector number to start the next track with
+static int track_start_sector;
+// Interleave to use on a track, sectors incremented by this value
+static int sector_interleave;
+// Increment to sector to use for start sector of each track
+static int track_interleave;
+
+// Current sector
+static int sector;
+// Current head and cylinder
+static int head, cyl;
+
+// Set the current head value
+//
+// head_i: Head value
+static void set_head(int head_i) {
+   head = head_i;
+}
+
+// Return the current head value
+static int get_head() {
+   return head;
+}
+
+// Set the current cylinder value
+//
+// cyl_i: Cylinder value
+static void set_cyl(int cyl_i) {
+   cyl = cyl_i;
+}
+
+// Return the current cylinder value
+static int get_cyl() {
+   return cyl;
+}
+
+// Set the sector interleave values
+//
+// drive_params: Drive parameters
+// sector_interleave_i: Sector interleave. 1 for consecutive sectors
+//track_interleave_i: Addition to start sector number for tracks
+//   in a cylinder. 0 for all tracks to start with same sector number
+static void set_sector_interleave(DRIVE_PARAMS *drive_params,
+     int sector_interleave_i, int track_interleave_i) {
+
+   list_size_bytes = sizeof(*sector_used_list) * drive_params->num_sectors; 
+   sector_interleave = sector_interleave_i;
+   sector_used_list = msg_malloc(list_size_bytes,"sector_used_list");
+   track_interleave = track_interleave_i;
+
+   memset(sector_used_list, 0, list_size_bytes);
+}
+
+// Update variables to start a new track.
+//
+// drive_params: Drive parameters
+static void start_new_track(DRIVE_PARAMS *drive_params) {
+      // Set sector to start sector for list and reset used sector list
+   memset(sector_used_list, 0, list_size_bytes);
+   sector_used_count = 0;
+   if (track_interleave == 0) {
+      sector = 0;
+   } else {
+      sector = track_start_sector;
+      track_start_sector = (track_start_sector + track_interleave) %
+       drive_params->num_sectors;
+   }
+}
+
+// Update variables to start a new cylinder. Should be called before
+// start_new_track. Cylinders always start with sector 0 first.
+//
+// drive_params: Drive parameters
+static void start_new_cyl(DRIVE_PARAMS *drive_params) {
+   track_start_sector = 0;
+}
+
+// Get current sector
+static int get_sector(DRIVE_PARAMS *drive_params) {
+  return sector + drive_params->first_sector_number; 
+}
+
+// Increment sector variable
+//
+// drive_params: Drive parameters
+static void inc_sector(DRIVE_PARAMS *drive_params) 
+{
+      // Mark current sector used and increment by interleave if we
+      // haven't generated all sectors.
+   sector_used_list[sector] = 1;
+   sector_used_count++;
+   if (sector_used_count < drive_params->num_sectors) {
+      sector = (sector + sector_interleave) % drive_params->num_sectors;
+         // If sector is already used find next unused
+      while (sector_used_list[sector]) {
+         sector = (sector + 1) % drive_params->num_sectors;
+      }
+   }
+}
+
+// Get LBA value for current sector head and cylinder
+//
+// drive_params: Drive parameters
+static int get_lba(DRIVE_PARAMS *drive_params) {
+   return (get_cyl() * drive_params->num_head + get_head()) *
+       drive_params->num_sectors + sector;
+}
+
+// Get check value for end of data
+//
+// track: Data to calculate over
+// length: Number of bytes to over
+// crc_info: Parameters for check calculation
+// check_type; Type of check value to calculate
+static uint64_t get_check_value(uint8_t track[], int length, CRC_INFO *crc_info,
+   CHECK_TYPE check_type) {
+   uint64_t value;
+
+   if (check_type == CHECK_CRC) {
+      value = crc64(track, length, crc_info);
+   } else if (check_type == CHECK_CHKSUM) {
+      value = checksum64(track, length, crc_info);
+      // The length is twice the actual length due to not the best
+      // implementation decision when Northstar format was added.
+      if (crc_info->length == 16) {
+         value = value & 0xff;
+      } else if (crc_info->length == 32) {
+         value = value & 0xffff;
+      } else {
+         msg(MSG_FATAL, "Unsupported checksum length %d\n",crc_info->length);
+         exit(1);
+      }
+   } else if (check_type == CHECK_PARITY) {
+      value = parity64(track, length, crc_info);
+   } else {
+      msg(MSG_FATAL, "Unknown check_type %d\n",check_type);
+      exit(1);
+   }
+   return value;
+}
+
+// Get the sector data from the extract data file and put it in the track
+// data array
+//
+// drive_params: Drive parameters
+// track: Location to write data to
+// length: Number of bytes in track
+static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
+   int block;
+   int rc;
+
+   if (drive_params->sector_size > length) {
+      msg(MSG_FATAL, "Track overflow get_data\n");
+      exit(1);
+   }
+   block = (get_cyl() * drive_params->num_head + get_head()) *
+       drive_params->num_sectors + get_sector(drive_params);
+
+   if (lseek(drive_params->ext_fd, 
+          block * drive_params->sector_size, SEEK_SET) == -1) {
+      msg(MSG_FATAL, "Failed to seek to sector in extracted data file %s\n", 
+           strerror(errno));
+      exit(1);
+   }
+   if ((rc = read(drive_params->ext_fd, track, 
+         drive_params->sector_size)) != drive_params->sector_size) {
+      msg(MSG_FATAL, "Failed to read extracted data file rc %d %s\n", rc,
+            rc == -1 ? strerror(errno): "");
+      exit(1);
+   };
+}
+
+// Process field definitions to write the specified data to the track
+//
+// drive_params: Drive parameters
+// track: Track data array
+// start: Offset into track fields are referenced to
+// length: Number of bytes in track
+// field_def: The array of field definitions to process
+// a1_list: List of locations where special a1 code is in track
+// a1_list_ndx: Next free index in list
+// a1_list_len: Maximum number of entries in list
+//
+static void process_field(DRIVE_PARAMS *drive_params, 
+   uint8_t full_track[], int start, int length, 
+   FIELD_L field_def[], int a1_list[], int *a1_list_ndx, int a1_list_len)
+{
+   int ndx = 0;
+   uint64_t value;
+   int i;
+      // set to 1 if handled in case otherwise code after case updates track
+   int data_set;
+      // Start and end to calculate crc over
+   int crc_start = 0;
+   int crc_end = -1;
+      // Maximum location filled in field
+   int field_filled = 0;
+      // Pointer to where we start updating from
+   uint8_t *track = &full_track[start];
+
+//printf("Process field called start %d\n",start);
+
+   while (field_def[ndx].len_bytes != -1) {
+      data_set = 0;
+      switch (field_def[ndx].type) {
+            // Fill the specified range with the specified value
+         case FIELD_FILL:
+            if (field_def[ndx].byte_offset_bit_len +
+                field_def[ndx].len_bytes > length) {
+               msg(MSG_FATAL, "Track overflow field fill %d, %d, %d\n",
+                 field_def[ndx].byte_offset_bit_len, field_def[ndx].len_bytes,
+                 length);
+               exit(1);
+            }
+            if (field_def[ndx].op == OP_SET) {
+               memset(&track[field_def[ndx].byte_offset_bit_len], 
+                  field_def[ndx].value, field_def[ndx].len_bytes);
+            } else if (field_def[ndx].op == OP_XOR) {
+               for (i = 0; i < field_def[ndx].len_bytes; i++) {
+                  track[field_def[ndx].byte_offset_bit_len + i] ^= 
+                     field_def[ndx].value;
+                }
+            } else {
+               msg(MSG_FATAL, "op %d not supported for FIELD_FILL\n", 
+                  field_def[ndx].op);
+               exit(1);
+            }
+            data_set = 1;
+         break;
+         case FIELD_CYL:
+            value = get_cyl();
+         break;
+         case FIELD_CYL_SEAGATE_ST11M:
+            value = get_cyl();
+            // Controller first cylinder and first user cylinder are both 0
+            if (value > 0) {
+               value--;
+            }
+         break;
+         case FIELD_HEAD:
+            value = get_head();
+         break;
+         case FIELD_HEAD_SEAGATE_ST11M:
+            value = get_head();
+            if (get_cyl() == 0) {
+               value = 0xff;
+            }
+         break;
+         case FIELD_SECTOR:
+            value = get_sector(drive_params);
+         break;
+         case FIELD_LBA:
+            value = get_lba(drive_params);
+         break;
+         case FIELD_HDR_CRC:
+            // If end of CRC not specified assume it ends with byte before
+            // where CRC goes.
+            if (crc_end == -1) {
+               crc_end = field_def[ndx].byte_offset_bit_len - 1;
+            }
+            value = get_check_value(&track[crc_start], crc_end - crc_start + 1,
+               &drive_params->header_crc,
+               mfm_controller_info[drive_params->controller].header_check);
+         break;
+         case FIELD_DATA_CRC:
+            if (crc_end == -1) {
+               crc_end = field_def[ndx].byte_offset_bit_len - 1;
+            }
+            value = get_check_value(&track[crc_start], crc_end - crc_start + 1,
+               &drive_params->data_crc,
+               mfm_controller_info[drive_params->controller].data_check);
+         break;
+         case FIELD_MARK_CRC_START:
+            crc_start = field_def[ndx].byte_offset_bit_len;
+            data_set = 1;
+         break;
+         case FIELD_MARK_CRC_END:
+            crc_end = field_def[ndx].byte_offset_bit_len;
+            data_set = 1;
+         break;
+         case FIELD_SECTOR_DATA:
+            if (field_def[ndx].len_bytes != drive_params->sector_size) {
+               msg(MSG_FATAL, "Sector length mismatch\n");
+               exit(1);
+            }
+            get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
+               length - field_def[ndx].byte_offset_bit_len);
+            data_set = 1;
+               // We assume that its ok to increment the sector counter after
+               // we put in the sector data
+            inc_sector(drive_params);
+         break;
+            // Place holder for code to handle marking a sector
+         case FIELD_BAD_SECTOR:
+            value = 0;
+         break;
+            // Special A1 with missing clock. We put a1 in the data and fix the
+            // encoded MFM data curing the conversion
+         case FIELD_A1:
+            if (*a1_list_ndx >= a1_list_len) {
+               msg(MSG_FATAL, "A1 list overflow\n");
+               exit(1);
+            }      
+            a1_list[(*a1_list_ndx)++] = start + 
+                field_def[ndx].byte_offset_bit_len;
+            value = 0xa1;
+         break;
+         default:
+            msg(MSG_FATAL, "Unknown field_def type %d\n",field_def[ndx].type);
+            exit(1);
+      }
+      if (data_set) {
+            // Just mark last byte written, track already updated
+         field_filled = MAX(field_filled, field_def[ndx].byte_offset_bit_len + 
+            field_def[ndx].len_bytes - 1);
+         // If no bit list update the specified bytes
+      } else if (field_def[ndx].bit_list == NULL) {
+         field_filled = MAX(field_filled, field_def[ndx].byte_offset_bit_len + 
+            field_def[ndx].len_bytes - 1);
+         if (field_def[ndx].byte_offset_bit_len + field_def[ndx].len_bytes 
+              > length) {
+            msg(MSG_FATAL, "Track overflow field update %d %d %d\n", 
+               field_def[ndx].byte_offset_bit_len, field_def[ndx].len_bytes, length);
+            exit(1);
+         }
+            // Data goes in MSB first. Shift first byte to top of value
+            // then pull of the bytes and update track
+         value <<= (sizeof(value) - field_def[ndx].len_bytes) * 8;
+         for (i = 0; i < field_def[ndx].len_bytes; i++) {
+            int wbyte = (value >> (sizeof(value)*8 - 8));
+            if (field_def[ndx].op == OP_XOR) {
+               track[field_def[ndx].byte_offset_bit_len + i] ^= wbyte;
+            } else {
+               track[field_def[ndx].byte_offset_bit_len + i] = wbyte;
+            }
+            value <<= 8;
+         }
+      } else {
+         int ndx2 = 0;
+         BIT_L *bit_list = field_def[ndx].bit_list;
+         int byte_offset, bit_offset;
+         uint8_t temp;
+         int bit_count = 0;
+
+            // For the silly controller that has the bits backward reverse them
+         if (field_def[ndx].op == OP_REVERSE) {
+            value = reverse_bits(value, field_def[ndx].byte_offset_bit_len);
+         }
+            // Now pull off starting at the highest bit and put them into
+            // the bits specified. In this encoding the bits are numbered with
+            // the most significant bit of the first byte 0 counting up.
+            // Multiple disjoint bit fields can be specified.
+         while (bit_list[ndx2].bitl_start != -1) {
+            for (i = 0; i < bit_list[ndx2].bitl_length; i++) {
+                  // Find byte and bit to update
+               byte_offset = (bit_list[ndx2].bitl_start + i) / 8; 
+               field_filled = MAX(field_filled, byte_offset);
+               bit_offset = (bit_list[ndx2].bitl_start + i) % 8; 
+               if (byte_offset >= length) {
+                  msg(MSG_FATAL, "Track overflow bit field\n");
+                  exit(1);
+               }
+                  // Extract bit and update in track
+               temp = (value >> (field_def[ndx].byte_offset_bit_len - 
+                  bit_count++ - 1) & 1) << (7 - bit_offset);
+               if (field_def[ndx].op == OP_XOR) {
+                  track[byte_offset] ^= temp;
+               } else {
+                  track[byte_offset] &= ~(1 << (7 - bit_offset));
+                  track[byte_offset] |= temp;
+               } 
+            }
+            ndx2++;
+         }
+            // Verify field size agrees with sum of bit field lengths
+         if (bit_count != field_def[ndx].byte_offset_bit_len) {
+            msg(MSG_FATAL, "Bit field length mismatch %d %d\n", 
+               bit_count, field_def[ndx].byte_offset_bit_len);
+            exit(1);
+         }
+      }
+      ndx++;
+   }
+      // Verify that last byte in field was updated
+   if (field_filled != length - 1) {
+      msg(MSG_FATAL, "Incorrect field length %d %d\n",field_filled, length);
+      exit(1);
+   }
+}
+
+// Process track definition list to update track data.
+//
+// drive_params: Drive parameters
+// track: Track data array
+// start: Offset into track to start writing data to
+// length: Number of bytes in track
+// track_def: The array of track definitions to process
+// a1_list: List of locations where special a1 code is in track
+// a1_list_ndx: Next free index in list
+// a1_list_len: Maximum number of entries in list
+//
+// return: Next offset into track to write to
+static int process_track(DRIVE_PARAMS *drive_params,
+   uint8_t track[], int start, int length, TRK_L track_def[],
+   int a1_list[], int *a1_list_ndx, int a1_list_len)
+{
+   int ndx = 0;
+   int new_start;
+   int i;
+
+//printf("Process track called start %d\n",start);
+   while (track_def[ndx].count != -1) {
+      switch (track_def[ndx].type) {
+         case TRK_FILL:
+            if (start + track_def[ndx].count > length) {
+               msg(MSG_FATAL, "Track overflow fill, %d %d %d\n", start, length,
+                   track_def[ndx].count);
+               exit(1);
+            }
+            memset(&track[start], track_def[ndx].value, track_def[ndx].count);
+            start += track_def[ndx].count;
+         break;
+         case TRK_SUB:
+               // Process a sub list of track definitions the specified number
+               // of times
+            for (i = 0; i < track_def[ndx].count; i++) {
+               start = process_track(drive_params, track, start, length, 
+                  (TRK_L *) track_def[ndx].list, 
+                  a1_list, a1_list_ndx, a1_list_len);
+            }
+         break;
+         case TRK_FIELD:
+            new_start = start + track_def[ndx].count;
+            if (new_start >= length) {
+               msg(MSG_FATAL, "Track overflow field\n");
+               exit(1);
+            }
+               // Fill the field with the specified value then
+               // process the field definitions
+            memset(&track[start], track_def[ndx].value, track_def[ndx].count);
+            process_field(drive_params, track, start, track_def[ndx].count, 
+               (FIELD_L *) track_def[ndx].list, a1_list, a1_list_ndx,
+               a1_list_len);
+            start = new_start;
+         break;
+         default:
+            msg(MSG_FATAL, "Unknown track_def type %d\n",track_def[ndx].type);
+            exit(1);
+      }
+      ndx++;
+   }
+   return start;
+}
+
+
+// Convert data to MFM encoded data.
+//
+// data: Bytes to convert
+// length: Number of bytes to convert
+// mfm_data: Destination to write encoded data to
+// a1_list: List of locations special a1 mark pattern should be written
+// a1_list_length; Length of list
+void mfm_encode(uint8_t data[], int length, uint32_t mfm_data[], int mfm_length,
+   int a1_list[], int a1_list_length) 
+{
+      // Convert a byte to 16 MFM encoded bits. First index is the MFM
+      // bit immediately preceding.
+   static uint16_t mfm_encode[2][256]; 
+      // One on first call
+   static int first_time = 1;
+      // Used to index first subscript in mfm_encode
+   int last_bit = 0;
+      // Counters.
+   int i, lbc;
+   int bit;
+   uint16_t value16;
+   uint32_t value32 = 0;
+      // extracted bit
+   int ext_bit;
+   int a1_list_ndx = 0;
+
+   if (length * 2 / sizeof(mfm_data[0]) > mfm_length) {
+      msg(MSG_FATAL, "MFM data overflow\n");
+      exit(1);
+   }
+      // Generate table to convert a byte to 16 MFM encoded bits
+   if (first_time) {
+      for (lbc = 0; lbc < 2; lbc++) {
+         for (i = 0; i < 256; i++) {
+            last_bit = lbc;
+            value16 = 0;
+            for (bit = 7; bit >= 0; bit--) {
+               value16 <<= 2;
+               ext_bit = (i >> bit) & 1;
+               value16 |= ((!(last_bit | ext_bit)) << 1) | ext_bit;
+               last_bit = ext_bit;
+            }
+            mfm_encode[lbc][i] = value16;
+         }
+      }
+      first_time = 0;
+   }
+   last_bit = 0;
+   for (i = 0; i < length; i++) {
+         // If at the top location in the A1 list write the special pattern.
+         // A1 list is in ascending order. Otherwise encode the byte
+      if (a1_list_ndx < a1_list_length && i == a1_list[a1_list_ndx]) {
+         value16 = 0x4489;
+         a1_list_ndx++;
+      } else {
+         value16 = mfm_encode[last_bit][data[i]];
+      }
+         // Put in correct half of 32 bit word. 
+      if (i & 1) {
+         value32 = value32 << 16 | value16;
+         mfm_data[i/2] = value32;
+      } else {
+         value32 = value16;
+      }
+      last_bit = value16 & 1;
+   }
+}
+
+// Convert an extracted data file to an emulator file
+// 
+//TODO: handle marking bad sectors. Is interleave handling sufficient?
+//   Think about handle DEC_RQDX3 format where tracks vary. Having format
+//   vary between sectors on same track is really annoying.
+void ext2emu(int argc, char *argv[])
+{
+      // Store bytes for track
+   uint8_t *track;
+   int track_length;
+   uint32_t *track_mfm;
+      // Store byte locations in track where special MFM encoding of A1
+      // mark field needs to be inserted
+   int a1_list[100];
+   int a1_list_ndx = 0;
+      // Number of bytes written to track
+   int track_filled = 0;
+   DRIVE_PARAMS drive_params;
+   struct stat finfo;
+   int calc_size;
+   CONTROLLER *controller;
+
+   parse_cmdline(argc, argv, &drive_params, "sgjdlu3rabt", 1, 0, 0);
+
+   parse_validate_options_listed(&drive_params, "hcemf");
+
+   if (mfm_controller_info[drive_params.controller].track_layout == NULL) {
+      msg(MSG_FATAL, "Not yet able to process format %s\n",
+         mfm_controller_info[drive_params.controller].name);
+      exit(1);
+   }
+
+      // Pull various parameters we need for this controller
+   controller = &mfm_controller_info[drive_params.controller];
+   drive_params.num_sectors = controller->write_num_sectors;
+   drive_params.first_sector_number = controller->write_first_sector_number;
+   drive_params.sector_size = controller->write_sector_size;
+   drive_params.data_crc = controller->write_data_crc;
+   drive_params.header_crc = controller->write_header_crc;
+   drive_params.emu_track_data_bytes = controller->track_words * 4;
+   drive_params.start_time_ns = controller->start_time_ns;
+
+   // Save final parameters
+   drive_params.cmdline = parse_print_cmdline(&drive_params, 0, 1);
+
+   drive_params.ext_fd = open(drive_params.extract_filename, O_RDONLY);
+   if (drive_params.ext_fd < 0) {
+      msg(MSG_FATAL, "Unable to open extract file: %s\n", strerror(errno));
+      exit(1);
+   }
+   drive_params.emu_fd = emu_file_write_header(drive_params.emulation_filename,
+        drive_params.num_cyl, drive_params.num_head,
+        drive_params.cmdline, drive_params.note,
+        controller->clk_rate_hz,
+        drive_params.start_time_ns, drive_params.emu_track_data_bytes);
+
+   fstat(drive_params.ext_fd, &finfo);
+   calc_size = drive_params.sector_size * drive_params.num_sectors * 
+        drive_params.num_head * drive_params.num_cyl;
+      // Warn if the extracted data file doesn't match the expected size for
+      // the parameters specified
+   if (calc_size != finfo.st_size) {
+      msg(MSG_INFO, "Calculated extract file size %d bytes, actual size %d\n",
+        calc_size, finfo.st_size);
+   }
+
+      // If interleave values specified set them
+   if (drive_params.sector_numbers != NULL) {
+      set_sector_interleave(&drive_params, drive_params.sector_numbers[0], 
+         drive_params.sector_numbers[1]);
+   } else {
+      set_sector_interleave(&drive_params, 1, 0);
+   }
+
+   memset(a1_list, 0, sizeof(a1_list));
+
+   track_length = drive_params.emu_track_data_bytes / 2;
+   track = msg_malloc(track_length , "Track data");
+   track_mfm = msg_malloc(drive_params.emu_track_data_bytes, "Track data bits");
+
+   // Step through each cylinder and track and process the data
+   for (cyl = 0; cyl < drive_params.num_cyl; cyl++) {
+      set_cyl(cyl);
+      start_new_cyl(&drive_params);
+      for (head = 0; head < drive_params.num_head; head++) {
+         set_head(head);
+         start_new_track(&drive_params);
+         memset(track, 0, track_length);
+            // Generate the byte data in track, convert to MFM and write
+            // to emulator file
+         track_filled = process_track(&drive_params, track, 0, track_length,
+            controller->track_layout, 
+            a1_list, &a1_list_ndx, ARRAYSIZE(a1_list));
+         mfm_encode(track, track_length, track_mfm, 
+            drive_params.emu_track_data_bytes / sizeof(track_mfm[0]), 
+            a1_list, a1_list_ndx);
+         emu_file_write_track_bits(drive_params.emu_fd, (uint32_t *)track_mfm,
+             drive_params.emu_track_data_bytes/4, cyl, head,
+             drive_params.emu_track_data_bytes);
+
+         a1_list_ndx = 0;
+      }
+   }
+      // Warn if we didn't update all of the track array
+   if (track_filled != track_length) {
+      msg(MSG_INFO, "Not all track filled, %d of %d bytes uses\n",
+        track_filled, track_length);
+   }
+   emu_file_close(drive_params.emu_fd, 1);
+}
+
+

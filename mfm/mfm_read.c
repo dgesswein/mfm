@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 12/31/15 DJG Parameter change to parse_print_cmdline
 // 08/02/15 DJG Added support for rev B board
 // 05/17/15 DJG Added analyze of specified cylinder and head.
 // 01/04/15 DJG Added support for Corvus_H and NorthStar Advantage
@@ -215,9 +216,9 @@ int main(int argc, char *argv[])
       analyze_disk(&drive_params, deltas, max_deltas, 0);
       msg(MSG_INFO,"\n");
       // Print analysis results
-      parse_print_cmdline(&drive_params, 1);
+      parse_print_cmdline(&drive_params, 1, 0);
    }
-   cmdline = parse_print_cmdline(&drive_params, 0);
+   cmdline = parse_print_cmdline(&drive_params, 0, 0);
    drive_params.cmdline = msg_malloc(strlen(cmdline)+1,"main cmdline");
    strcpy(drive_params.cmdline, cmdline);
 

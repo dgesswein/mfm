@@ -1,3 +1,4 @@
+#define PRINT_SPACING 0
 // These are the general routines for supporting MFM decoders.
 // Call mfm_decode_setup once before trying to decode a disk
 // call mfm_init_sector_status_list before decoding each track
@@ -15,6 +16,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/31/15 DJG Changes for ext2emu
 // 12/24/15 DJG Code cleanup
 // 11/13/15 DJG Added Seagate ST11M support
 // 11/07/15 DJG Added Symbolics 3640 support
@@ -73,8 +75,6 @@
 static SECTOR_STATUS last_sector_list[MAX_SECTORS];
 static int last_cyl;
 static int last_head;
-// File to write decoded data to. -1 if shoudln't write to file.
-static int decode_fd = -1;
 
 static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
       uint8_t bytes[], int num_bytes);
@@ -426,11 +426,11 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    }
 
    if (!write_files || drive_params->extract_filename == NULL) {
-      decode_fd = -1;
+      drive_params->ext_fd = -1;
    } else {
-      decode_fd = open(drive_params->extract_filename, O_WRONLY | O_CREAT |
+      drive_params->ext_fd = open(drive_params->extract_filename, O_WRONLY | O_CREAT |
             O_TRUNC, 0664);
-      if (decode_fd < 0) {
+      if (drive_params->ext_fd < 0) {
          perror("Unable to create output file");
          exit(1);
       }
@@ -456,8 +456,8 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
 
    // Process last track sector list
    update_stats(drive_params, -1, -1, NULL);
-   if (decode_fd >= 0) {
-      close(decode_fd);
+   if (drive_params->ext_fd >= 0) {
+      close(drive_params->ext_fd);
    }
 
    if (stats->min_cyl != INT_MAX) {
@@ -579,7 +579,8 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
 // drive_params: specifies the length and other information.
 // sector_status: is the status of the sector writing
 // sector_status_list: is the status of the data that would be written to the
-//    file. Status is still updated if decode_fd is -1 to prevent writing.
+//    file. Status is still updated if drive_params->ext_fd is -1 to prevent 
+//    writing.
 // all_bytes: Includes data header bytes, used for emulator file writing
 // all_bytes_len: Length of all_bytes
 // return: -1 if error found, 0 if OK.
@@ -645,8 +646,8 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    }
    if (update) {
       update_emu_track_sector(sector_status, sect_rel0, all_bytes, all_bytes_len);
-      if (decode_fd >= 0) {
-         if (lseek(decode_fd,
+      if (drive_params->ext_fd >= 0) {
+         if (lseek(drive_params->ext_fd,
                (sect_rel0) * drive_params->sector_size +
                sector_status->head * (drive_params->sector_size *
                      drive_params->num_sectors) +
@@ -656,7 +657,7 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
             msg(MSG_FATAL, "Seek failed decoded data: %s\n", strerror(errno));
             exit(1);
          };
-         if ((rc = write(decode_fd, bytes, drive_params->sector_size)) !=
+         if ((rc = write(drive_params->ext_fd, bytes, drive_params->sector_size)) !=
                drive_params->sector_size) {
             msg(MSG_FATAL, "Write failed, rc %d: %s", rc, strerror(errno));
             exit(1);
@@ -716,9 +717,11 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    int start;
 
    if (*state == PROCESS_HEADER) {
+      start = mfm_controller_info[drive_params->controller].header_crc_ignore;
+
       crc_info = drive_params->header_crc;
       if (msg_get_err_mask() & MSG_DEBUG_DATA) {
-         mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
+         mfm_dump_bytes(bytes, bytes_crc_len + start, cyl, head, *sector_index,
                MSG_DEBUG_DATA);
       }
       name = "header";
@@ -730,6 +733,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
       write(dump_fd, &bytes[3], bytes_crc_len - 3);
 #endif
+      start = mfm_controller_info[drive_params->controller].data_crc_ignore;
+
       crc_info = drive_params->data_crc;
       if (msg_get_err_mask() & MSG_DEBUG_DATA) {
          mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
@@ -738,6 +743,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       name = "data";
    }
    if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
+      // This doesn't use start. Possibly should for consistency
       crc = checksum64(bytes, bytes_crc_len-crc_info.length/8, &crc_info);
       if (crc_info.length == 16) {
          crc = crc & 0xff;
@@ -768,15 +774,9 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       if (*state == PROCESS_HEADER) {
          crc = 0;
       } else {
-         start = mfm_controller_info[drive_params->controller].data_crc_ignore;
          crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
       }
    } else {
-      if (*state == PROCESS_HEADER) {
-         start = mfm_controller_info[drive_params->controller].header_crc_ignore;
-      } else {
-         start = mfm_controller_info[drive_params->controller].data_crc_ignore;
-      }
       crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
    }
    // Zero CRC is no error
@@ -875,6 +875,9 @@ int last_sector_start_word;
 int header_track_word_ndx;
 int data_bit;
 int data_word_ndx;
+// For examining track timing
+int header_track_tot_bit_count;;
+int data_tot_bit_count;
 
 // Note that last call where data will be written had data for next track.
 void update_emu_track_words(DRIVE_PARAMS * drive_params,
@@ -949,20 +952,36 @@ void update_emu_track_words(DRIVE_PARAMS * drive_params,
 
 
 // Mark start of header in track data we are building
-// Bit count is bit location in work
-void mfm_mark_header_location(int bit_count) {
+// Bit count is bit location in word
+// tot_bit_count is for finding header separation
+void mfm_mark_header_location(int bit_count, int tot_bit_count) {
+
+#if PRINT_SPACING
+   if (header_track_tot_bit_count != 0 && (tot_bit_count) > 
+        header_track_tot_bit_count) {
+      msg(MSG_INFO, "Header difference %.1f bytes\n", 
+        (tot_bit_count - header_track_tot_bit_count) / 16.0);
+      msg(MSG_INFO, "Data to header difference %.1f %.1f bytes\n", 
+        (tot_bit_count - data_tot_bit_count) / 16.0,
+        (data_tot_bit_count - header_track_tot_bit_count) / 8.0);
+   } else {
+      msg(MSG_INFO, "First Header %.1f bytes\n", tot_bit_count / 16.0);
+   }
+#endif
    // Back up 1 word to ensure we copy the header mark pattern
    // We don't have to be accurate since we can change some of
    // the gap words.
    header_track_word_ndx = current_track_words_ndx - 1;
+   header_track_tot_bit_count = tot_bit_count;
 }
 
 // Mark start of data in track data we are building
 // Bit count is bit location in work
-void mfm_mark_data_location(int bit_count) {
+void mfm_mark_data_location(int bit_count, int tot_bit_count) {
    // Here we have to be accurate since we need to just replace the data
    data_bit = bit_count;
    data_word_ndx = current_track_words_ndx;
+   data_tot_bit_count = tot_bit_count;
 }
 
 

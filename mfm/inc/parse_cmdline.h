@@ -9,9 +9,11 @@
 #ifndef PARSE_CMDLINE_H_
 #define PARSE_CMDLINE_H_
 
-char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print);
+char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print, 
+   int no_retries_drive_interleave);
 void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
      char *delete_options, int initialize, int only_deleted,
      int allow_invalid_options);
 void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read);
+void parse_validate_options_listed(DRIVE_PARAMS *drive_params, char *opt);
 #endif /* PARSE_CMDLINE_H_ */

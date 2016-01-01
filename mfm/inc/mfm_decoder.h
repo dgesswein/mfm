@@ -53,6 +53,7 @@ typedef struct {
    // Track format
    // Update mfm_controller_info list below if enum changed.
    // ORDER IN THE TWO LISTS MUST MATCH
+   // TODO, replace this with pointer to CONTROLLER entry
    enum {CONTROLLER_NONE, CONTROLLER_NEWBURYDATA,
       CONTROLLER_WD_1006, CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
@@ -92,6 +93,7 @@ typedef struct {
    // Input/output files
    int tran_fd;
    int emu_fd;
+   int ext_fd;
    TRAN_FILE_INFO *tran_file_info;
    EMU_FILE_INFO *emu_file_info;
    // Size of data for each emulator track. Only valid when writing
@@ -179,7 +181,291 @@ DEF_EXTERN int mfm_lba_num_sectors[]
 #endif
 ;
 
-DEF_EXTERN struct {
+// This defines fields that aren't whole multiples of bytes.
+typedef struct bit_l {
+      // Start bit, bits are numbered with most significant bit of the
+      // first byte 0
+   int bitl_start;
+      // Field length in bits
+   int bitl_length;
+} BIT_L;
+
+// This defines the fields in sector header and data areas
+typedef struct field_l {
+      // Length of field in bytes. If defined by bit fields set to 0
+   int len_bytes;
+      // Type of field,
+      // FIELD_FILL fills the specified number of bytes with value
+      // FIELD_A1 writes the A1 header/data mark code. Only 1 byte valid.
+      // FIELD_CYL, HEAD, SECTOR, LBA write the current cylinder, head, sector,
+      //   or logical block address. Valid for byte of bit fields.
+      // FIELD_HDR_CRC and FIELD_DATA_CRC write the check word. The
+      //    CONTROLLER data defines the type of check word.
+      // FIELD_MARK_CRC_START and END are used to mark the start and end
+      // byte for CRC (check data) calculation. The default
+      // includes the all the data from sector start flag byte (a1 etc) to 
+      // the CRC.
+   enum {FIELD_FILL, FIELD_A1, FIELD_CYL, FIELD_HEAD, FIELD_SECTOR,
+      FIELD_LBA, FIELD_HDR_CRC, FIELD_DATA_CRC, FIELD_SECTOR_DATA, 
+      FIELD_MARK_CRC_START, FIELD_MARK_CRC_END,
+      FIELD_BAD_SECTOR,
+      // These are for controllers that need special handling
+      FIELD_HEAD_SEAGATE_ST11M, FIELD_CYL_SEAGATE_ST11M
+      } type;
+      // Value for field. 
+   uint8_t value;
+      // OP_SET writes the data to the field, OP_XOR exclusive or's it
+      // with the current contents, OP_REVERSE reverses the bits then does
+      // an OP_SET.
+   enum {OP_SET, OP_XOR, OP_REVERSE} op;
+      // If bit_list is null is is the byte from start of field.
+      // If bit_list is not null this is the length of the field in bits.
+   int byte_offset_bit_len;
+      // The list of bits in field if not null.
+   BIT_L *bit_list;
+} FIELD_L;
+
+// This defines all the data in the track. Each operation starts at the
+// end of the previous one.
+typedef struct trk_l {
+      // The count for the field. For TRK_FIll and TRK_FIELD its the number 
+      // of bytes,
+      // for TRK_SUB its the number of times the specificied list should be
+      // repeated.
+   int count;
+      // TRK_FILL fills the specified length of bytes. 
+   enum {TRK_FILL, TRK_SUB, TRK_FIELD} type;
+      // Only used for TRK_FILL.
+   uint8_t value;
+      // Pointer to a TRK_L for TRK_SUB or FIELD_L for TRK_FIELD
+   void *list;
+} TRK_L;
+#if 0
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+#endif
+
+// For more information on the track formats see the *decoder.c files.
+//
+// TODO, use these tables to drive reading the data also instead of the
+// current hard coded data.
+// Will likely need a separate op for reading.
+//
+// From http://www.mirrorservice.org/sites/www.bitsavers.org/pdf/sms/asic/OMTI_5050_Programmable_Data_Sequencer_Jun86.pdf
+// Appendix A
+DEF_EXTERN TRK_L trk_omti_5510[] 
+#ifdef DEF_DATA
+ = 
+{ { 11, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 2, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {14, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {14, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {715, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// From looking at data read from a drive
+DEF_EXTERN TRK_L trk_symbolics_3640[] 
+#ifdef DEF_DATA
+ = 
+{ { 8, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {47, TRK_FILL, 0x00, NULL},
+        {11, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x5a, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x96, OP_SET, 2, NULL},
+              {1, FIELD_FILL, 0x0e, OP_SET, 3, NULL},
+              {1, FIELD_FILL, 0x0e, OP_SET, 4, NULL},
+              {1, FIELD_FILL, 0x9e, OP_SET, 5, NULL},
+              {1, FIELD_FILL, 0x01, OP_SET, 6, NULL},
+              {0, FIELD_SECTOR, 0x00, OP_REVERSE, 3, 
+                 (BIT_L []) {
+                    { 56, 3},
+                    { -1, -1},
+                 }
+              },
+              {0, FIELD_HEAD, 0x00, OP_REVERSE, 4, 
+                 (BIT_L []) {
+                    { 62, 4},
+                    { -1, -1},
+                 }
+              },
+              {0, FIELD_CYL, 0x00, OP_REVERSE, 12, 
+                 (BIT_L []) {
+                    { 68, 12},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HDR_CRC, 0x00, OP_SET, 10, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {25, TRK_FILL, 0x00, NULL},
+        {1166, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x01, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xe0, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {1160, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1162, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {49, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {32, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+
+// From looking at data read from a drive and manual. Commented out values
+// are what the manual specified which didn't work and didn't match captured
+// data. The controller could read data written with this format but got
+// errors after it wrote to a track.
+DEF_EXTERN TRK_L trk_northstar[] 
+#ifdef DEF_DATA
+ = 
+//{ { 44, TRK_FILL, 0xff, NULL },
+{ { 69, TRK_FILL, 0xff, NULL },
+  { 3, TRK_FILL, 0x55, NULL },
+  //{ 40, TRK_FILL, 0xff, NULL },
+  { 8, TRK_FILL, 0xff, NULL },
+  { 16, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {67, TRK_FILL, 0x00, NULL},
+// This is somewhat inconsistant. The Symbolics 3640 needs the 1 as part of the
+// header, Northstar code assumes it is not.
+        { 1, TRK_FILL, 0x01, NULL},
+        { 525, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_SECTOR, 0x00, OP_SET, 0, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 12, 
+                 (BIT_L []) {
+                    { 0, 4},
+                    { 8, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_FILL, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_FILL, 0xff, OP_SET, 8, NULL},
+              {1, FIELD_HDR_CRC, 0x00, OP_SET, 7, NULL},
+              {1, FIELD_HDR_CRC, 0x00, OP_XOR, 8, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 9, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 9, NULL},
+              {0, FIELD_MARK_CRC_END, 0, OP_SET, 520, NULL},
+              {2, FIELD_FILL, 0xff, OP_SET, 523, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 521, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_XOR, 523, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        //{45, TRK_FILL, 0x00, NULL},
+        {49, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   //{121, TRK_FILL, 0xff, NULL},
+   {64, TRK_FILL, 0xff, NULL},
+   {-1, 0, 0, NULL}
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_seagate_ST11M[] 
+#ifdef DEF_DATA
+ = 
+{ { 19, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {10, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {1, FIELD_HEAD_SEAGATE_ST11M, 0x00, OP_SET, 2, NULL},
+                 // On first cylinder byte 2 is 0xff. This is set by 
+                 // FIELD_HEAD_SEAGATE_ST11M. The XOR prevents clearing
+                 // the upper 2 bits
+              {0, FIELD_CYL_SEAGATE_ST11M, 0x00, OP_XOR, 10, 
+                 (BIT_L []) {
+                    { 16, 2},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 5, NULL}, // Spare flags
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {20, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {622, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY} CHECK_TYPE;
+
+typedef struct {
    char *name;
       // Sector size needs to be smallest value to prevent missing next header
       // for most formats. Some controller formats need the correct value.
@@ -190,112 +476,149 @@ DEF_EXTERN struct {
       // nanoseconds. Needed to ensure we start reading with the first
       // physical sector
    uint32_t start_time_ns;
+
    int header_start_poly, header_end_poly;
    int data_start_poly, data_end_poly;
+
    int start_init, end_init;
    enum {CINFO_NONE, CINFO_CHS, CINFO_LBA} analyze_type;
+
       // Size of headers not including checksum
    int header_bytes, data_header_bytes; 
       // These bytes at start of header and data header ignored
    int header_crc_ignore, data_crc_ignore;
+   CHECK_TYPE header_check, data_check;
+
       // These bytes at the end of the data area are included in the CRC
       // but should not be written to the extract file.
    int data_trailer_bytes;
       // 1 if data area is separate from header. 0 if one CRC covers both
    int separate_data;
-} mfm_controller_info[]
+      // Layout of track.
+   TRK_L *track_layout;
+      // Sector size to use for converting extract to emulator file
+   int write_sector_size;
+      // And number of sectors per track
+   int write_num_sectors;
+      // And number of sectors per track
+   int write_first_sector_number;
+      // Number of 32 bit words in track MFM data
+   int track_words;
 
+      // Check information
+   CRC_INFO write_header_crc, write_data_crc;
+} CONTROLLER;
+
+DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Keep sorted by header length. MUST MATCH order of controller enum
 #ifdef DEF_DATA
    = {
       {"CONTROLLER_NONE",        0, 10000000,      0, 
          0,0, 0,0,
          0,0, CINFO_NONE,
-         0, 0, 0, 0, 
-         0, 0},
+         0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"NewburyData",          256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         4, 2, 0, 0, 
-         0, 1},
+         4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"WD_1006",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 0, 0,
-         0, 1},
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"Olivetti",             256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 2, 2, 
-         0, 1},
+         5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"MacBottom",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 0, 0,
-         0, 1},
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"Elektronika_85",      256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 0, 0, 
-         16, 1},
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         16, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         6, 2, 0, 0,
-         0, 1},
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_omti_5510, 512, 17, 0, 5208,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5} },
       {"DEC_RQDX3",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         6, 2, 0, 0,
-         0, 1},
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"Seagate_ST11M",        256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         6, 2, 0, 0,
-         0, 1},
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_seagate_ST11M, 512, 17, 0, 5208,
+         {0x0,0x41044185,32,5},{0x0,0x41044185,32,5} },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
-         6, 2, 0, 0,
-         0, 1},
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"Symbolics_3620",       256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         7, 3, 3, 3,
-         0, 1},
+         7, 3, 3, 3, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 3, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
-         11, 1, 0, 1,
-         0, 1},
+         11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
+         0, 1, trk_symbolics_3640, 1160, 8, 0, 5208,
+         {0x0,0x0,1,0},{0x0,0xa00805,32,5} },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number
       {"Mightyframe",          256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_NONE,
-         5, 2, 0, 0, 
-         0, 1},
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
 // END of WD type controllers
       {"Xebec_104786",         256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         9, 2, 0, 0, 
-         0, 1},
+         9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         3, 0, 0, 0, 
-         0, 0},
+         3, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 0, 0, 0, 5208,
+         {0,0,0,0},{0,0,0,0} },
       {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2,3,
          0, 1, CINFO_CHS,
-         7, 0, 0, 0, 
-         0, 1},
+         7, 0, 0, 0, CHECK_CHKSUM, CHECK_CHKSUM,
+         0, 1, trk_northstar, 512, 16, 0, 5208,
+         {0,0,16,0},{0,0,32,0} },
       {NULL, 0, 0, 0,
-         0,0, 0,0, CINFO_NONE,
-         0, 0, 0, 0, 
-         0, 0},
+         0, 0, 0, 0,
+         0,0, CINFO_NONE,
+         0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 0, 0, 0, 0,
+         {0,0,0,0},{0,0,0,0} }
    }
 #endif
 ;
@@ -393,8 +716,8 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word);
-void mfm_mark_header_location(int bit_count);
-void mfm_mark_data_location(int bit_count);
+void mfm_mark_header_location(int bit_count, int tot_bit_count);
+void mfm_mark_data_location(int bit_count, int tot_bit_count);
 void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params);
 #undef DEF_EXTERN
 #endif /* MFM_DECODER_H_ */

@@ -1,4 +1,3 @@
-#define VERSION "1.0pre11"
 // Parse the command line.
 //
 // Call parse_cmdline to parse the command line
@@ -10,6 +9,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 12/31/15 DJG Changes for ext2emu
 // 11/01/15 DJG Validate options required when format is specified.
 // 05/17/15 DJG Made drive -d and data_crc -j so -d would be drive in all
 //    of the MFM programs.
@@ -48,6 +48,7 @@
 #include "drive.h"
 
 #include "parse_cmdline.h"
+#include "version.h"
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -73,8 +74,8 @@ void safe_print(char **ptr, int *left, char *format, ...) {
 // Print command line to give current drive parameter settings
 //
 // drive_params: Drive parameters
-char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print) {
-   int i;
+char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
+      int no_retries_drive_interleave) {
    static char cmdline[2048];
    int cmdleft = sizeof(cmdline)-1;
    char *cmdptr = cmdline;
@@ -102,16 +103,19 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print) {
          mfm_controller_info[drive_params->controller].name);
    }
    safe_print(&cmdptr, &cmdleft,
-         " --sector_length %d --retries %d --drive %d",
-         drive_params->sector_size,
+         "--sector_length %d ", drive_params->sector_size);
+   if (!no_retries_drive_interleave) {
+      safe_print(&cmdptr, &cmdleft, "--retries %d --drive %d ",
          drive_params->retries, drive_params->drive);
+   }
    if (drive_params->step_speed == DRIVE_STEP_SLOW) {
-      safe_print(&cmdptr, &cmdleft, " --unbuffered_seek");
+      safe_print(&cmdptr, &cmdleft, "--unbuffered_seek ");
    }
    if (drive_params->head_3bit) {
-      safe_print(&cmdptr, &cmdleft, " --head_3bit");
+      safe_print(&cmdptr, &cmdleft, "--head_3bit ");
    }
-   if (drive_params->sector_numbers != NULL) {
+   if (!no_retries_drive_interleave && drive_params->sector_numbers != NULL) {
+      int i;
       safe_print(&cmdptr, &cmdleft, " --interleave ");
       for (i = 0; i < drive_params->num_sectors; i++) {
          if (i == drive_params->num_sectors - 1) {
@@ -262,7 +266,8 @@ static uint8_t *parse_interleave(char *arg, DRIVE_PARAMS *drive_params) {
                drive_params->first_sector_number;
       }
    } else {
-      if (drive_params->num_sectors != 0 && i != 0 && 
+      // allow 2 values for ext2emu
+      if (drive_params->num_sectors != 0 && i != 0 && i != 2 &&
             drive_params->num_sectors != i) {
          msg(MSG_FATAL, "Number of sectors in interleave list doesn't match number of sectors\n");
          exit(1);
@@ -311,7 +316,8 @@ static int min_read_transitions_opts = 0x46;
 static int drive_opt = 0x40;
 // data_crc option bitmask
 static int data_crc_opt = 0x10;
-// If you change this fix parse_print_cmdline
+// If you change this fix parse_print_cmdline and check if ext2emu should
+// delete new option
 static struct option long_options[] = {
          {"sectors", 1, NULL, 's'},
          {"heads", 1, NULL, 'h'},
@@ -379,6 +385,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
       // Set defaults
       drive_params->emu_fd = -1;
       drive_params->tran_fd = -1;
+      drive_params->ext_fd = -1;
       drive_params->step_speed = DRIVE_STEP_FAST;
       drive_params->retries = 50;
       drive_params->sector_size = 512;
@@ -418,7 +425,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
          }
       }
       // If option is deleted or not found either error or ignore
-      if (strchr(delete_options, rc) != 0 || options_index == -1) {
+      if (strchr(delete_options, rc) != 0) {
          if (!ignore_invalid_options) {
             msg(MSG_FATAL,"Option '%c' %s not valid for this program\n",
                rc, long_options[options_index].name);
@@ -521,7 +528,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             drive_params->note = optarg;
             break;
          case '?':
-            msg(MSG_FATAL, "Didn't process argument %c\n", rc);
             if (!ignore_invalid_options) {
                exit(1);
             }
@@ -545,9 +551,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
 //
 // drive_params: Drive parameters
 // mfm_read: 1 if mfm_read, 0 if mfm_util
+
 void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
    int i;
-
    // For mfm_util drive doesn't need to be specified. This
    // option error handling is getting messy.
    if (!mfm_read) {
@@ -598,6 +604,25 @@ void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
          }
       }
       msg(MSG_FATAL, "\n");
+      exit(1);
+   }
+}
+
+void parse_validate_options_listed(DRIVE_PARAMS *drive_params, char *opt) {
+   int i;
+   int fatal = 0;
+
+   while (*opt != 0) {
+      for (i = 0; i < ARRAYSIZE(long_options); i++) {
+          if ( (*opt == long_options[i].val) && 
+             !(drive_params->opt_mask & (1 << i)) ) {
+            msg(MSG_FATAL, "Option %s must be specified\n", long_options[i].name);
+            fatal = 1;
+          }
+      }
+      opt++;
+   }
+   if (fatal) {
       exit(1);
    }
 }

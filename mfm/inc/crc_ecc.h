@@ -6,9 +6,9 @@
 // This contains the polynomial, polynomial length, CRC initial value,
 // and maximum span for ECC correction. Use span 0 for no ECC correction.
 typedef struct {
+   uint64_t init_value; 
    uint64_t poly;
    uint32_t length;
-   uint64_t init_value; 
    uint32_t ecc_max_span;
 } CRC_INFO; 
   
@@ -18,4 +18,5 @@ uint64_t crc64(uint8_t bytes[], int num_bytes, CRC_INFO *crc_info);
 int ecc64(uint8_t bytes[], int num_bytes, uint64_t syndrome, 
    CRC_INFO *crc_info);
 uint64_t checksum64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info);
+uint64_t parity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info);
 #endif /* CRC_ECC_H_ */

@@ -1,4 +1,3 @@
-#define VERSION "1.0pre11"
 // Parse the command line.
 //
 // Call parse_cmdline to parse the command line
@@ -35,6 +34,7 @@
 #include "msg.h"
 #include "emu_tran_file.h"
 #include "parse_cmdline.h"
+#include "version.h"
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -155,7 +155,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          drive_params->sample_rate_hz = strtoul(optarg, NULL, 0);
          break;
       case '?':
-         msg(MSG_FATAL, "Didn't process argument %c\n", rc);
          exit(1);
          break;
       default:
