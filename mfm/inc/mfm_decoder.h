@@ -38,6 +38,15 @@ typedef struct {
    int max_ecc_span;
 } STATS;
 
+typedef struct {
+      // Address of bad sector
+   int cyl;
+   int head;
+   int sector;
+      // Non zero if last entry in list
+   int last;
+} MARK_BAD_LIST;
+
 // This is the main structure defining the drive characteristics
 typedef struct {
    // The number of cylinders, heads, and sectors per track
@@ -110,6 +119,10 @@ typedef struct {
    char *note;
    // Time after index to start read in nanoseconds
    uint32_t start_time_ns;
+   // List of sector to mark bad in ext2emu. Sorted ascending
+   MARK_BAD_LIST *mark_bad_list;
+   // Index for next entry in array above
+   int next_mark_bad;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so

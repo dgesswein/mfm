@@ -541,6 +541,20 @@ static void process_field(DRIVE_PARAMS *drive_params,
             value = get_check_value(&track[crc_start], crc_end - crc_start + 1,
                &drive_params->data_crc,
                mfm_controller_info[drive_params->controller].data_check);
+            if (drive_params->mark_bad_list != NULL) {
+               MARK_BAD_LIST *mark_bad_list = 
+                    &drive_params->mark_bad_list[drive_params->next_mark_bad];
+               if (get_cyl() == mark_bad_list->cyl &&
+                    get_head() == mark_bad_list->head &&  
+                    get_sector(drive_params) == mark_bad_list->sector) {
+                  // Invert the check value to invalidiate
+                  value = ~value;
+                  if (!mark_bad_list->last) {
+                     drive_params->next_mark_bad++;
+                  }
+               }
+            }
+            inc_sector(drive_params);
          break;
          case FIELD_MARK_CRC_START:
             crc_start = field_def[ndx].byte_offset_bit_len;
@@ -558,9 +572,6 @@ static void process_field(DRIVE_PARAMS *drive_params,
             get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
                length - field_def[ndx].byte_offset_bit_len);
             data_set = 1;
-               // We assume that its ok to increment the sector counter after
-               // we put in the sector data
-            inc_sector(drive_params);
          break;
             // Place holder for code to handle marking a sector
          case FIELD_BAD_SECTOR:

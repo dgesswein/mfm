@@ -305,6 +305,59 @@ static void parse_analyze(char *arg, DRIVE_PARAMS *drive_params) {
    drive_params->analyze_head = atoi(tok);
 }
 
+static int mark_bad_compare(const void *a, const void *b) {
+   const MARK_BAD_LIST *mba, *mbb;
+   mba = a;
+   mbb = b;
+   if (mba->cyl > mbb->cyl || (mba->cyl == mbb->cyl && 
+         ((mba->head > mbb->head) || (mba->head == mbb->head && 
+           mba->sector > mbb->sector)))) {
+      return 1;
+   }  else if (mba->cyl == mbb->cyl && mba->head == mbb->head && 
+          mba->sector == mbb->sector) {
+      return 0;
+   } else {
+      return -1;
+   }
+}
+// Parse the mark bad sector information. Format is cyl,head,sect:cyl,head,sect
+//
+// arg: Bad sector information string
+// drive_params: Drive parameters
+// return: Pointer to list of bad sector data sorted ascending
+static MARK_BAD_LIST *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
+   int i;
+   char *str, *tok;
+   int num_bad;
+   MARK_BAD_LIST *mark_bad_list;
+
+   str = arg;
+   num_bad = 1;
+   while (*str != 0) {
+      if (*str++ == ':') { 
+         num_bad++;
+      }
+   }
+   mark_bad_list = msg_malloc(num_bad * sizeof(MARK_BAD_LIST),
+      "Mark bad list");
+
+   str = arg;
+   for (i = 0; i < num_bad; i++) {
+      tok = strtok(str,":");
+      if (sscanf(tok, "%d,%d,%d", &mark_bad_list[i].cyl, &mark_bad_list[i].head,
+           &mark_bad_list[i].sector) != 3) {
+         msg(MSG_FATAL,"Error parsing mark bad list %s\n",tok); 
+         exit(1);
+      }
+      mark_bad_list[i].last = 0;
+      str = NULL;
+   }
+   qsort(mark_bad_list, num_bad, sizeof(MARK_BAD_LIST), mark_bad_compare);
+   mark_bad_list[num_bad-1].last = 1;
+
+   return mark_bad_list;
+}
+
 // Delete bit n from v shifting higher bits down
 #define DELETE_BIT(v, n) (v & ((1 << n)-1)) | (((v & ~((1 << (n+1))-1)) >> 1))
 
@@ -339,9 +392,10 @@ static struct option long_options[] = {
          {"emulation_file", 1, NULL, 'm'},
          {"version", 0, NULL, 'v'},
          {"note", 1, NULL, 'n'},
+         {"mark_bad", 1, NULL, 'M'},
          {NULL, 0, NULL, 0}
 };
-static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:";
+static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:";
 
 // Main routine for parsing command lines
 //
@@ -531,6 +585,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             if (!ignore_invalid_options) {
                exit(1);
             }
+            break;
+         case 'M':
+            drive_params->mark_bad_list = parse_mark_bad(optarg, drive_params);
             break;
          default:
             msg(MSG_FATAL, "Didn't process argument %c\n", rc);
