@@ -9,6 +9,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/02/16 DJG Add --mark_bad support
 // 12/31/15 DJG Changes for ext2emu
 // 11/01/15 DJG Validate options required when format is specified.
 // 05/17/15 DJG Made drive -d and data_crc -j so -d would be drive in all

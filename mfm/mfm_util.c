@@ -1,6 +1,8 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 01/02/16 DJG Fix ext2emu for Northstar
+// 01/01/16 DJG Add --mark_bad support
 // 12/31/15 DJG Added ext2emu functionality
 // 07/30/15 DJG Added support for revision B board.
 // 05/17/15 DJG Added ability to analyze transition and emulation files.
@@ -124,7 +126,7 @@ int main (int argc, char *argv[])
    }
    // Now parse the full command line. This allows overriding options that
    // were in the transition file header.
-   parse_cmdline(argc, argv, &drive_params, "rd", 0, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "Mrd", 0, 0, 0);
    // Save final parameters
    drive_params.cmdline = parse_print_cmdline(&drive_params, 0, 0);
 
@@ -554,7 +556,6 @@ static void process_field(DRIVE_PARAMS *drive_params,
                   }
                }
             }
-            inc_sector(drive_params);
          break;
          case FIELD_MARK_CRC_START:
             crc_start = field_def[ndx].byte_offset_bit_len;
@@ -587,6 +588,10 @@ static void process_field(DRIVE_PARAMS *drive_params,
             a1_list[(*a1_list_ndx)++] = start + 
                 field_def[ndx].byte_offset_bit_len;
             value = 0xa1;
+         break;
+         case FIELD_NEXT_SECTOR:
+            inc_sector(drive_params);
+            data_set = 1;
          break;
          default:
             msg(MSG_FATAL, "Unknown field_def type %d\n",field_def[ndx].type);

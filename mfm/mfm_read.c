@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    board_initialize();
 
    // Find out what we should do
-   parse_cmdline(argc, argv, &drive_params, "", 1, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0);
    parse_validate_options(&drive_params, 1);
 
    // If they specified a file name then we read the disk

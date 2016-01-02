@@ -222,8 +222,10 @@ typedef struct field_l {
       FIELD_LBA, FIELD_HDR_CRC, FIELD_DATA_CRC, FIELD_SECTOR_DATA, 
       FIELD_MARK_CRC_START, FIELD_MARK_CRC_END,
       FIELD_BAD_SECTOR,
-      // These are for controllers that need special handling
-      FIELD_HEAD_SEAGATE_ST11M, FIELD_CYL_SEAGATE_ST11M
+         // These are for controllers that need special handling
+      FIELD_HEAD_SEAGATE_ST11M, FIELD_CYL_SEAGATE_ST11M,
+         // Mark end of sector to increment sector counter
+      FIELD_NEXT_SECTOR
       } type;
       // Value for field. 
    uint8_t value;
@@ -296,6 +298,7 @@ DEF_EXTERN TRK_L trk_omti_5510[]
               {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
               {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
               {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
         },
@@ -357,6 +360,7 @@ DEF_EXTERN TRK_L trk_symbolics_3640[]
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
               {1160, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
               {4, FIELD_DATA_CRC, 0x00, OP_SET, 1162, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
         },
@@ -411,6 +415,7 @@ DEF_EXTERN TRK_L trk_northstar[]
               {2, FIELD_FILL, 0xff, OP_SET, 523, NULL},
               {2, FIELD_DATA_CRC, 0x00, OP_SET, 521, NULL},
               {2, FIELD_DATA_CRC, 0x00, OP_XOR, 523, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
         },
@@ -462,6 +467,7 @@ DEF_EXTERN TRK_L trk_seagate_ST11M[]
               {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
               {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
               {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
         },
