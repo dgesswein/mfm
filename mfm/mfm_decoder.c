@@ -16,6 +16,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 01/06/16 DJG Add code to fix extracted data file when alternate tracks are
+//          used. Only a few format know how to determine alternate track
 // 12/31/15 DJG Changes for ext2emu
 // 12/24/15 DJG Code cleanup
 // 11/13/15 DJG Added Seagate ST11M support
@@ -428,7 +430,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    if (!write_files || drive_params->extract_filename == NULL) {
       drive_params->ext_fd = -1;
    } else {
-      drive_params->ext_fd = open(drive_params->extract_filename, O_WRONLY | O_CREAT |
+      drive_params->ext_fd = open(drive_params->extract_filename, O_RDWR | O_CREAT |
             O_TRUNC, 0664);
       if (drive_params->ext_fd < 0) {
          perror("Unable to create output file");
@@ -446,6 +448,38 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
 #endif
 }
 
+void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
+   ALT_INFO *alt_info = drive_params->alt_llist;
+
+   while (alt_info != NULL) { 
+      uint8_t bad_data[alt_info->length];
+      uint8_t good_data[alt_info->length];
+      msg(MSG_DEBUG,"Swapping start bad offset %d good offset %d\n",
+         alt_info->bad_offset, alt_info->good_offset);
+      if (pread(drive_params->ext_fd, bad_data, sizeof(bad_data),
+             alt_info->bad_offset) != sizeof(bad_data)) {
+         msg(MSG_FATAL, "bad alt pread failed\n");
+         exit(1);
+      }
+      if (pread(drive_params->ext_fd, good_data, sizeof(good_data),
+             alt_info->good_offset) != sizeof(good_data)) {
+         msg(MSG_FATAL, "good alt pread failed\n");
+         exit(1);
+      }
+      if (pwrite(drive_params->ext_fd, bad_data, sizeof(bad_data),
+             alt_info->good_offset) != sizeof(bad_data)) {
+         msg(MSG_FATAL, "good alt pwrite failed\n");
+         exit(1);
+      }
+      if (pwrite(drive_params->ext_fd, good_data, sizeof(good_data),
+             alt_info->bad_offset) != sizeof(good_data)) {
+         msg(MSG_FATAL, "bad alt pwrite failed\n");
+         exit(1);
+      }
+      alt_info = alt_info->next; 
+   }
+}
+
 // This cleans up at end of processing data and prints summary information.
 // Also checks that data agrees with the drive parameters.
 //
@@ -457,6 +491,7 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
    // Process last track sector list
    update_stats(drive_params, -1, -1, NULL);
    if (drive_params->ext_fd >= 0) {
+      fix_ext_alt_tracks(drive_params);
       close(drive_params->ext_fd);
    }
 

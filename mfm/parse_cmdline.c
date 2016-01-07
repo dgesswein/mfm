@@ -9,6 +9,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/06/16 DJG Rename structure
 // 01/02/16 DJG Add --mark_bad support
 // 12/31/15 DJG Changes for ext2emu
 // 11/01/15 DJG Validate options required when format is specified.
@@ -307,7 +308,7 @@ static void parse_analyze(char *arg, DRIVE_PARAMS *drive_params) {
 }
 
 static int mark_bad_compare(const void *a, const void *b) {
-   const MARK_BAD_LIST *mba, *mbb;
+   const MARK_BAD_INFO *mba, *mbb;
    mba = a;
    mbb = b;
    if (mba->cyl > mbb->cyl || (mba->cyl == mbb->cyl && 
@@ -326,11 +327,11 @@ static int mark_bad_compare(const void *a, const void *b) {
 // arg: Bad sector information string
 // drive_params: Drive parameters
 // return: Pointer to list of bad sector data sorted ascending
-static MARK_BAD_LIST *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
+static MARK_BAD_INFO *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
    int i;
    char *str, *tok;
    int num_bad;
-   MARK_BAD_LIST *mark_bad_list;
+   MARK_BAD_INFO *mark_bad_list;
 
    str = arg;
    num_bad = 1;
@@ -339,7 +340,7 @@ static MARK_BAD_LIST *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
          num_bad++;
       }
    }
-   mark_bad_list = msg_malloc(num_bad * sizeof(MARK_BAD_LIST),
+   mark_bad_list = msg_malloc(num_bad * sizeof(MARK_BAD_INFO),
       "Mark bad list");
 
    str = arg;
@@ -353,7 +354,7 @@ static MARK_BAD_LIST *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
       mark_bad_list[i].last = 0;
       str = NULL;
    }
-   qsort(mark_bad_list, num_bad, sizeof(MARK_BAD_LIST), mark_bad_compare);
+   qsort(mark_bad_list, num_bad, sizeof(MARK_BAD_INFO), mark_bad_compare);
    mark_bad_list[num_bad-1].last = 1;
 
    return mark_bad_list;

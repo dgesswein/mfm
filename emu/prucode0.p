@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 01/06/16 DJG Fix determining head mask, make sure head and select are
+//    initialized, detect reversed J2.
 // 12/31/15 DJG Add additional step pulse checks to work with Symbolics
 //    1 microsecond step pulse width.
 // 07/12/15 DJG Added additional check for step pulse to prevent missing
@@ -386,6 +388,11 @@ START:
    SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_STATUS, 4
 
+      // Pick up initial values. If step is active we bypass normal location
+      // these are picked up.
+   CALL     get_select_head
+
+
 // Wait for initial go from the ARM before we start acting like a drive
 // We need various data set up by it before we can start
 wait_initial_cmd:
@@ -421,11 +428,11 @@ no_drive1:
    // If greater than 8 use all head select. Otherwise ignore MSB which
    // is reduced write current on earlier drives
    MOV       r3, 0
-   QBLE      headok, r1, 8   // If 8 <= heads branch, we need all lines
+   QBLT      headok, r1, 8   // If 8 < heads branch, we need all lines
    CLR       r2, GPIO_HEAD3
    SET       r3, GPIO_HEAD3
 headok:
-   QBLE      headok2, r1, 4  // If 4 <= heads then we only need 3 lines else 2            
+   QBLT      headok2, r1, 4  // If 4 < heads then we only need 3 lines else 2            
    CLR       r2, GPIO_HEAD2
    SET       r3, GPIO_HEAD2
 headok2:
@@ -978,6 +985,11 @@ get_select_head:
    AND      r24, r24, r25                    // Our bits
    LBCO     r25, CONST_PRURAM, PRU0_HEAD_MASK, 4
    OR       r24, r24, r25                    // Set head lines we are ignoring
+      // If both write and step active things aren't correct
+   QBBS     nowrite, r31, R31_WRITE_GATE 
+   QBBS     nowrite, r31, R31_STEP_BIT
+   SET      r24, CUR_SELECT_HEAD_WRITE_ERR
+nowrite:
    SBCO     r24, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
    MOV      r25, GPIO_DRIVE_HEAD_LINES
    AND      r24, r24, r25                    // Our head bits

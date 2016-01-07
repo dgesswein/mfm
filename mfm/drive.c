@@ -11,6 +11,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 01/06/2016 DJG Detect reversed J4 cable
 // 12/24/2015 DJG Fix comment
 // 07/30/2015 DJG Added support for revision B board.
 // 05/16/2015 DJG Changes for drive_file.c
@@ -434,6 +435,10 @@ double drive_rpm(void) {
       return(200e6 / pru_get_cmd_data() * 60);
    } else {
       msg(MSG_FATAL, "Drive RPM failed\n");
+      if ((pru_read_word(MEM_PRU0_DATA, PRU0_STATUS) & 
+         ((1 << R31_INDEX_BIT) | (1 << R31_WRITE_FAULT_BIT))) == 0) {
+         msg(MSG_FATAL, "Is J4 cable plugged in backward?\n");
+      }
       exit(1);
    }
 }

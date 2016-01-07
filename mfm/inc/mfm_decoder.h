@@ -45,7 +45,15 @@ typedef struct {
    int sector;
       // Non zero if last entry in list
    int last;
-} MARK_BAD_LIST;
+} MARK_BAD_INFO;
+
+typedef struct alt_struct ALT_INFO;
+struct alt_struct {
+   ALT_INFO *next;
+   int bad_offset;
+   int good_offset;
+   int length;
+};
 
 // This is the main structure defining the drive characteristics
 typedef struct {
@@ -120,9 +128,11 @@ typedef struct {
    // Time after index to start read in nanoseconds
    uint32_t start_time_ns;
    // List of sector to mark bad in ext2emu. Sorted ascending
-   MARK_BAD_LIST *mark_bad_list;
+   MARK_BAD_INFO *mark_bad_list;
    // Index for next entry in array above
    int next_mark_bad;
+   // Linked list of alternate tracks for fixing extracted data file
+   ALT_INFO *alt_llist;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so
@@ -536,74 +546,74 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0,0, 0,0,
          0,0, CINFO_NONE,
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 0, NULL, 0, 0, 0, 5208,
+         0, 0, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"NewburyData",          256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"WD_1006",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"Olivetti",             256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"MacBottom",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"Elektronika_85",      256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         16, 1, NULL, 0, 0, 0, 5208,
+         16, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_omti_5510, 512, 17, 0, 5208,
+         0, 1, trk_omti_5510, 512, 17, 0, 5209,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5} },
       {"DEC_RQDX3",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"Seagate_ST11M",        256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_seagate_ST11M, 512, 17, 0, 5208,
+         0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
          {0x0,0x41044185,32,5},{0x0,0x41044185,32,5} },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"Symbolics_3620",       256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          7, 3, 3, 3, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 3, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
          11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
-         0, 1, trk_symbolics_3640, 1160, 8, 0, 5208,
+         0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
          {0x0,0x0,1,0},{0x0,0xa00805,32,5} },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number
@@ -611,26 +621,26 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_NONE,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
 // END of WD type controllers
       {"Xebec_104786",         256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5208,
+         0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          3, 0, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 0, NULL, 0, 0, 0, 5208,
+         0, 0, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0} },
       {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2,3,
          0, 1, CINFO_CHS,
          7, 0, 0, 0, CHECK_CHKSUM, CHECK_CHKSUM,
-         0, 1, trk_northstar, 512, 16, 0, 5208,
+         0, 1, trk_northstar, 512, 16, 0, 5209,
          {0,0,16,0},{0,0,32,0} },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,

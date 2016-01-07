@@ -1,6 +1,6 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
-//
+// 01/06/16 DJG Rename structure
 // 01/02/16 DJG Fix ext2emu for Northstar
 // 01/01/16 DJG Add --mark_bad support
 // 12/31/15 DJG Added ext2emu functionality
@@ -544,7 +544,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
                &drive_params->data_crc,
                mfm_controller_info[drive_params->controller].data_check);
             if (drive_params->mark_bad_list != NULL) {
-               MARK_BAD_LIST *mark_bad_list = 
+               MARK_BAD_INFO *mark_bad_list = 
                     &drive_params->mark_bad_list[drive_params->next_mark_bad];
                if (get_cyl() == mark_bad_list->cyl &&
                     get_head() == mark_bad_list->head &&  
