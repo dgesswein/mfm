@@ -147,6 +147,9 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 01/07/16 DJG Move picking up initial select and head until after head mask
+//    calculated.
+//    initialized, detect reversed J2.
 // 01/06/16 DJG Fix determining head mask, make sure head and select are
 //    initialized, detect reversed J2.
 // 12/31/15 DJG Add additional step pulse checks to work with Symbolics
@@ -388,11 +391,6 @@ START:
    SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_STATUS, 4
 
-      // Pick up initial values. If step is active we bypass normal location
-      // these are picked up.
-   CALL     get_select_head
-
-
 // Wait for initial go from the ARM before we start acting like a drive
 // We need various data set up by it before we can start
 wait_initial_cmd:
@@ -453,6 +451,10 @@ headok2:
       // AND ENABLE INTERRUPT 0
    MOV       r1, GPIO0 | GPIO_IRQSTATUS_SET_0
    SBBO      r0, r1, 0, 4
+
+      // Pick up initial values. If step is active we bypass normal location
+      // these are picked up.
+   CALL     get_select_head
 
 // Now start emulating a drive
    MOV      r0, CMD_STATUS_OK
