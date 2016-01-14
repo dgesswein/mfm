@@ -16,6 +16,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+//     be handled.
 // 01/06/16 DJG Add code to fix extracted data file when alternate tracks are
 //          used. Only a few format know how to determine alternate track
 // 12/31/15 DJG Changes for ext2emu
@@ -353,6 +355,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
    }
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
+         drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_OLIVETTI ||
@@ -802,7 +805,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             crc = 1; // Non zero indicates error
          }
       } else {
-         msg(MSG_FATAL, "Invalid CRC/checksum length %d\n",crc_info.length);
+         msg(MSG_FATAL, "Invalid checksum length %d\n",crc_info.length);
          exit(1);
       }
    } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
@@ -844,6 +847,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_OLIVETTI ||
@@ -998,7 +1002,7 @@ void mfm_mark_header_location(int bit_count, int tot_bit_count) {
         (tot_bit_count - header_track_tot_bit_count) / 16.0);
       msg(MSG_INFO, "Data to header difference %.1f %.1f bytes\n", 
         (tot_bit_count - data_tot_bit_count) / 16.0,
-        (data_tot_bit_count - header_track_tot_bit_count) / 8.0);
+        (data_tot_bit_count - header_track_tot_bit_count) / 16.0);
    } else {
       msg(MSG_INFO, "First Header %.1f bytes\n", tot_bit_count / 16.0);
    }

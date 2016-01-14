@@ -6,6 +6,8 @@
 
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
+// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+//     be handled.
 // 11/22/15 DJG Add special logic for ST11M controller detection
 // 11/01/15 DJG Analyze header and data together. The Elektronika_85 has
 //    same header format as other drives but the data area is different.
@@ -112,7 +114,8 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
    // Try an exhaustive search of all the formats we know about. If we get too
    // many we may have to try something smarter.
    for (cont = 0; mfm_controller_info[cont].name != NULL; cont++) {
-      if (mfm_controller_info[cont].analyze_type != CINFO_CHS) {
+      if (mfm_controller_info[cont].analyze_type != CINFO_CHS
+          || mfm_controller_info[cont].analyze_search == CONT_MODEL) {
          continue; // ****
       }
       // Make sure these get set at bottom for final controller picked
@@ -355,6 +358,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
              // Mightyframe encodes head 8-15 differently. If we don't find
              // any good headers on head 8 see if its a Mightyframe.
              if (!good_header && head == 8) {
+                int orig_controller = drive_params->controller;
                 drive_params->controller = CONTROLLER_MIGHTYFRAME;
                 status = mfm_decode_track(drive_params, cyl, head, deltas, 
                     NULL, sector_status_list);
@@ -368,7 +372,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
                    msg(MSG_FORMAT,"Changed controller type to %s\n",
                      mfm_controller_info[drive_params->controller].name);
                 } else {
-                   drive_params->controller = CONTROLLER_WD_1006;
+                   drive_params->controller = orig_controller;
                    status = mfm_decode_track(drive_params, cyl, head, deltas, 
                        NULL, sector_status_list);
                 }

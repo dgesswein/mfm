@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+//     be handled.
 // 01/06/16 DJG Add code to fix extracted data file when alternate tracks are
 //          used. Only a few format know how to determine alternate track
 // 12/31/15 DJG Fixes to Symblics 3640 and ext2emu changes
@@ -450,7 +452,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_WD_1006) {
+      } else if (drive_params->controller == CONTROLLER_WD_1006 ||
+              drive_params->controller == CONTROLLER_WD_3B1) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;

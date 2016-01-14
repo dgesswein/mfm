@@ -72,7 +72,8 @@ typedef struct {
    // ORDER IN THE TWO LISTS MUST MATCH
    // TODO, replace this with pointer to CONTROLLER entry
    enum {CONTROLLER_NONE, CONTROLLER_NEWBURYDATA,
-      CONTROLLER_WD_1006, CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
+      CONTROLLER_WD_1006, CONTROLLER_WD_3B1,
+      CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_OMTI_5510, CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
@@ -265,14 +266,6 @@ typedef struct trk_l {
       // Pointer to a TRK_L for TRK_SUB or FIELD_L for TRK_FIELD
    void *list;
 } TRK_L;
-#if 0
-              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
-                 (BIT_L []) {
-                    { 12, 1},
-                    { 14, 10},
-                    { -1, -1},
-                 }
-#endif
 
 // For more information on the track formats see the *decoder.c files.
 //
@@ -280,6 +273,60 @@ typedef struct trk_l {
 // current hard coded data.
 // Will likely need a separate op for reading.
 //
+// Format for AT&T 3B1 computer
+DEF_EXTERN TRK_L trk_3B1[] 
+#ifdef DEF_DATA
+ = 
+{ { 45, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {15, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 512
+              {1, FIELD_FILL, 0x20, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {516, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {38, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {275, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 // From http://www.mirrorservice.org/sites/www.bitsavers.org/pdf/sms/asic/OMTI_5050_Programmable_Data_Sequencer_Jun86.pdf
 // Appendix A
 DEF_EXTERN TRK_L trk_omti_5510[] 
@@ -536,6 +583,14 @@ typedef struct {
 
       // Check information
    CRC_INFO write_header_crc, write_data_crc;
+
+      // Analize is use full search on this format. Model is use
+      // the specific data only.
+      // TODO: Analize should search model for specific models before
+      // doing generic first. We may want to switch this to bit mask if
+      // some we will use as specific model then try search with different
+      // polynomials.
+   enum {CONT_ANALIZE, CONT_MODEL} analyze_search;
 } CONTROLLER;
 
 DEF_EXTERN CONTROLLER mfm_controller_info[]
@@ -547,74 +602,81 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0,0, CINFO_NONE,
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, 0 },
       {"NewburyData",          256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE},
       {"WD_1006",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"WD_3B1",          512, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_3B1, 512, 17, 0, 5209,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL },
       {"Olivetti",             256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"MacBottom",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Elektronika_85",      256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          16, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5} },
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
       {"DEC_RQDX3",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Seagate_ST11M",        256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
-         {0x0,0x41044185,32,5},{0x0,0x41044185,32,5} },
+         {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Symbolics_3620",       256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          7, 3, 3, 3, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+// Should be model after data filled in
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 3, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
          11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
-         {0x0,0x0,1,0},{0x0,0xa00805,32,5} },
+         {0x0,0x0,1,0},{0x0,0xa00805,32,5}, CONT_MODEL },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number
       {"Mightyframe",          256, 10000000,      0, 
@@ -622,32 +684,34 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_NONE,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
 // END of WD type controllers
       {"Xebec_104786",         256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          3, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0} },
+// Should be model after data filled in
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2,3,
          0, 1, CINFO_CHS,
          7, 0, 0, 0, CHECK_CHKSUM, CHECK_CHKSUM,
          0, 1, trk_northstar, 512, 16, 0, 5209,
-         {0,0,16,0},{0,0,32,0} },
+// Should be model after data filled in
+         {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 0,
-         {0,0,0,0},{0,0,0,0} }
+         {0,0,0,0},{0,0,0,0}, 0 }
    }
 #endif
 ;

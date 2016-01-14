@@ -9,6 +9,9 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+//     be handled. If controller defines other parameters such as polynomial
+//     set them
 // 01/06/16 DJG Rename structure
 // 01/02/16 DJG Add --mark_bad support
 // 12/31/15 DJG Changes for ext2emu
@@ -202,22 +205,37 @@ static CRC_INFO parse_crc(char *arg) {
 // the same format.
 //
 // arg: Controller string
+// ignore_invalid_option: Don't print if controller is invalid
 // return: Controller number
-static int parse_controller(char *arg) {
+static int parse_controller(char *arg, int ignore_invalid_options,
+      DRIVE_PARAMS *drive_params, int *params_set) {
    int i;
    int controller = -1;
 
+   *params_set = 0;
    for (i = 0; mfm_controller_info[i].name != NULL; i++) {
       if (strcasecmp(mfm_controller_info[i].name, arg) == 0) {
          controller = i;
       }
    }
    if (controller == -1) {
-      msg(MSG_FATAL, "Unknown controller %s. Choices are\n",arg);
-      for (i = 0; mfm_controller_info[i].name != NULL; i++) {
-         msg(MSG_FATAL,"%s\n",mfm_controller_info[i].name);
+      if (!ignore_invalid_options) {
+         msg(MSG_FATAL, "Unknown controller %s. Choices are\n",arg);
+         for (i = 0; mfm_controller_info[i].name != NULL; i++) {
+            msg(MSG_FATAL,"%s\n",mfm_controller_info[i].name);
+         }
+         exit(1);
       }
-      exit(1);
+   } else {
+      CONTROLLER *contp = &mfm_controller_info[controller];
+      if (contp->analyze_search == CONT_MODEL) {
+         drive_params->header_crc = contp->write_header_crc;
+         drive_params->data_crc = contp->write_data_crc;
+         drive_params->num_sectors = contp->write_num_sectors;
+         drive_params->first_sector_number = contp->write_first_sector_number;
+         drive_params->sector_size = contp->write_sector_size;
+         *params_set = 1;
+      }
    }
    return controller;
 }
@@ -367,6 +385,8 @@ static MARK_BAD_INFO *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
 static int min_read_opts = 0x7f;
 // Minimum to generation emulation file (MFM clock & data)
 static int min_read_transitions_opts = 0x46;
+// The options set when a CONT_MODEL controller used
+static int controller_model_params = 0x99;
 // Drive option bitmask
 static int drive_opt = 0x40;
 // data_crc option bitmask
@@ -419,6 +439,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
    // Bit vector of which options were specified
    char *tok;
    char delete_list[sizeof(short_options)];
+   int params_set;
 
    // If only deleted then copy all options to delete list that aren't
    // in delete_options
@@ -540,7 +561,11 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             drive_params->head_3bit = 1;
             break;
          case 'f':
-            drive_params->controller = parse_controller(optarg);
+            drive_params->controller = parse_controller(optarg, 
+               ignore_invalid_options, drive_params, &params_set);
+            if (params_set) {
+               drive_params->opt_mask |= controller_model_params;
+            }
             break;
          case 'l':
             drive_params->sector_size = atoi(optarg);
