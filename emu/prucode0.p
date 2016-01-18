@@ -147,7 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
-// 01/13/16 DHG Speed up select to try to make work with Symbolics 3640.
+// 01/17/16 DJG Fix select speedup state tracking
+// 01/13/16 DJG Speed up select to try to make work with Symbolics 3640.
 //     Speedup was insufficient but may be useful for other systems.
 // 01/07/16 DJG Move picking up initial select and head until after head mask
 //    calculated.
@@ -822,9 +823,11 @@ handle_start:
    LBBO     r0, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_LAST_ARM_CYL, 4
    QBNE     handle_cyl_change, r0, r3
+   MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
 handle_cyl_change: 
    CALL     send_arm_cyl
+   MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
 
 glitch:

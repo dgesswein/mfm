@@ -78,7 +78,7 @@
                     0x150 0x3f // IN   P9_22 = gpio0_2
                     0x154 0x3f // IN   P9_21 = gpio0_3
                     0x020 0x3f // IN   P8_19 = gpio0_22
-                    0x024 0x3f // IN   P8_13 = gpio0_23
+                    0x024 0x37 // IN   P8_13 = gpio0_23, pullup
                     0x028 0x3f // IN   P8_14 = gpio0_26
                     0x02c 0x3f // IN   P8_17 = gpio0_27
                     0x070 0x0f // OUT  P9_11 = gpio0_30
