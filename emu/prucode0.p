@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 01/22/16 DJG Make sure write going inactive is checked when all
+//     capture registers used. High frequency noise? casued problem.
 // 01/17/16 DJG Fix select speedup state tracking
 // 01/13/16 DJG Speed up select to try to make work with Symbolics 3640.
 //     Speedup was insufficient but may be useful for other systems.
@@ -1135,6 +1137,9 @@ get4:
 
    CALL     check_rotation           // These are slow so only do once per loop
    CALL     set_index
+      // All the checkstuff above will be skipped if all capture registers
+      // used. Make sure we check once.
+   CALL     checkstuff
    JMP      caploop
 
 // Send write delta times to PRU 1
