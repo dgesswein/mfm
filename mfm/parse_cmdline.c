@@ -9,7 +9,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
-// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+// 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled. If controller defines other parameters such as polynomial
 //     set them
 // 01/06/16 DJG Rename structure

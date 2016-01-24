@@ -1,5 +1,6 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
+// 01/24/16 DJG Fix for ext2emu when sectors start at 1
 // 01/06/16 DJG Rename structure
 // 01/02/16 DJG Fix ext2emu for Northstar
 // 01/01/16 DJG Add --mark_bad support
@@ -417,7 +418,7 @@ static uint64_t get_check_value(uint8_t track[], int length, CRC_INFO *crc_info,
 // data array
 //
 // drive_params: Drive parameters
-// track: Location to write data to
+// track: Location to write data read to
 // length: Number of bytes in track
 static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
    int block;
@@ -428,7 +429,8 @@ static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
       exit(1);
    }
    block = (get_cyl() * drive_params->num_head + get_head()) *
-       drive_params->num_sectors + get_sector(drive_params);
+       drive_params->num_sectors + get_sector(drive_params) -
+       drive_params->first_sector_number;
 
    if (lseek(drive_params->ext_fd, 
           block * drive_params->sector_size, SEEK_SET) == -1) {
@@ -447,7 +449,7 @@ static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
 // Process field definitions to write the specified data to the track
 //
 // drive_params: Drive parameters
-// track: Track data array
+// full_track: Track data array
 // start: Offset into track fields are referenced to
 // length: Number of bytes in track
 // field_def: The array of field definitions to process

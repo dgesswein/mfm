@@ -16,7 +16,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
-// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+// 01/24/16 DJG Add MVME320 controller support
+// 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled.
 // 01/06/16 DJG Add code to fix extracted data file when alternate tracks are
 //          used. Only a few format know how to determine alternate track
@@ -358,6 +359,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+         drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_OLIVETTI ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
@@ -850,6 +852,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+            drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_OLIVETTI ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||

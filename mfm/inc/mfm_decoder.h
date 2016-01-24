@@ -78,6 +78,7 @@ typedef struct {
       CONTROLLER_OMTI_5510, CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ADAPTEC, 
+      CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_XEBEC_104786, 
@@ -169,7 +170,9 @@ DEF_EXTERN struct {
   {0x0104c981, 32, 5},
   {0x24409, 24, 0},
   // Adaptec bad block on Maxtor XT-2190
-  {0x41044185, 32, 5}
+  {0x41044185, 32, 5},
+  // MVME320 controller
+  {0x10210191, 32, 5}
   // From uPD7261 datasheet. Also has better polynomials so commented out
   //{0x1, 16, 0} 
   // From 9410 CRC checker. Not seen on any drive so far
@@ -365,6 +368,50 @@ DEF_EXTERN TRK_L trk_omti_5510[]
      }
    },
    {715, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// From http://www.mirrorservice.org/sites/www.bitsavers.org/pdf/sms/asic/OMTI_5050_Programmable_Data_Sequencer_Jun86.pdf
+// Appendix A
+DEF_EXTERN TRK_L trk_mvme320[] 
+#ifdef DEF_DATA
+ = 
+{ { 20, TRK_FILL, 0x4e, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {9, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 2, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 5, NULL},
+              {1, FIELD_FILL, 0x01, OP_SET, 6, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 7, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {4, TRK_FILL, 0x4e, NULL},
+        {12, TRK_FILL, 0x00, NULL},
+        {262, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfb, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {350, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -664,6 +711,12 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"MVME320",        256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_mvme320, 256, 32, 1, 5209,
+         {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,5}, CONT_ANALIZE },
       {"Symbolics_3620",       256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,

@@ -12,7 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
-// 01/13/15 DJG Changes for ext2emu related changes on how drive formats will
+// 01/24/16 DJG Add MVME320 controller support
+// 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled.
 // 01/06/16 DJG Add code to fix extracted data file when alternate tracks are
 //          used. Only a few format know how to determine alternate track
@@ -164,7 +165,7 @@ void handle_alt_track_ch(DRIVE_PARAMS *drive_params, int bad_cyl, int bad_head,
 //      byte 0 0xa1
 //      byte 1 0xfe
 //      byte 2 cylinder low
-//      byte 3 cylinder high in upper 4? bits
+//      byte 3 cylinder high in upper 4? bits, low 4 bits head
 //      byte 4 sector number
 //      byte 5 unknown, 2 for sample I have
 //      byte 6-7 CRC
@@ -295,6 +296,25 @@ void handle_alt_track_ch(DRIVE_PARAMS *drive_params, int bad_cyl, int bad_head,
 //      Sector data for sector size (1160 bytes)
 //      first byte of sector data was always zero so it may be part of header.
 //      CRC/ECC code
+//
+//   CONTROLLER_MVME320
+//   MVME320B-D1.pdf table 8-1. Modify slightly to agree with what seen
+//   from disk read.
+//   7 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe 
+//      byte 2 high bits of cylinder
+//      byte 3 low 8 bits of cylinder
+//      byte 4 head
+//      byte 5 sector number
+//      byte 6 01
+//      bytes 7-8 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xfb
+//      Sector data for sector size
+//      CRC/ECC code
+//
 //
 //   CONTROLLER_MIGHTYFRAME, Mightyframe, variant of WD_1006
 //   No manual
@@ -445,6 +465,26 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (bytes[5] != 0x2) {
             msg(MSG_INFO, "Header Byte 5 not 2, byte %02x on cyl %d head %d sector %d\n",
                   bytes[5], sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_MVME320) {
+         sector_status.cyl = (bytes[2] << 8) | bytes[3];
+
+         sector_status.head = bytes[4];
+         sector_status.sector = bytes[5];
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+         // Don't know what's in this byte. Print a message so it can be
+         // investigated if not the 2 seen previously.
+         if (bytes[6] != 0x01) {
+            msg(MSG_INFO, "Header Byte 6 not 1, byte %02x on cyl %d head %d sector %d\n",
+                  bytes[6], sector_status.cyl, sector_status.head, sector_status.sector);
          }
 
          if (bytes[1] != 0xfe) {
@@ -732,6 +772,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       int id_byte_expected = 0xf8;
       int id_byte_index = 1;
       if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
+         id_byte_expected = 0xfb;
+      } else if (drive_params->controller == CONTROLLER_MVME320) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
          id_byte_expected = 0x80;
