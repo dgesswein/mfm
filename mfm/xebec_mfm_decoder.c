@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 12/31/15 DJG Parameter change to mfm_mark_*
 // 11/01/15 DJG Use new drive_params field and comment changes
 // 05/17/15 DJG Code cleanup
 //
@@ -321,14 +322,14 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                decoded_bit_cntr = 0;
                if (state == HEADER_SYNC) {
                   state = PROCESS_HEADER;
-                  mfm_mark_header_location(all_raw_bits_count);
+                  mfm_mark_header_location(all_raw_bits_count, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->header_crc.length / 8;
                   bytes_needed = bytes_crc_len;
                } else {
                   state = PROCESS_DATA;
-                  mfm_mark_data_location(all_raw_bits_count);
+                  mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
                         mfm_controller_info[drive_params->controller].data_trailer_bytes +

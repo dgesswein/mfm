@@ -147,6 +147,18 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 01/22/16 DJG Make sure write going inactive is checked when all
+//     capture registers used. High frequency noise? casued problem.
+// 01/17/16 DJG Fix select speedup state tracking
+// 01/13/16 DJG Speed up select to try to make work with Symbolics 3640.
+//     Speedup was insufficient but may be useful for other systems.
+// 01/07/16 DJG Move picking up initial select and head until after head mask
+//    calculated.
+//    initialized, detect reversed J2.
+// 01/06/16 DJG Fix determining head mask, make sure head and select are
+//    initialized, detect reversed J2.
+// 12/31/15 DJG Add additional step pulse checks to work with Symbolics
+//    1 microsecond step pulse width.
 // 07/12/15 DJG Added additional check for step pulse to prevent missing
 //    step when it occurs right after change in head select.
 // 06/29/15 DJG Handle unbuffered/ST506 step pulses while waiting for
@@ -216,6 +228,7 @@
 
    // r20 is currently selected drive data memory pointer, Defined
    // as DRIVE_DATA in cmd.h
+   // Value is 0 for drive 0, 4 for drive 1, and 1 if no drive is selected
 
    // Minimum space left in queue from/to PRU 1. Only set if 
    // MEASURE_QUEUE_FULL read/write defined
@@ -317,8 +330,9 @@ START:
    LBCO     DDR_SIZE, CONST_PRURAM, PRU_DDR_SIZE, 4
 
 
+      // No drive selected
+   MOV      DRIVE_DATA, 1
       // Clear various variable
-   MOV      DRIVE_DATA, 0
    SBCO     RZERO, CONST_PRURAM, PRU0_EXIT, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
@@ -419,11 +433,11 @@ no_drive1:
    // If greater than 8 use all head select. Otherwise ignore MSB which
    // is reduced write current on earlier drives
    MOV       r3, 0
-   QBLE      headok, r1, 8   // If 8 <= heads branch, we need all lines
+   QBLT      headok, r1, 8   // If 8 < heads branch, we need all lines
    CLR       r2, GPIO_HEAD3
    SET       r3, GPIO_HEAD3
 headok:
-   QBLE      headok2, r1, 4  // If 4 <= heads then we only need 3 lines else 2            
+   QBLT      headok2, r1, 4  // If 4 < heads then we only need 3 lines else 2            
    CLR       r2, GPIO_HEAD2
    SET       r3, GPIO_HEAD2
 headok2:
@@ -497,7 +511,9 @@ next_mfm:
    CALL     set_track0
    SET      r30, R30_READY_BIT    
    SET      r30, R30_SEEK_COMPLETE_BIT 
-   QBBC     step, r31, R31_STEP_BIT  // Got step pulse
+next_mfmb:
+   QBBS     select_head, r31, 30        // Handle gpio interrupt
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
       // Switch to PWM mode
    SBCO     RZERO, CONST_ECAP, ECCTL1, 4
       // Default width for a 1 at current data rate
@@ -520,6 +536,7 @@ SBCO r0, CONST_PRURAM, 0xf4, 4
    XOUT     10, PRU0_BUF_STATE, 4
 wait_bit_set:
    XIN      10, PRU1_BUF_STATE, 4              
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
    QBNE     wait_bit_set, PRU1_STATE, STATE_READ_BIT_SET
 
    XIN      10, TRACK_BIT, 4
@@ -543,6 +560,7 @@ SBCO TRACK_BIT, CONST_PRURAM, 0xf8, 4
    SBBO     r24, r25, 0, 4
    HALT
 wait_wrap:
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
    CALL     check_rotation
    CALL     set_index
       // Loop until CYCLE counter wraps (less than previous read in r1)
@@ -556,6 +574,7 @@ nowrap:
    SBBO     r24, r25, 0, 4
    HALT
 no_time_err:
+   QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
    CALL     check_rotation
    CALL     set_index
       // Loop until CYCLE counter is greater than data start time (r26)
@@ -657,19 +676,21 @@ clrok:
    JMP      EXIT
 
       // Handle GPIO interrupt from head or select lines changing
-      // This routine needs to be under 2us from head change to
+      // This routine needs to be under 1us from head change to
       // reatching next_mfm where we check for step pulses to prevent
-      // loosing pulses. We currently are at 1.6 us
+      // loosing pulses. We currently are around .7 us
+      // Must set valid head and select before leaving routine
 select_head:
       // Stop PRU 1. We will check stopped later
    MOV      PRU0_STATE, STATE_READ_DONE
    XOUT     10, PRU0_BUF_STATE, 4
-      // Wait a little bit for the lines to settle
-   LBCO     r1, CONST_IEP, IEP_COUNT, 4     // Get time
-   ADD      r1, r1, SETTLE_TIME             // How long to wait
-settle_lp:
-   LBCO     r4, CONST_IEP, IEP_COUNT, 4     // Get time
-   QBLT     settle_lp, r1, r4               // Did we reach settle time, no
+// Removed to try to speed up select. Doesn't seem to be needed.
+//      // Wait a little bit for the lines to settle
+//   LBCO     r1, CONST_IEP, IEP_COUNT, 4     // Get time
+//   ADD      r1, r1, SETTLE_TIME             // How long to wait
+//settle_lp:
+//   LBCO     r4, CONST_IEP, IEP_COUNT, 4     // Get time
+//   QBLT     settle_lp, r1, r4               // Did we reach settle time, no
       // Clear GPIO 0 interrupt before reading value so if it changes we will
       // get a new interrupt and not miss a change
    MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
@@ -680,15 +701,15 @@ settle_lp:
       // writes are posted the actual register write may happen after
       // we clear the flag in int controller below unless we read it
       // back to make sure the write is done. Is glitch logic really
-      // needed?
-   LBBO     r4, r1, 0, 4               
+      // needed? Replaced by getting head
+   //LBBO     r4, r1, 0, 4               
+      // Copy current value and get new head and select
+   CALL     get_select_head
 
       // Clear interrupt status flag in interrupt controller
    MOV      r0, GPIO0_EVT
    SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
 
-      // Copy current value and get new head and select
-   CALL     get_select_head
    LBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
    SBCO     r24, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4 // Update
       // If they are the same report a glitch for debugging
@@ -704,51 +725,77 @@ step_restart:
       // If we we aren't selected anymore handle it
    LBCO     r0, CONST_PRURAM, PRU0_DRIVE0_SELECT, 4
    SBCO     r0, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
-   MOV      DRIVE_DATA, 0
    QBEQ     selected0, r0, 0        // If zero always selected (radial select)
    QBBC     selected0, r24, r0      // Branch if matches drive 0 select
    LBCO     r0, CONST_PRURAM, PRU0_DRIVE1_SELECT, 4
    SBCO     r0, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
    QBEQ     notsel, r0, 0          // If zero no second drive
    QBBS     notsel, r24, r0
+      // If this drive is currently selected we don't have to do anything
+   QBEQ     selected, DRIVE_DATA, DRIVE_DATA_BYTES
    MOV      DRIVE_DATA, DRIVE_DATA_BYTES          // Offset of drive 1 data
+   SET      r30, R30_READY_BIT    
+   SET      r30, R30_SEEK_COMPLETE_BIT 
+     // Cylinder of currently selected drive
+   LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    // Turn on drive 1 select and LED and off drive 0
-   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
-   MOV      r1, GPIO0 | GPIO_SETDATAOUT
-   SBBO     r0, r1, 0, 4
    MOV      r0, (1 << GPIO0_DRIVE1_LED)
+   QBEQ     track0a, r3, 0
+   SET      r0, GPIO0_TRACK_0
+track0a:
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
+   SBBO     r0, r1, 0, 4
+   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
+   QBNE     not_track0a, r3, 0
+   SET      r0, GPIO0_TRACK_0
+not_track0a:
+   MOV      r1, GPIO0 | GPIO_SETDATAOUT
    SBBO     r0, r1, 0, 4
    CLR      r30, R30_DRIVE0_SEL  
    JMP      selected
 selected0:
+      // If this drive is currently selected we don't have to do anything
+   QBEQ     selected, DRIVE_DATA, 0
+   MOV      DRIVE_DATA, 0
+   SET      r30, R30_READY_BIT    
+   SET      r30, R30_SEEK_COMPLETE_BIT 
+     // Cylinder of currently selected drive
+   LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    // Turn on drive 0 select and LED and off drive 1
-   SET      r30, R30_DRIVE0_SEL  
    MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
+   QBEQ     track0b, r3, 0
+   SET      r0, GPIO0_TRACK_0
+track0b:
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
    SBBO     r0, r1, 0, 4
    MOV      r0, (1 << GPIO0_DRIVE1_LED)
+   QBNE     not_track0b, r3, 0
+   SET      r0, GPIO0_TRACK_0
+not_track0b:
    MOV      r1, GPIO0 | GPIO_SETDATAOUT
    SBBO     r0, r1, 0, 4
+   SET      r30, R30_DRIVE0_SEL  
 selected:
    XOUT     10, DRIVE_DATA, 4       // Send currently selected drive offset.
       // We are selected so turn on selected signal
       // If we are not waiting for a command start outputting MFM data else
       // return to waiting for a command
    LBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
-   QBEQ     next_mfm, r0, 0
+   QBEQ     next_mfmb, r0, 0
    JMP      wait_cmd
 
       // We aren't selected, turn off signals and wait for select again
 notsel:
+      // Indicate no drive selected
+   MOV      DRIVE_DATA, 1
       // Turn off all the control signals since we aren't selected
    CLR      r30, R30_SEEK_COMPLETE_BIT
    CLR      r30, R30_READY_BIT    
    CLR      r30, R30_DRIVE0_SEL  
+   CLR      r30, R30_INDEX_BIT
    MOV      r0, (1 << GPIO0_DRIVE0_LED) | (1 << GPIO0_DRIVE1_LED)
    MOV      r1, GPIO0 | GPIO_SETDATAOUT
    SBBO     r0, r1, 0, 4
-   CLR      r30, R30_INDEX_BIT
    MOV      r0, (1 << GPIO0_TRACK_0) | (1 << GPIO0_DRIVE1_SEL_RECOVERY)
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
    SBBO     r0, r1, 0, 4
@@ -778,9 +825,11 @@ handle_start:
    LBBO     r0, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_LAST_ARM_CYL, 4
    QBNE     handle_cyl_change, r0, r3
+   MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
 handle_cyl_change: 
    CALL     send_arm_cyl
+   MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
 
 glitch:
@@ -971,6 +1020,11 @@ get_select_head:
    AND      r24, r24, r25                    // Our bits
    LBCO     r25, CONST_PRURAM, PRU0_HEAD_MASK, 4
    OR       r24, r24, r25                    // Set head lines we are ignoring
+      // If both write and step active things aren't correct
+   QBBS     nowrite, r31, R31_WRITE_GATE 
+   QBBS     nowrite, r31, R31_STEP_BIT
+   SET      r24, CUR_SELECT_HEAD_WRITE_ERR
+nowrite:
    SBCO     r24, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
    MOV      r25, GPIO_DRIVE_HEAD_LINES
    AND      r24, r24, r25                    // Our head bits
@@ -1083,6 +1137,9 @@ get4:
 
    CALL     check_rotation           // These are slow so only do once per loop
    CALL     set_index
+      // All the checkstuff above will be skipped if all capture registers
+      // used. Make sure we check once.
+   CALL     checkstuff
    JMP      caploop
 
 // Send write delta times to PRU 1

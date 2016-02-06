@@ -3,10 +3,10 @@
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
 	<title></title>
-	<meta name="generator" content="LibreOffice 4.4.5.2 (Linux)"/>
+	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2015-11-23T20:43:24.060941054"/>
+	<meta name="changed" content="2016-01-13T21:54:29.418158547"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -51,9 +51,12 @@ emulation bit data to. No file created if not specified</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
 decoded data to. No file created if not specified.</p>
 <p style="margin-bottom: 0in">--format  -f WD_1006 | OMTI_5510 | 
-DEC_RQDX3 | Xebec_104786 | Olivetti  (and others)</p>
+DEC_RQDX3 | Xebec_104786 | Olivetti</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
-Use --format list to show currently known formats.</p>
+Not all formats listed. Use --format help to list all currently
+supported formats. Some formats will also set  header_crc, data_crc,
+sectors, and sector_length. Parameters specified after format will
+override values.</p>
 <p style="margin-bottom: 0in">--head_3bit  -3</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Selects header 3
 bit head encoding used by WD 1003 controller. Default is 4 bit. This
@@ -114,6 +117,13 @@ length, a CRC polynomial, and a maximum ECC span. The ECC span should
 be zero if ECC correction should not be used.</p>
 <p style="margin-bottom: 0in"> 
 </p>
+<p style="margin-bottom: 0in">It is advisable to generate a
+transition file when reading important disks since it may be possible
+to reprocess in the case of errors either in reading or due to errors
+in these programs.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
 <p style="margin-bottom: 0in">32 bit or longer polynomials may be
 usable for ECC even if the original controller only used them for
 CRC. The quality of the polynomial chosen determines the
@@ -138,9 +148,7 @@ mfm_read will then reread tracks that have errors until it exceeds
 the error count or gets a successful read of the track. The extract
 format is the sector data from the drive written in logical sector
 order. If controllers use alternate cylinders the data for those
-cylinders are not currently moved to the logical cylinder location.
-The extract file will not be corrected for controllers that use
-logical to physical mapping other than interleave.</p>
+cylinders is not moved to the logical cylinder location.</p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>

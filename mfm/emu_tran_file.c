@@ -104,6 +104,7 @@
 //    Clock transition count clock frequency is in file header. For 200 MHz
 //    a count of 40 indicates 5 MHz pulse spacing.
 //
+// 12/31/15 DJG Added error check
 // 12/24/15 DJG Cleanup and output valid MFM data if needing to pad track
 // 05/16/15 DJG Added routines needed for analyze to work on transition and
 //    emulation files.
@@ -213,7 +214,12 @@ int emu_file_seek_track(int fd, int seek_cyl, int seek_head,
    offset = (off_t) seek_cyl * track_size * emu_file_info->num_head + 
       seek_head * track_size + emu_file_info->file_header_size_bytes;
 
-   lseek(fd, offset , SEEK_SET);
+   if (lseek(fd, offset , SEEK_SET) == -1) {
+      msg(MSG_FATAL, "Failed to seek in emulation file %s\n", 
+            strerror(errno));
+      exit(1);
+   }
+
 
    return 0;
 }

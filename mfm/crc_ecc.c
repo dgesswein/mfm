@@ -4,7 +4,9 @@
 // crc64 calculates CRC up to 64 bits long crc of data
 // ecc64 corrects single burst errors
 // checksum64 calculates checksums up to 64 bits long
+// eparity64 currently only calculates single bit even parity of bytes
 //
+// 12/31/15 DJG Added eparity64 function
 // 01/04/15 DJG Added checksum64 function
 //
 // Copyright 2014 David Gesswein.
@@ -25,7 +27,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "crc_ecc.h"
+#include "msg.h"
 
 // Find last set (leftmost 1). Not defined in Linux so we use a GCC specific call
 // count leftmost zeros.
@@ -181,3 +185,28 @@ uint64_t checksum64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info)
 }
 
 
+// This calculates a single bit even parity of the bytes
+// bytes: bytes to calculate checksum over
+// num_bytes: length of bytes
+// crc_info: CRC parameters to use. We only use the initial value and length
+//    Init_value 1 gives odd parity, 0 gives even parity
+// return: parity bit
+uint64_t parity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info)
+{
+   // Calculate the even parity of a byte
+   static unsigned char parity_lookup[16] = {
+   0x0, 0x1, 0x1, 0x0, 0x1, 0x0, 0x0, 0x1,
+   0x1, 0x0, 0x0, 0x1, 0x0, 0x1, 0x1, 0x0 };
+#define EPARITY(n) (parity_lookup[n&0xf] ^ parity_lookup[n>>4])
+   int eparity = 0;
+   int i;
+
+   if (crc_info->length != 1) {
+      msg(MSG_FATAL, "Only single bit parity supported\n");
+      exit(1);
+   }
+   for (i = 0; i < num_bytes; i++) {
+      eparity ^= EPARITY(bytes[i]);
+   }
+   return eparity ^ crc_info->init_value;
+}

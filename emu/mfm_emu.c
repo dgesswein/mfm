@@ -17,6 +17,8 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/06/16 DJG Detect reversed J2 cable, don't allow different track lenght
+//    when emulating two drives and other error messages fixes
 // 11/22/15 DJG Added 15 MHz bitrate and fixed PRU0_DEFAULT_PULSE_WIDTH.
 //    Set bit pattern to 1010... when initializing new image. Some
 //    controllers don't like all zeros.
@@ -595,6 +597,7 @@ int main(int argc, char *argv[])
    struct sched_param params;
    uint32_t sample_rate_hz = 0;
    uint32_t index_start, index_end, last_index_start = 0xffffffff;
+   uint32_t last_track_time = 0xffffffff;
    uint32_t bit_period = 0;
    int track_size;
    uint32_t *data;
@@ -685,7 +688,7 @@ int main(int argc, char *argv[])
          sample_rate_hz = curr_info->sample_rate_hz;
       }
       else if (curr_info->sample_rate_hz != sample_rate_hz) {
-         msg(MSG_FATAL, "Emulation files must all agree on sample rate");
+         msg(MSG_FATAL, "Emulation files must all agree on sample rate\n");
          exit(1);
       }
       pru_clock_hz = pru_set_clock(sample_rate_hz, PRU_SET_CLOCK_NO_HALT);
@@ -720,10 +723,15 @@ int main(int argc, char *argv[])
          index_end = lround(200e-6 * pru_clock_hz);
       }
       if (last_index_start != 0xffffffff && index_start != last_index_start) {
-         msg(MSG_FATAL, "Emulation files must all agree on start time");
+         msg(MSG_FATAL, "Emulation files must all agree on start time\n");
          exit(1);
       }
       last_index_start = index_start;
+      if (last_track_time != 0xffffffff && track_time != last_track_time) {
+         msg(MSG_FATAL, "Emulation files must all have same track time/track length\n");
+         exit(1);
+      }
+      last_track_time = track_time;
       pru_write_word(MEM_PRU0_DATA, PRU0_START_INDEX_TIME, index_start);
       pru_write_word(MEM_PRU0_DATA, PRU0_END_INDEX_TIME, index_end);
       pru_write_word(MEM_PRU0_DATA, PRU0_ROTATION_TIME, track_time);
@@ -849,7 +857,8 @@ int main(int argc, char *argv[])
       } 
 #endif
 #if 1
-      static uint32_t b, sel, head, last_b = 9;
+      static uint32_t b, sel, head, last_b = 0xffffffff;
+      static int first_time = 1;
       b = pru_read_word(MEM_PRU0_DATA,PRU0_CUR_SELECT_HEAD);
       if (board_get_revision() == 0) {
          sel = (((b >> 22) & 0x3) | ((b >> 24) & 0xc)) ^ 0xf;
@@ -859,8 +868,14 @@ int main(int argc, char *argv[])
          head = ((b >> 8) & 0xf) ^ 0xf;
       }
       if (b != last_b) {
-         printf("select %d head %d\n", sel, head);
+         msg(MSG_INFO, "select %d head %d\n", sel, head);
          last_b = b;
+         if (first_time) {
+            first_time = 0;
+            if (b & (1 << CUR_SELECT_HEAD_WRITE_ERR)) {
+               msg(MSG_ERR, "**Write and step are active, is J2 cable reversed?**\n");
+            }
+         }
       } 
 #endif
       if (pru_get_halt(0) || pru_get_halt(1)) {

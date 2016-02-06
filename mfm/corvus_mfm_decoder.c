@@ -9,6 +9,7 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 12/31/15 DJG Parameter change to mfm_mark* routines
 // 11/01/15 DJG Comment fixes
 //
 // This file is part of MFM disk utilities.
@@ -297,7 +298,7 @@ fprintf(out,"#%lld\n1&\n", bit_time);
                // In this format header is attached to data so both
                // will be processed in this state
                state = PROCESS_HEADER;
-               mfm_mark_header_location(all_raw_bits_count);
+               mfm_mark_header_location(all_raw_bits_count, tot_raw_bit_cntr);
                //mfm_mark_data_location(all_raw_bits_count);
                // Figure out the length of data we should look for
                bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +

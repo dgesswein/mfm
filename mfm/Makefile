@@ -60,13 +60,15 @@ endif
 
 CFLAGS = $(EXTRA_DEFINE) $(INCL_PATH) -O3 -g -Wall -D_FILE_OFFSET_BITS=64
 
-all : $(PRU) mfm_util mfm_read
+all : $(PRU) mfm_util ext2emu mfm_read
 pru : $(PRU)
 
 mfm_read :  $(OBJECTS)
 	$(CC)  $(OBJECTS)  -Wl,-rpath=$(LIB_PATH) $(LIB_PATH:%=-L %) $(LIBRARIES:%=-l%) -o $@
 mfm_util :   $(OBJECTS2)
 	$(CC)  $(OBJECTS2) $(LIB_PATH:%=-L %) -lm -lrt -liberty -o $@
+ext2emu : mfm_util
+	ln -s mfm_util ext2emu
 
 clean :
 	rm -rf $(OBJDIR)/*.o *.bin mfm_read mfm_util core *~

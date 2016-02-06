@@ -4,8 +4,11 @@
 // We perform the analysis by trying the various formats we know of until we
 // find one that matches and other tests. See the routines for details.
 
-// Copyright 2014 David Gesswein.
+// Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 01/24/16 DJG Fix a couple errors with prints. 
+// 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
+//     be handled.
 // 11/22/15 DJG Add special logic for ST11M controller detection
 // 11/01/15 DJG Analyze header and data together. The Elektronika_85 has
 //    same header format as other drives but the data area is different.
@@ -112,7 +115,8 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
    // Try an exhaustive search of all the formats we know about. If we get too
    // many we may have to try something smarter.
    for (cont = 0; mfm_controller_info[cont].name != NULL; cont++) {
-      if (mfm_controller_info[cont].analyze_type != CINFO_CHS) {
+      if (mfm_controller_info[cont].analyze_type != CINFO_CHS
+          || mfm_controller_info[cont].analyze_search == CONT_MODEL) {
          continue; // ****
       }
       // Make sure these get set at bottom for final controller picked
@@ -133,12 +137,12 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
                  drive_params->data_crc.length)) {
                continue;
             }
-            msg(MSG_DEBUG, "Trying controller %s ", 
-                        mfm_controller_info[drive_params->controller].name);
-                  print_crc_info(&drive_params->header_crc, MSG_DEBUG);
             drive_params->header_crc.init_value = trim_value(mfm_all_init[init].value,
                drive_params->header_crc.length);
             drive_params->data_crc = drive_params->header_crc;
+            msg(MSG_DEBUG, "Trying controller %s ", 
+               mfm_controller_info[drive_params->controller].name);
+            print_crc_info(&drive_params->header_crc, MSG_DEBUG);
             
             // After the CRC has gone to zero additional zero bytes will
             // not cause CRC errors. If we found a valid header we won't
@@ -251,6 +255,11 @@ static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *del
             if (sector_size != 0 && drive_params->sector_size > sector_size) {
                continue;
             }
+            msg(MSG_DEBUG, "Trying controller data %s len %d ", 
+               mfm_controller_info[drive_params->controller].name,
+               drive_params->sector_size);
+            print_crc_info(&drive_params->data_crc, MSG_DEBUG);
+
             mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
             msg_mask_hold = msg_set_err_mask(decode_errors);
             // Decode track
@@ -355,6 +364,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
              // Mightyframe encodes head 8-15 differently. If we don't find
              // any good headers on head 8 see if its a Mightyframe.
              if (!good_header && head == 8) {
+                int orig_controller = drive_params->controller;
                 drive_params->controller = CONTROLLER_MIGHTYFRAME;
                 status = mfm_decode_track(drive_params, cyl, head, deltas, 
                     NULL, sector_status_list);
@@ -368,7 +378,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
                    msg(MSG_FORMAT,"Changed controller type to %s\n",
                      mfm_controller_info[drive_params->controller].name);
                 } else {
-                   drive_params->controller = CONTROLLER_WD_1006;
+                   drive_params->controller = orig_controller;
                    status = mfm_decode_track(drive_params, cyl, head, deltas, 
                        NULL, sector_status_list);
                 }
@@ -770,13 +780,13 @@ int analyze_lba(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
                for (nsec_ndx = 0; mfm_lba_num_sectors[nsec_ndx] != -1; nsec_ndx++) {
                   drive_params->num_sectors = mfm_lba_num_sectors[nsec_ndx];
 
+                  drive_params->header_crc.init_value = trim_value(mfm_all_init[init].value,
+                        drive_params->header_crc.length);
+                  drive_params->data_crc = drive_params->header_crc;
                   msg(MSG_DEBUG, "Trying controller %s heads %d sectors %d\n",
                         mfm_controller_info[drive_params->controller].name,
                         drive_params->num_head, drive_params->num_sectors);
                   print_crc_info(&drive_params->header_crc, MSG_DEBUG);
-                  drive_params->header_crc.init_value = trim_value(mfm_all_init[init].value,
-                        drive_params->header_crc.length);
-                  drive_params->data_crc = drive_params->header_crc;
 
                   mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
                   msg_mask_hold = msg_set_err_mask(decode_errors);
