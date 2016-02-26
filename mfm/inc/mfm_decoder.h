@@ -135,6 +135,11 @@ typedef struct {
    int next_mark_bad;
    // Linked list of alternate tracks for fixing extracted data file
    ALT_INFO *alt_llist;
+   // Cylinder to start write precompensation at
+   int write_precomp_cyl;
+   // Precompensation time in nanoseconds
+   int early_precomp_ns;
+   int late_precomp_ns;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so

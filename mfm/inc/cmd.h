@@ -4,12 +4,15 @@
 // The commands to the PRU
 #define CMD_NONE        0
 #define CMD_EXIT        1
+// The commands to the PRU for mfm_read
 #define CMD_READ_TRACK  2
 #define CMD_RPM         3
 #define CMD_SEEK_FAST   4
 #define CMD_SEEK_SLOW   5
 #define CMD_SEEK_SLOW_TRACK0 6
 #define CMD_CHECK_READY 7
+// The commands to the PRU for mfm_write
+#define CMD_WRITE_TRACK 8
 
 // The command status. All commands other than CMD_READ_TRACK
 // return their status when done. CMD_READ_TRACK returns
@@ -26,14 +29,15 @@
 #define CMD_STATUS_DELTA_OVERFLOW 0x900
 
 // These are the control parameters to communicate with the PRU code
-#define PRU_DDR_ADDR         0      // Physical address of shared DDR memory
-#define PRU_DDR_SIZE         4      // Size of shared DDR memory
-#define PRU0_WRITE_PTR       8	    // Delta write pointer
-#define PRU0_CMD            12      // Command location
-#define PRU0_CMD_DATA       16      // Data for command
-#define PRU0_STATUS         20      // Drive status, only valid when idle
-#define PRU0_START_TIME_CLOCKS 24   // Delay from index until we start
+#define PRU_DDR_ADDR      0x00      // Physical address of shared DDR memory
+#define PRU_DDR_SIZE      0x04      // Size of shared DDR memory
+#define PRU0_WRITE_PTR    0x08	    // Delta write pointer
+#define PRU0_CMD          0x0c      // Command location
+#define PRU0_CMD_DATA     0x10      // Data for command
+#define PRU0_STATUS       0x14      // Drive status, only valid when idle
+#define PRU0_START_TIME_CLOCKS 0x18 // Delay from index until we start
                                     // capturing transitions
+#define PRU_DATARAM_ADDR  0x1c      // Physical address of the PRU memory
 
 #define REVB_DETECT_PIN  46 // GPIO 1_14
 #define GPIO0_TRACK_0    30

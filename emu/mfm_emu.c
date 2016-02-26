@@ -17,6 +17,8 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 02/20/16 DJG Reduced amount of delay when writing multiple tracks with
+//    some track buffers full. Delays seemed longer than needed.
 // 01/06/16 DJG Detect reversed J2 cable, don't allow different track lenght
 //    when emulating two drives and other error messages fixes
 // 11/22/15 DJG Added 15 MHz bitrate and fixed PRU0_DEFAULT_PULSE_WIDTH.
@@ -489,6 +491,7 @@ static void *emu_proc(void *arg)
             total_writes++;
             pru_write_word(MEM_PRU1_DATA,PRU1_DRIVE0_TRK_DIRTY +
                i*PRU_WORD_SIZE_BYTES, 0);
+               // Do delay based on used buffers on enter
             for (trk = 0; trk < drive_params->emu_file_info[i].num_head; trk++) {
                // For each dirty track read the data from PRU, put in
                // buffer and tell writer it has more data.
@@ -508,7 +511,7 @@ static void *emu_proc(void *arg)
 
                   // Do linear delay based on number of buffers full
                   // We will do one delay after all data transfered
-                  delay_time += num_used_buf * drive_params->buffer_time;
+                  delay_time = num_used_buf * drive_params->buffer_time;
                }
             }
          }
