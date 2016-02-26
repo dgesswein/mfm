@@ -21,7 +21,7 @@ SOURCES =  mfm_emu.c ../mfm/pru_setup.c ../mfm/msg.c parse_cmdline.c \
 OBJECTS = $(addprefix $(OBJDIR)/, $(subst ../mfm/,,$(subst .c,.o,$(SOURCES))))
 INCLUDES = $(addprefix $(INCDIR)/, cmd.h parse_cmdline.h) ../mfm/$(INCDIR)/msg.h \
 	../mfm/$(INCDIR)/emu_tran_file.h ../mfm/$(INCDIR)/crc_ecc.h \
-	../mfm/$(INCDIR)/pru_setup.h
+	../mfm/$(INCDIR)/pru_setup.h ../mfm/$(INCDIR)/version.h
 
 CC = gcc
 
