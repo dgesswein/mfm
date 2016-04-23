@@ -82,6 +82,7 @@ typedef struct {
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_XEBEC_104786, 
+      CONTROLLER_EC1841, 
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE
    } controller;
    // The sector numbering used. This will vary from the physical order if
@@ -745,6 +746,12 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
 // END of WD type controllers
       {"Xebec_104786",         256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"EC1841",         256, 10000000,      220000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
