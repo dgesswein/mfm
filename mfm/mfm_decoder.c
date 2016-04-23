@@ -16,6 +16,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 04/23/16 DJG Added EC1841 support
 // 01/24/16 DJG Add MVME320 controller support
 // 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled.
@@ -371,7 +372,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
-   } else if (drive_params->controller == CONTROLLER_XEBEC_104786)  {
+   } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+         drive_params->controller == CONTROLLER_EC1841)  {
       rc = xebec_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_CORVUS_H)  {
@@ -864,7 +866,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span);
-      } else if (drive_params->controller == CONTROLLER_XEBEC_104786) {
+      } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+            drive_params->controller == CONTROLLER_EC1841)  {
          status |= xebec_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span);

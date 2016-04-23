@@ -4,6 +4,8 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 04/23/15 DJG Added support for EC1841, Thanks to Denis Kushch for changes
+//    needed.
 // 12/31/15 DJG Parameter change to mfm_mark_*
 // 11/01/15 DJG Use new drive_params field and comment changes
 // 05/17/15 DJG Code cleanup
@@ -84,6 +86,13 @@ static inline float filter(float v, float *delay)
 //      byte 1 0xc9
 //      Sector data for sector size
 //      4 byte ECC code
+//
+//   CONTROLLER_EC1841
+//      Same as XEBEC_104786 except compare byte is 0x00, not 0xc9
+//      Sector numbers start at 3 for first sector and wrap back to 0 at
+//      number of sectors.
+//      Needs --begin_time 220000
+//
 // TODO: Same as WD decoder
 SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -93,6 +102,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
    static int sector_size;
    static int bad_block;
    static SECTOR_STATUS sector_status;
+   int compare_byte;
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
@@ -105,7 +115,15 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.cyl = bytes[3]<< 8;
       sector_status.cyl |= bytes[4];
       sector_status.head = bytes[5] & 0xf;
-      sector_status.sector = bytes[6];
+      if (drive_params->controller == CONTROLLER_EC1841) {
+         if (bytes[6]<3) {
+             sector_status.sector = bytes[6]+14;
+         } else {
+             sector_status.sector = bytes[6]-3;
+         }
+      } else {
+         sector_status.sector = bytes[6];
+      }
       // Don't know how/if these are encoded in header
       sector_size = drive_params->sector_size;
       bad_block = 0;
@@ -116,13 +134,14 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_BAD_HEADER;
       }
       if (bytes[0] != 0 || bytes[1] != 0 || bytes[8] != 0) {
-         msg(MSG_INFO, "Header gap bytes not zero %02x, %02x, %02x on cyl %d head %d sector %d\n",
+         msg(MSG_INFO, "Header gap bytes not zero: %02x, %02x, %02x on cyl %d head %d sector %d\n",
                bytes[0], bytes[1], bytes[8],
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
-      if (bytes[2] != 0xc2) {
-         msg(MSG_INFO, "Header compare byte not 0xc2: %02x on cyl %d head %d sector %d\n",
-               bytes[2],
+      compare_byte = 0xc2;
+      if (bytes[2] != compare_byte) {
+         msg(MSG_INFO, "Header compare byte not 0x%02x: %02x on cyl %d head %d sector %d\n",
+               compare_byte, bytes[2],
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_HEADER;
       }
@@ -148,7 +167,12 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                bytes[0],
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
-      if (bytes[1] != 0xc9) {
+      if (drive_params->controller == CONTROLLER_EC1841) {
+         compare_byte = 0x00;
+      } else {
+         compare_byte = 0xc9;
+      }
+      if (bytes[1] != compare_byte) {
          msg(MSG_INFO, "Data compare byte not 0xc9: %02x on cyl %d head %d sector %d\n",
                bytes[1],
                sector_status.cyl, sector_status.head, sector_status.sector);
@@ -314,10 +338,12 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             }
          // We need to wait for the one bit to resynchronize. We want to see
          // enough zero bits to try to avoid triggering on a bit error
+         // Using 49 seems to be more reliable than looking for 0x09 for
+         // a single one. Bit errors were causing false syncs.
          } else if (state == HEADER_SYNC || state == DATA_SYNC) {
-            if (sync_count++ > 90 && (raw_word & 0xf) == 0x9) {
+            if (sync_count++ > 90 && (raw_word & 0xff) == 0x49) {
                sync_count = 0;
-               raw_bit_cntr = 0;
+               raw_bit_cntr = 3;
                decoded_word = 0;
                decoded_bit_cntr = 0;
                if (state == HEADER_SYNC) {
