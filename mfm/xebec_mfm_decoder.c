@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 05/07/15 DJG Ignore MSB of head byte which Xebec S1410 sets.
 // 04/23/15 DJG Added support for EC1841, Thanks to Denis Kushch for changes
 //    needed.
 // 12/31/15 DJG Parameter change to mfm_mark_*
@@ -87,7 +88,7 @@ static inline float filter(float v, float *delay)
 //      Sector data for sector size
 //      4 byte ECC code
 //
-//   CONTROLLER_EC1841
+//   CONTROLLER_EC1841 (Also seems to be Xebec S1410)
 //      Same as XEBEC_104786 except compare byte is 0x00, not 0xc9
 //      Sector numbers start at 3 for first sector and wrap back to 0 at
 //      number of sectors.
@@ -127,7 +128,9 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       // Don't know how/if these are encoded in header
       sector_size = drive_params->sector_size;
       bad_block = 0;
-      if ((bytes[5] & 0xf0) != 0) {
+      //Xebec S1410 sets the MSB on cylinder 132 on, not sure what
+      //it indicates
+      if ((bytes[5] & 0x70) != 0) {
          msg(MSG_INFO, "Upper bits set in head byte: %02x on cyl %d head %d sector %d\n",
                bytes[5],
                sector_status.cyl, sector_status.head, sector_status.sector);

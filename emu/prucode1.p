@@ -38,6 +38,9 @@
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 
 //
+// 04/30/16 DJG Increased WRITE_READ_TIME and NEW_READ_TIME to prevent abort
+//    during OS install on 3b2. TODO: Need to investigate why these
+//    need to be longer than expected.
 // 02/20/16 DJG Fixed handling of time past track length in convert_track_time
 // 11/20/15 DJG Fixed occasional abort due to data not being ready by
 //    increasing WRITE_READ_TIME
@@ -129,10 +132,10 @@
 #define READ_BUF_2_ADDR               (READ_BUF_1_ADDR + DMA_SIZE)
 
    // Time in PRU clocks from write end to output read data
-#define WRITE_READ_TIME 2900/5
+#define WRITE_READ_TIME 3100/5
    // Time from read time requested to bits we generate
    // 8.5 microseconds in PRU clocks. This allows for completing DMA
-#define NEW_READ_TIME 8500/5
+#define NEW_READ_TIME 8700/5
 
 
 START:

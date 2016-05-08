@@ -172,7 +172,7 @@ DEF_EXTERN struct {
   {0x1021, 16, 0},
   {0x8005, 16, 0},
   {0x140a0445, 32, 5},
-  {0x140a0444000101, 56, 16}, // From datasheet, not tested
+  {0x140a0445000101, 56, 16}, // From WD42C22C datasheet, not tested
   {0x0104c981, 32, 5},
   {0x24409, 24, 0},
   // Adaptec bad block on Maxtor XT-2190
