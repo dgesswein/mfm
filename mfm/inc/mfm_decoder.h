@@ -172,7 +172,7 @@ DEF_EXTERN struct {
   {0x1021, 16, 0},
   {0x8005, 16, 0},
   {0x140a0445, 32, 5},
-  {0x140a0444000101, 56, 16}, // From datasheet, not tested
+  {0x140a0445000101, 56, 16}, // From WD42C22C datasheet, not tested
   {0x0104c981, 32, 5},
   {0x24409, 24, 0},
   // Adaptec bad block on Maxtor XT-2190
@@ -195,7 +195,8 @@ DEF_EXTERN struct {
 }  mfm_all_init[]
 #ifdef DEF_DATA
  = 
-   {{-1, 0}, {-1, 0xffffffffffffffff}, {32, 0x2605fb9c}, {32, 0xd4d7ca20}}
+   {{-1, 0}, {-1, 0xffffffffffffffff}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
+     {32, 0x409e10aa} }
 #endif
 ;
 // Smallest sector size should be first in list
@@ -698,6 +699,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+// OMTI_5200 uses initial value 0x409e10aa for data
       {"DEC_RQDX3",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,

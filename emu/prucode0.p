@@ -694,6 +694,10 @@ select_head:
       // Clear GPIO 0 interrupt before reading value so if it changes we will
       // get a new interrupt and not miss a change
    MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
+      // Save which line caused interrupt. Only enable for debugging
+      // since slow
+   //LBBO     r4, r1, 0, 4
+   //SBCO     r4, CONST_PRURAM, PRU_TEST4, 4
       // Clear all the lines we use
    MOV      r4, GPIO_DRIVE_SELECT_HEAD_LINES
    SBBO     r4, r1, 0, 4
