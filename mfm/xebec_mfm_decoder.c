@@ -4,8 +4,10 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
-// 05/07/15 DJG Ignore MSB of head byte which Xebec S1410 sets.
-// 04/23/15 DJG Added support for EC1841, Thanks to Denis Kushch for changes
+// 05/21/16 DJG Added support to Xebec 1410A with 256 byte sectors. This
+//    format will need --begin_time 100500 specified when reading.
+// 05/07/16 DJG Ignore MSB of head byte which Xebec S1410 sets.
+// 04/23/16 DJG Added support for EC1841, Thanks to Denis Kushch for changes
 //    needed.
 // 12/31/15 DJG Parameter change to mfm_mark_*
 // 11/01/15 DJG Use new drive_params field and comment changes
@@ -47,7 +49,7 @@
 #include "msg.h"
 #include "deltas_read.h"
 
-#define DATA_IGNORE_BYTES 34
+#define DATA_IGNORE_BYTES 8
 
 // Type II PLL. Here so it will inline. Converted from continuous time
 // by bilinear transformation. Coefficients adjusted to work best with
@@ -80,6 +82,8 @@ static inline float filter(float v, float *delay)
 //      byte 5 bits 0-3 head number. Unknown if other bits used
 //      byte 6 sector number
 //      byte 7 flag bits. MSB is always set and bit 4 set on last sector
+//         bit 0 is set if alternate track assigned and bit 2 on alternate
+//         track.
 //      byte 8 0x00
 //      bytes 9-12 32 bit ECC
 //   Data
@@ -87,6 +91,15 @@ static inline float filter(float v, float *delay)
 //      byte 1 0xc9
 //      Sector data for sector size
 //      4 byte ECC code
+//
+//      If track is an alternate byte 2 is the upper bits of alternate
+//         cylinder, byte 3 low bits, byte 4 head, and bytes 5-8 CRC of
+//         bytes 0-8. (Only seen on 1410A, others may use different
+//         format)
+//         The CRC at the end of the sector is not valid.
+//   There is a a1 dropped clock sync byte then zeros followed by a one
+//      to mark the start of the header then more zeros followed bhy a one to
+//      mark the data
 //
 //   CONTROLLER_EC1841 (Also seems to be Xebec S1410)
 //      Same as XEBEC_104786 except compare byte is 0x00, not 0xc9
@@ -104,6 +117,10 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
    static int bad_block;
    static SECTOR_STATUS sector_status;
    int compare_byte;
+   static int alt_assigned;
+   int is_alternate;
+   static int last_head_print = 0;
+   static int last_cyl_print = 0;
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
@@ -148,9 +165,22 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_HEADER;
       }
+      // This must be executed before data processed below
+      alt_assigned = (bytes[7] & 0x01) != 0;
+      is_alternate = (bytes[7] & 0x04) != 0;
+      if (is_alternate) {
+         if (last_cyl_print != sector_status.cyl || 
+               last_head_print != sector_status.head) {
+            msg(MSG_INFO, "Alternate cylinder set on cyl %d, head %d\n",
+               sector_status.cyl, sector_status.head);
+            last_cyl_print = sector_status.cyl;
+            last_head_print = sector_status.head; 
+         }
+      }
+      
       // More stuff likely in here but not documented.
-      if (bytes[7] != 0x80 && bytes[7] != 0x90) {
-         msg(MSG_INFO, "Header flag byte not 0x80 or 0x90: %02x on cyl %d head %d sector %d\n",
+      if ((bytes[7] & 0xea) != 0x80) {
+         msg(MSG_INFO, "Header flag byte not expected value: %02x on cyl %d head %d sector %d\n",
                bytes[7],
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_HEADER;
@@ -181,7 +211,24 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_DATA;
       }
-      if (crc != 0) {
+      // Alternate only checksums the alternate header information. The
+      // checksum at the end of the sector is zero
+      if (alt_assigned) {
+         if (crc64(&bytes[0], 9, &drive_params->header_crc) == 0) {
+            if (last_cyl_print != sector_status.cyl || 
+                  last_head_print != sector_status.head) {
+               msg(MSG_INFO,"cyl %d head %d assigned alternate cyl %d head %d (extract data fixed)\n", 
+                  sector_status.cyl, sector_status.head,
+                  (bytes[2] << 8) + bytes[3], bytes[4]);
+               last_cyl_print = sector_status.cyl;
+               last_head_print = sector_status.head; 
+            }
+            mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+               sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
+         } else {
+            sector_status.status |= SECT_BAD_DATA;
+         }
+      } else if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
       }
       if (ecc_span != 0) {
@@ -344,21 +391,23 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          // Using 49 seems to be more reliable than looking for 0x09 for
          // a single one. Bit errors were causing false syncs.
          } else if (state == HEADER_SYNC || state == DATA_SYNC) {
-            if (sync_count++ > 90 && (raw_word & 0xff) == 0x49) {
+            if (sync_count++ > 50 && (raw_word & 0xff) == 0x49) {
                sync_count = 0;
                raw_bit_cntr = 3;
                decoded_word = 0;
                decoded_bit_cntr = 0;
                if (state == HEADER_SYNC) {
                   state = PROCESS_HEADER;
-                  mfm_mark_header_location(all_raw_bits_count, tot_raw_bit_cntr);
+                  mfm_mark_header_location(all_raw_bits_count, raw_bit_cntr,
+                      tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->header_crc.length / 8;
                   bytes_needed = bytes_crc_len;
                } else {
                   state = PROCESS_DATA;
-                  mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
+                  mfm_mark_data_location(all_raw_bits_count, raw_bit_cntr, 
+                     tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
                         mfm_controller_info[drive_params->controller].data_trailer_bytes +

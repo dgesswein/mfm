@@ -876,8 +876,11 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word);
-void mfm_mark_header_location(int bit_count, int tot_bit_count);
-void mfm_mark_data_location(int bit_count, int tot_bit_count);
+void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count);
+void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params);
+void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
+      unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
+
 #undef DEF_EXTERN
 #endif /* MFM_DECODER_H_ */
