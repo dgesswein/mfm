@@ -747,7 +747,10 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
 // END of WD type controllers
-      {"Xebec_104786",         256, 10000000,      0,
+//    Changed begin time from 0 to 100500 to work with 1410A. The sample
+//    I have of the 104786 says it should work with it also so changing default.
+//    Its possible this will cause problems with other variants.
+      {"Xebec_104786",         256, 10000000,      100500,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
