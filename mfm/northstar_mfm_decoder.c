@@ -16,6 +16,7 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 05/21/16 DJG Parameter change to mfm_mark_*
 // 12/31/15 DJG Parameter change to mfm_mark_*
 // 12/24/15 DJG Comment cleanup
 // 11/01/15 DJG Use new drive_params field and comment changes
@@ -301,7 +302,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                decoded_word = 0;
                decoded_bit_cntr = 0;
                state = PROCESS_HEADER;
-               mfm_mark_header_location(all_raw_bits_count, tot_raw_bit_cntr);
+               mfm_mark_header_location(all_raw_bits_count, raw_bit_cntr,
+                  tot_raw_bit_cntr);
                // Figure out the length of data we should look for
                bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->header_crc.length / 8;
@@ -316,7 +318,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          } else if (state == DATA_SYNC) {
             state = PROCESS_DATA;
 //printf("Start data %d\n",tot_raw_bit_cntr);
-            mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
+            mfm_mark_data_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
             // Figure out the length of data we should look for
             bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
                 mfm_controller_info[drive_params->controller].data_trailer_bytes +

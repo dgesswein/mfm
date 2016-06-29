@@ -11,11 +11,14 @@
 // call mfm_write_sector to check sector information and possibly write it to
 //   the extract file
 // call mfm_decode_done when all tracks have been processed
+// call mfm_handle_alt_track_ch to add alternate track to list
 //
 // TODO: make it use sector number information and checking CRC at data length to write data
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 05/21/16 DJG Improvements in alternate track handling and fix marking
+//    of header and data location for fixing emulator file with ECC corrections
 // 04/23/16 DJG Added EC1841 support
 // 01/24/16 DJG Add MVME320 controller support
 // 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
@@ -455,7 +458,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
 #endif
 }
 
-void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
+static void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
    ALT_INFO *alt_info = drive_params->alt_llist;
 
    while (alt_info != NULL) { 
@@ -998,9 +1001,10 @@ void update_emu_track_words(DRIVE_PARAMS * drive_params,
 
 // Mark start of header in track data we are building
 // Bit count is bit location in word
+// bit_offset is difference between proper header location and bit
+//    count when routine called
 // tot_bit_count is for finding header separation
-void mfm_mark_header_location(int bit_count, int tot_bit_count) {
-
+void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count) {
 #if PRINT_SPACING
    if (header_track_tot_bit_count != 0 && (tot_bit_count) > 
         header_track_tot_bit_count) {
@@ -1016,17 +1020,29 @@ void mfm_mark_header_location(int bit_count, int tot_bit_count) {
    // Back up 1 word to ensure we copy the header mark pattern
    // We don't have to be accurate since we can change some of
    // the gap words.
-   header_track_word_ndx = current_track_words_ndx - 1;
-   header_track_tot_bit_count = tot_bit_count;
+   header_track_word_ndx = MAX(current_track_words_ndx - 1, 0);
+   header_track_tot_bit_count = tot_bit_count - bit_offset;
 }
 
 // Mark start of data in track data we are building
-// Bit count is bit location in work
-void mfm_mark_data_location(int bit_count, int tot_bit_count) {
+// Bit count is bit location in word
+// bit_offset is difference between proper header location and bit
+//    count when routine called
+// tot_bit_count is for finding header separation
+void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count) {
    // Here we have to be accurate since we need to just replace the data
-   data_bit = bit_count;
    data_word_ndx = current_track_words_ndx;
-   data_tot_bit_count = tot_bit_count;
+   // Shift to correct bit and word index based on bit_offset
+   data_bit = bit_count - bit_offset;
+   if (data_bit >= 32) {
+      data_bit -= 32;
+      data_word_ndx++;
+   }
+   if (data_bit < 0) {
+      data_bit += 32;
+      data_word_ndx--;
+   }
+   data_tot_bit_count = tot_bit_count - bit_offset;
 }
 
 
@@ -1055,9 +1071,11 @@ static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
    uint64_t pat64, mask64, word64;
 
    if (sector_status->ecc_span_corrected_data != 0) {
-      //printf("updating %d %d to %d, %d\n", sect_rel0, header_track_word_ndx,
-      //      current_track_words_ndx, num_bytes);
-
+#if 0
+      printf("updating %d %d to %d, %d\n", sect_rel0, header_track_word_ndx,
+            current_track_words_ndx, num_bytes);
+      printf("word ndx %d bit %d\n", data_word_ndx, data_bit);
+#endif
       bit_num = 31 - data_bit;
       word_ndx = data_word_ndx;
       bit_num += 1;
@@ -1160,3 +1178,54 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
    return int_bit_pos;
 }
 
+// This adds to alternate track link list the data that needs to be
+// swapped to put the good data in the proper location in the extracted
+// data file.
+//
+// drive_params: Drive parameters
+// bad_cyl: Cylinder that has alterinate track assigned for
+// bad_head: Head that has alternate track assigned for
+// good_cyl: The alternate cylinder assigned
+// good_head: The alternate head assigned.
+void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
+      unsigned int bad_head, unsigned int good_cyl, unsigned int good_head) {
+   ALT_INFO *alt_info;
+
+   if (bad_cyl >= drive_params->num_cyl) {
+      msg(MSG_ERR, "Bad alternate cylinder %d out of valid range %d to %d",
+         bad_cyl, 0, drive_params->num_cyl - 1);
+      return;
+   }
+   if (good_cyl >= drive_params->num_cyl) {
+      msg(MSG_ERR, "Good alternate cylinder %d out of valid range %d to %d",
+         good_cyl, 0, drive_params->num_cyl - 1);
+      return;
+   }
+   if (bad_head >= drive_params->num_head) {
+      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d",
+         bad_head, 0, drive_params->num_head - 1);
+      return;
+   }
+   if (good_head >= drive_params->num_head) {
+      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d",
+         good_head, 0, drive_params->num_head - 1);
+      return;
+   }
+   alt_info = msg_malloc(sizeof(ALT_INFO), "Alt info");
+
+   memset(alt_info, 0, sizeof(ALT_INFO));
+   alt_info->bad_offset = (bad_cyl * drive_params->num_head +
+      bad_head) * drive_params->num_sectors * drive_params->sector_size;
+   alt_info->good_offset = (good_cyl * drive_params->num_head +
+      good_head) * drive_params->num_sectors * drive_params->sector_size;
+   alt_info->length = drive_params->num_sectors * drive_params->sector_size;
+
+   alt_info->next = drive_params->alt_llist; 
+      // Alternate is reported with same information for each
+      // sector. Only add one copy
+   if (drive_params->alt_llist == NULL || 
+         alt_info->bad_offset != drive_params->alt_llist->bad_offset ||
+         alt_info->good_offset != drive_params->alt_llist->good_offset) {
+      drive_params->alt_llist = alt_info;
+   }
+}

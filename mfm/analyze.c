@@ -317,6 +317,7 @@ static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *del
 // TODO, only handles drives where the interleave pattern is the same on all tracks
 // TODO, this won't work when heads >= 8 for WD1003 which truncates head
 // number in header to 3 bits.
+// TODO, make it detect when sector overlaps index and adjust begin time
 static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
       int max_deltas) {
    int msg_mask_hold;

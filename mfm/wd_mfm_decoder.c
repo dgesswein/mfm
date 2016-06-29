@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 05/21/16 DJG Parameter change to mfm_mark* functions and moved 
+//    handle_alt_track_ch to mfm_decoder.c
 // 01/24/16 DJG Add MVME320 controller support
 // 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled.
@@ -81,38 +83,6 @@ static inline float filter(float v, float *delay)
    out = in * 0.034446428576716f + *delay * -0.034124999994713f;
    *delay = in;
    return out;
-}
-
-// This adds to alternate track link list the data that needs to be
-// swapped to put the good data in the proper location in the extracted
-// data file.
-//
-// drive_params: Drive parameters
-// bad_cyl: Cylinder that has alterinate track assigned for
-// bad_head: Head that has alternate track assigned for
-// good_cyl: The alternate cylinder assigned
-// good_head: The alternate head assigned.
-void handle_alt_track_ch(DRIVE_PARAMS *drive_params, int bad_cyl, int bad_head,
-      int good_cyl, int good_head) {
-   ALT_INFO *alt_info;
-
-   alt_info = msg_malloc(sizeof(ALT_INFO), "Alt info");
-
-   memset(alt_info, 0, sizeof(ALT_INFO));
-   alt_info->bad_offset = (bad_cyl * drive_params->num_head +
-      bad_head) * drive_params->num_sectors * drive_params->sector_size;
-   alt_info->good_offset = (good_cyl * drive_params->num_head +
-      good_head) * drive_params->num_sectors * drive_params->sector_size;
-   alt_info->length = drive_params->num_sectors * drive_params->sector_size;
-
-   alt_info->next = drive_params->alt_llist; 
-      // Alternate is reported with same information for each
-      // sector. Only add one copy
-   if (drive_params->alt_llist == NULL || 
-         alt_info->bad_offset != drive_params->alt_llist->bad_offset ||
-         alt_info->good_offset != drive_params->alt_llist->good_offset) {
-      drive_params->alt_llist = alt_info;
-   }
 }
 
 // Decode bytes into header or sector data for the various formats we know about.
@@ -715,7 +685,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                msg(MSG_INFO, "Cylinder %d head %d assigned alternate cyl %d head %d. Extract data fixed\n",
                   exp_cyl, exp_head, sector_status.cyl, sector_status.head);
                byte5 = 0;
-               handle_alt_track_ch(drive_params, exp_cyl, exp_head, 
+               mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head, 
                     sector_status.cyl, sector_status.head);
             }
             if (byte5 == 0x8) {
@@ -797,7 +767,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
          msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
             (bytes[2] << 8) + bytes[3], bytes[4]);
-          handle_alt_track_ch(drive_params, sector_status.cyl, 
+          mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
             sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
       }
       if (crc != 0) {
@@ -979,14 +949,14 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                byte_cntr = 1;
                if (state == MARK_ID) {
                   state = PROCESS_HEADER;
-                  mfm_mark_header_location(all_raw_bits_count, tot_raw_bit_cntr);
+                  mfm_mark_header_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
                         drive_params->header_crc.length / 8;
                   bytes_needed = bytes_crc_len + HEADER_IGNORE_BYTES;
                } else {
                   state = PROCESS_DATA;
-                  mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
+                  mfm_mark_data_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
                         mfm_controller_info[drive_params->controller].data_trailer_bytes + 
@@ -1007,7 +977,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             if ((tot_raw_bit_cntr - header_raw_bit_count) > 530 && 
                   ((raw_word & 0xf) == 0x9)) {
                state = PROCESS_DATA;
-               mfm_mark_data_location(all_raw_bits_count, tot_raw_bit_cntr);
+               mfm_mark_data_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
                // Write sector assumes one sync byte at the start of the data
                // so we store the 0x01 sync byte.
                bytes[0] = 0x01;

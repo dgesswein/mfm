@@ -747,7 +747,10 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
 // END of WD type controllers
-      {"Xebec_104786",         256, 10000000,      0,
+//    Changed begin time from 0 to 100500 to work with 1410A. The sample
+//    I have of the 104786 says it should work with it also so changing default.
+//    Its possible this will cause problems with other variants.
+      {"Xebec_104786",         256, 10000000,      100500,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
@@ -876,8 +879,11 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word);
-void mfm_mark_header_location(int bit_count, int tot_bit_count);
-void mfm_mark_data_location(int bit_count, int tot_bit_count);
+void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count);
+void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params);
+void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
+      unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
+
 #undef DEF_EXTERN
 #endif /* MFM_DECODER_H_ */
