@@ -4,6 +4,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 06/05/16 DJG Fix using read buffer when read failed
 // 09/07/14 DJG Ignore temporary A/D read failures 
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -116,47 +117,47 @@ int main(int argc, char *argv[])
             msg(MSG_INFO, "A/D read failed %d %s\n",err_counter, 
                strerror(errno));
          }
-      } else {
-         err_counter = 0;
-      }
-      if (rc == 0) {
+      } else if (rc == 0) {
          msg(MSG_FATAL, "A/D read returned no data\n");
          exit(1);
-      }
-      voltage = atoi(buf) * 1.8/4096.0 / drive_params.scale;
-      if (stat_count <= 50 && drive_params.debug) {
-         ad_sum += voltage;
-         if (voltage > ad_max) {
-            ad_max = voltage;
-         }
-         if (voltage < ad_min) {
-            ad_min = voltage;
-         }
-         stat_count++;
-         if (stat_count == 50) {
-            msg(MSG_INFO, "Average %.2fV max %.2fV min %.2fV\n", 
-               ad_sum / stat_count, ad_max, ad_min);
-         }
-      }
-      if (voltage < drive_params.threshold) {
-         if (drive_params.debug) {
-            msg(MSG_INFO, "Voltage %.2f under threshold %.2f count %d\n", 
-               voltage, drive_params.threshold, under_count);
-         }
-         if (++under_count >= round(drive_params.wait / SLEEP_TIME_US * 1e6) ) {
-            if (pid != 0) {
-               kill(-pid, SIGINT);
-               waitpid(pid, NULL, 0);
-            }
-            rc = system(drive_params.powercmd);
-            if (rc == -1) {
-               msg(MSG_FATAL, "Executing power off command failed: %s\n",
-                 strerror(errno));
-            }
-            exit(0);
-         }
       } else {
-         under_count = 0;
+         err_counter = 0;
+         voltage = atoi(buf) * 1.8 / 4096.0 / drive_params.scale;
+         if (stat_count <= 50 && drive_params.debug) {
+            ad_sum += voltage;
+            if (voltage > ad_max) {
+               ad_max = voltage;
+            }
+            if (voltage < ad_min) {
+               ad_min = voltage;
+            }
+            stat_count++;
+            if (stat_count == 50) {
+               msg(MSG_INFO, "Average %.2fV max %.2fV min %.2fV\n",
+                     ad_sum / stat_count, ad_max, ad_min);
+            }
+         }
+         if (voltage < drive_params.threshold) {
+            if (drive_params.debug) {
+               msg(MSG_INFO, "Voltage %.2f under threshold %.2f count %d\n",
+                     voltage, drive_params.threshold, under_count);
+            }
+            if (++under_count
+                  >= round(drive_params.wait / SLEEP_TIME_US * 1e6)) {
+               if (pid != 0) {
+                  kill(-pid, SIGINT);
+                  waitpid(pid, NULL, 0);
+               }
+               rc = system(drive_params.powercmd);
+               if (rc == -1) {
+                  msg(MSG_FATAL, "Executing power off command failed: %s\n",
+                        strerror(errno));
+               }
+               exit(0);
+            }
+         } else {
+            under_count = 0;
+         }
       }
       usleep(SLEEP_TIME_US);
    }
