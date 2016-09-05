@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 09/02/16 DJG Put in Rob Jarratt code change so when stepped past last
+//     track it will go back to track 0
 // 01/22/16 DJG Make sure write going inactive is checked when all
 //     capture registers used. High frequency noise? casued problem.
 // 01/17/16 DJG Fix select speedup state tracking
@@ -857,8 +859,15 @@ step:
       // Direction is in, higher cyl, Limit cylinder value to number of cyl-1
    LBBO     r0, DRIVE_DATA, PRU0_DRIVE0_NUM_CYL, 4
    SUB      r0, r0, 1  
-   QBEQ     step_done, r1, r0                // At limit, ignore
+   QBEQ     step_recal, r1, r0              // At limit, go back to track 0
    ADD      r1, r1, 1
+   JMP      step_done
+      // One common behavior when trying to step past the last track is for
+      // the drive to recalibrate back to track 0. The other behavior is
+      // to continue stepping until it hits the mechanical stop. This
+      // implements going to track 0 which Vaxstation 2000 needs.
+step_recal:
+   LDI      r1, 0
    JMP      step_done
 step_out:
    QBEQ     step_done, r1, 0                // At limit, ignore
