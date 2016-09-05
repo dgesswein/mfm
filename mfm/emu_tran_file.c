@@ -104,6 +104,7 @@
 //    Clock transition count clock frequency is in file header. For 200 MHz
 //    a count of 40 indicates 5 MHz pulse spacing.
 //
+// 09/04/16 DJG Fixed comment
 // 12/31/15 DJG Added error check
 // 12/24/15 DJG Cleanup and output valid MFM data if needing to pad track
 // 05/16/15 DJG Added routines needed for analyze to work on transition and
@@ -154,7 +155,7 @@
 // 10 MHz rate should have 166666 deltas. For future RLL 50 RPM and 15 MHz
 // should have 300000. Padded more.
 #define MAX_BYTE_DELTAS 400000
-// EMU file header marker
+// EMU track header marker
 #define TRACK_ID_VALUE 0x12345678
 // File header marker
 uint8_t expected_header_id[] = 
