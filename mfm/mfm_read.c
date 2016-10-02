@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 09/07/16 DJG Report possible reversal of 20 pin cable
 // 12/31/15 DJG Parameter change to parse_print_cmdline
 // 08/02/15 DJG Added support for rev B board
 // 05/17/15 DJG Added analyze of specified cylinder and head.
@@ -210,6 +211,10 @@ int main(int argc, char *argv[])
    // sleeping.
    if (set_restore_max_cpu_speed(0)) {
       msg(MSG_ERR, "Unable to set CPU to maximum speed\n");
+   }
+
+   if (!(drive_get_drive_status() & BIT_MASK(R31_DRIVE_SEL))) {
+      msg(MSG_ERR,"** Drive selected without select, is J3 20 pin cable reversed? **\n");
    }
 
    if (drive_params.analyze) {

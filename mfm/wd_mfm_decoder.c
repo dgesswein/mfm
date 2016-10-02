@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 10/02/16 DJG Sort of handle DEC_RQDX3 which has different header format
+//    on last cylinder.
 // 05/21/16 DJG Parameter change to mfm_mark* functions and moved 
 //    handle_alt_track_ch to mfm_decoder.c
 // 01/24/16 DJG Add MVME320 controller support
@@ -83,6 +85,12 @@ static inline float filter(float v, float *delay)
    out = in * 0.034446428576716f + *delay * -0.034124999994713f;
    *delay = in;
    return out;
+}
+
+// Return non zero if cylinder passed in is last cylinder on drive
+int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
+{
+	return cyl == drive_params->num_cyl - 1;
 }
 
 // Decode bytes into header or sector data for the various formats we know about.
@@ -421,7 +429,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
+      } else if (drive_params->controller == CONTROLLER_DEC_RQDX3 &&
+          !IsOutermostCylinder(drive_params, exp_cyl)) {
+            // The last cylinder is in normal WD format. It has 256
+            // byte sectors with a different polynomial so this fixes getting
+            // the wrong cylinder which causes problems with reading. It still
+            // won't be considered error free due to CRC error. TODO:
+            // handle multiple formats for a disk so the entire disk can
+            // be read without error
          sector_status.cyl = (bytes[3] & 0xf0) << 4;
          sector_status.cyl |= bytes[2];
 
@@ -463,6 +478,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
+            (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
+               IsOutermostCylinder(drive_params, exp_cyl)) ||
               drive_params->controller == CONTROLLER_WD_3B1) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};

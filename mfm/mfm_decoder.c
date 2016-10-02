@@ -379,7 +379,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_EC1841)  {
       rc = xebec_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
-   } else if (drive_params->controller == CONTROLLER_CORVUS_H)  {
+   } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
+         drive_params->controller == CONTROLLER_CROMEMCO)  {
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE)  {
@@ -874,7 +875,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          status |= xebec_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span);
-      } else if (drive_params->controller == CONTROLLER_CORVUS_H) {
+      } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
+            drive_params->controller == CONTROLLER_CROMEMCO) {
          status |= corvus_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span);

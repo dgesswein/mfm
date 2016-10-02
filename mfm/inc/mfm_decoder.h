@@ -2,11 +2,11 @@
 #define MFM_DECODER_H_
 
 //
-// MFM is 17 or 18 sectors. This allows growth for RLL/ESDI
+// MFM is up to 32 for 256 byte sectors. This allows growth for RLL/ESDI
 #define MAX_SECTORS 50
 #define MAX_HEAD 16
 #define MAX_CYL 4096
-#define MAX_SECTOR_SIZE 4096 // Data size in bytes
+#define MAX_SECTOR_SIZE 10240 // Data size in bytes
 // Max size of raw words for a track. This is big enough to
 // hold future growth up to 30 Mbit/sec at 3600 RPM
 #define MAX_TRACK_WORDS 16000
@@ -83,7 +83,8 @@ typedef struct {
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_EC1841, 
-      CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE
+      CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
+      CONTROLLER_CROMEMCO
    } controller;
    // The sector numbering used. This will vary from the physical order if
    // interleave is used. Only handles all sectors the same.
@@ -202,7 +203,7 @@ DEF_EXTERN struct {
 // Smallest sector size should be first in list
 DEF_EXTERN int mfm_all_sector_size[]
 #ifdef DEF_DATA
- = {256, 512, 524, 1024, 1160, 1164, 2048, 4096, -1}
+ = {256, 512, 524, 1024, 1160, 1164, 2048, 4096, 10240, -1}
   // -1 marks end of array
 #endif
 ;
@@ -776,6 +777,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_northstar, 512, 16, 0, 5209,
 // Should be model after data filled in
          {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
+      {"Cromemco",             10240, 10000000,  0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         9, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         7, 0, NULL, 0, 0, 0, 5209,
+// Should be model after data filled in
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,

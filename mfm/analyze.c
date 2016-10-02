@@ -6,6 +6,10 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 10/02/16 DJG Rob Jarratt change to detect recalibrate when finding number
+//    of cylinders and suggested simplification for determining slow/fast
+//    seek.
+// 10/01/16 DJG Handle tracks with one sector.
 // 01/24/16 DJG Fix a couple errors with prints. 
 // 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled.
@@ -170,8 +174,10 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
                   good_header_count++;
                }
             }
-            // If we found at least 2 sectors
-            if (good_header_count >= 2) {
+            // If we found at least 2 sectors or 1 if sector is large
+            // enough to only have one per track 
+            if (good_header_count >= 2 || (good_header_count == 1 &&
+                 drive_params->sector_size > 9000) ) {
                // Keep the best
                if (good_header_count > previous_good_header_count) {
                   controller_type = drive_params->controller;
@@ -461,60 +467,38 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
     }
 }
 
-// Determine what seek method should be used for drive
+// Test if seek at specified rate works. We 
 //
-// drive_params: Drive parameters determined so far and return what we have determined
-// cyl: cylinder the data is from
-// deltas: MFM delta time transition data to analyze (filled after read)
-static int analyze_seek(DRIVE_PARAMS *drive_params, int start_cyl, int head, void *deltas,
-      int max_deltas) {
-   int msg_mask_hold;
-   SECTOR_STATUS sector_status_list[MAX_SECTORS];
-   int i;
+// drive_params: Drive parameters determined so far.
+// return: 0 if seek at specified speed worked, 1 otherwise
+static int analyze_seek(DRIVE_PARAMS *drive_params) {
    int seek;
-   int found_header;
-   char *seek_desc;
    int rc = 0;
+   int i;
 
-   if (drive_params->step_speed == DRIVE_STEP_FAST) {
-      seek_desc = "buffered";
-   } else {
-      seek_desc = "unbuffered";
-   }
-   // We try using the fast seek command to move down the disk and see if
-   // we end up on the correct cylinder. If we start far enough down the
-   // disk seek towards 0 instead to make sure we don't hit end of disk
+   drive_seek_track0();
    seek = 30;
-   if (start_cyl > seek) {
-      seek = -seek;
-   }
-   start_cyl += seek;
-   drive_read_track(drive_params, start_cyl, head, deltas, max_deltas);
-
-   mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
-   msg_mask_hold = msg_set_err_mask(decode_errors);
-   mfm_decode_track(drive_params, start_cyl, head, deltas, NULL, 
-         sector_status_list);
-   msg_set_err_mask(msg_mask_hold);
-   found_header = 0;
-   for (i = 0; i < drive_params->num_sectors; i++) {
-      if (sector_status_list[i].status & SECT_HEADER_FOUND) {
-         found_header = 1;
-         if (sector_status_list[i].cyl != start_cyl) {
-            msg(MSG_INFO,"Seek test expected cyl %d got %d %s seek\n",
-               start_cyl, sector_status_list[i].cyl, seek_desc);
+   // Step down the drive at the specified rate then verify
+   // it takes the same number of slow steps to return back to
+   // track 0.
+   drive_step(drive_params->step_speed, seek, 
+           DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+   for (i = 1; i <= seek && rc == 0; i++) {
+      drive_step(DRIVE_STEP_SLOW, -1, 
+           DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+      if (i == seek) {
+         if (!drive_at_track0()) {
+            msg(MSG_INFO, "Found track 0 after %d steps\n", i);
+            rc = 1;
+         }
+      } else {
+         if (drive_at_track0()) {
+            msg(MSG_INFO, "Didn't reach track 0\n");
             rc = 1;
          }
       }
    }
-   if (!found_header) {
-      msg(MSG_INFO,"No readable data after %s seek test\n", seek_desc);
-      rc = 1;
-   }
-   if (rc != 0) {
-         // We don't know where head is so return to 0
-      drive_seek_track0();
-   }
+   drive_seek_track0();
 
    return rc;
 }
@@ -546,6 +530,7 @@ static void analyze_disk_size(DRIVE_PARAMS *drive_params, int start_cyl,
    int cyl;
    int i;
    int last_printed_cyl;
+   int rc;
 
    max_cyl = 0;
    no_header_count = 0;
@@ -555,9 +540,13 @@ static void analyze_disk_size(DRIVE_PARAMS *drive_params, int start_cyl,
       if (cyl % 5 == 0)
          msg(MSG_PROGRESS, "At cyl %d\r", cyl);
 
-      if (drive_step(drive_params->step_speed, 1, 
-           DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_RET_ERR) != 0) {
+      rc = drive_step(drive_params->step_speed, 1, 
+           DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_RET_ERR);
+      if (rc == DRIVE_STEP_TIMEOUT) {
          msg(MSG_INFO, "Max cylinder set from drive timeout on seek\n");
+         break;
+      } else if (rc == DRIVE_STEP_RECAL) {
+         msg(MSG_INFO, "Stopping end of disk search due to recalibration\n");
          break;
       }
       drive_read_track(drive_params, cyl, head, deltas, max_deltas);
@@ -947,10 +936,10 @@ void analyze_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
    if (!use_file) {
       // Try a buffered seek and if it doesn't work try an unbuffered seek
       drive_params->step_speed = DRIVE_STEP_FAST;
-      if (analyze_seek(drive_params, cyl, head, deltas, max_deltas) != 0) {
+      if (analyze_seek(drive_params) != 0) {
          drive_params->step_speed = DRIVE_STEP_SLOW;
-         if (analyze_seek(drive_params, cyl, head, deltas, max_deltas) != 0) {
-            msg(MSG_FATAL, "Unable to get valid data after a seek\n");
+         if (analyze_seek(drive_params) != 0) {
+            msg(MSG_FATAL, "Drive is not seeking properly\n");
             exit(1);
          }
       }

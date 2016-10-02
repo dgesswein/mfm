@@ -643,9 +643,10 @@ void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
    if (!mfm_read) {
       min_read_opts &= ~drive_opt;
    }
-   // Corvus H drive doesn't have separate header and data CRC. We use header
-   // for both
-   if (drive_params->controller == CONTROLLER_CORVUS_H) {
+   // Corvus H  and Cromemco drive doesn't have separate header and data 
+   // CRC. We use header for both
+   if (drive_params->controller == CONTROLLER_CORVUS_H ||
+       drive_params->controller == CONTROLLER_CROMEMCO) {
       min_read_opts &= ~data_crc_opt;
    }
    if ((drive_params->extract_filename != NULL)
