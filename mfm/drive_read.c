@@ -6,6 +6,8 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 10/02/2016 DJG Rob Jarratt change to clean up confusing code.
+//
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
 //
@@ -95,11 +97,6 @@ struct timespec tv_start;
    mfm_decode_setup(drive_params, 1);
 
    for (cyl = 0; cyl < drive_params->num_cyl; cyl++) {
-         // Slow seek doesn't slow down reading so always use it. When
-         // only reading transition files this should work for all drives
-         // without needing to specify slow seek
-      drive_step(DRIVE_STEP_SLOW, 1, DRIVE_STEP_UPDATE_CYL, 
-         DRIVE_STEP_FATAL_ERR);
       if (cyl % 5 == 0)
          msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       for (head = 0; head < drive_params->num_head; head++) {

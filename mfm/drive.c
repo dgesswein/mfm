@@ -9,16 +9,19 @@
 // drive_read_track read a track of deltas from a drive. It steps the
 //    head if necessary.
 // drive_step steps the head the requested number of cylinders.
+// drive_is_file: Indicate if real drive or reading from file
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 10/02/2016 DJG Rob Jarratt change for DEC RD drives to detect when
+//    it recalibrates back to track 0 when stepping past end
 // 02/20/2016 DJG Split for drive reading and writing
 // 01/06/2016 DJG Detect reversed J4 cable
 // 12/24/2015 DJG Fix comment
 // 07/30/2015 DJG Added support for revision B board.
 // 05/16/2015 DJG Changes for drive_file.c
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2014-2016 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -196,11 +199,14 @@ void drive_seek_track0(void)
 // Step requested number of cylinders
 // buffered_seek: nonzero if drive supports buffered seeks
 // steps: Number of cylinders to step, negative is towards lower cylinder
-// err_fatal: If set an error will terminate, otherwise returned
+// update_cyl: Non zero if internal current cylinder should be updated
+// err_fatal: If set a timeout error will terminate, otherwise returned
+//    as SEEK_TIMEOUT. SEEK_RECAL indicates the drive recalibrated to track 0
 int drive_step(int step_speed, int steps, int update_cyl, int err_fatal) {
    int seek_cmd;
    int rc;
    int wait_count = 0, ready = 0;
+   int start_cyl = current_cyl;
 
    if (update_cyl == DRIVE_STEP_UPDATE_CYL) {
       current_cyl += steps;
@@ -224,7 +230,15 @@ int drive_step(int step_speed, int steps, int update_cyl, int err_fatal) {
             usleep(100000);
          }
       }
+      rc = DRIVE_STEP_TIMEOUT;
    }
+
+   if (drive_at_track0() && start_cyl != 0 && current_cyl != 0) {
+      msg(MSG_INFO, "Disk has recalibrated to track 0\n");
+      current_cyl = 0;
+      rc = DRIVE_STEP_RECAL;
+   }
+
    return rc;
 }
 

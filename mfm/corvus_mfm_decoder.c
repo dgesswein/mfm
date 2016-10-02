@@ -9,6 +9,7 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 10/01/16 DJG Added Cromemco format
 // 05/21/16 DJG Parameter change to mfm_mark* routines
 // 12/31/15 DJG Parameter change to mfm_mark* routines
 // 11/01/15 DJG Comment fixes
@@ -77,6 +78,24 @@ static inline float filter(float v, float *delay)
 //      Sector data for sector size
 //      2 byte CRC code (polynomial 0x8005)
 //      
+//   CONTROLLER_CROMEMCO,
+//   9 byte header + 7 byte trailer + 2 byte CRC
+//      byte 0 0x04
+//      byte 1 0x00
+//      byte 2 0xaa
+//      byte 3 0xaa
+//      byte 4 0xaa
+//      byte 5 0x00
+//      byte 6 low cylinder
+//      byte 7 high cylinder
+//      byte 8 head
+//      10240 bytes of data
+//      0x00
+//      0xaa
+//      0xaa
+//      0x00
+//      2 byte CRC code (polynomial 0x8005, init value 0 with all
+//         above in the CRC))
 SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
          DRIVE_PARAMS *drive_params, int *seek_difference,
@@ -85,6 +104,7 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
    static int sector_size;
    static int bad_block;
    static SECTOR_STATUS sector_status;
+   uint8_t cromemco_sync[] = {0x04, 0x00, 0xaa, 0xaa, 0xaa, 0x00};
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
@@ -94,9 +114,26 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_ECC_RECOVERED;
       }
 
-      sector_status.cyl = bytes[1] | (bytes[2] << 8);
-      sector_status.head = bytes[0] >> 5 ;
-      sector_status.sector = bytes[0] & 0x1f;
+      if (drive_params->controller == CONTROLLER_CORVUS_H) {
+         sector_status.cyl = bytes[1] | (bytes[2] << 8);
+         sector_status.head = bytes[0] >> 5 ;
+         sector_status.sector = bytes[0] & 0x1f;
+      } else if (drive_params->controller == CONTROLLER_CROMEMCO) {
+         sector_status.cyl = bytes[6] | (bytes[7] << 8);
+         sector_status.head = bytes[8] ;
+         sector_status.sector = 0; // Only 1 sector
+         if (memcmp(bytes, cromemco_sync, sizeof(cromemco_sync)) != 0) {
+            msg(MSG_ERR, "Bad alignment bytes %x %x %x %x %x %x on cyl %d,%d head %d,%d\n",
+               bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
+                  exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head);
+         }
+      } else {
+         msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
+         exit(1);
+      }
+
+
       // Don't know how/if these are encoded in header
       sector_size = drive_params->sector_size;
       bad_block = 0;
@@ -156,9 +193,11 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int decoded_bit_cntr = 0;
    // loop counter
    int i;
+   // This is the expected bit separation in delta counts
+   float bit_rate_bit_sep_time;
    // These are variables for the PLL filter. avg_bit_sep_time is the
-   // "VCO" frequency
-   float avg_bit_sep_time = 18; // 200 MHz clocks
+   // "VCO" frequency in delta counts
+   float avg_bit_sep_time;
    // Clock time is the clock edge time from the VCO.
    float clock_time = 0;
    // How many bits the last delta corresponded to
@@ -175,8 +214,8 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    STATE_TYPE state = MARK_ID;
    // Status of decoding returned
    int sector_status = SECT_NO_STATUS;
-   // How many zeros we need to see before we will look for the 0xa1 byte.
-   // When write turns on and off can cause codes that look like the 0xa1
+   // How many zeros we need to see before we will look for the sync bit.
+   // When write turns on and off can cause codes that cause false sync
    // so this avoids them.
    #define MARK_NUM_ZEROS 30
    int sync_count = 0;
@@ -200,8 +239,21 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int all_raw_bits_count = 0;
    // Time to look for next header in 200 MHz clock ticks. This will start 
    // looking at data a little into the beggining 0 words
-   int next_header_time = 71500; // 69200
+   int next_header_time;
 
+
+   avg_bit_sep_time = 200e6 /
+         mfm_controller_info[drive_params->controller].clk_rate_hz;
+   bit_rate_bit_sep_time = avg_bit_sep_time;
+
+   if (drive_params->controller == CONTROLLER_CORVUS_H) {
+      next_header_time = 71500;
+   } else {
+      // Zeros found earlier cause false syncs unless skipped. TODO:
+      // May be better to check for sync data following and resync if
+      // not correct for Coromemco.
+      next_header_time = 24000;
+   }
 #if VCD
 long long int bit_time = 0;
 FILE *out;
@@ -232,11 +284,11 @@ fprintf(out,"$var wire 1 & sector $end\n");
          }
          // And then filter based on the time difference between the delta and
          // the clock
-         avg_bit_sep_time = 18.0 + filter(clock_time, &filter_state);
+         avg_bit_sep_time = bit_rate_bit_sep_time + filter(clock_time, &filter_state);
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          //if (cyl == 70 & head == 5 && track_time > next_header_time)
-         if (cyl == 0 & head == 0)
+         if (cyl == 0 && head == 0)
          printf
          ("  delta %d %.2f int %d avg_bit %.2f time %d dec %08x raw %08x\n",
                deltas[i], clock_time,
@@ -264,6 +316,7 @@ fprintf(out,"$var wire 1 & sector $end\n");
 
          // Are we looking for a mark code?
          if ((state == MARK_ID)) {
+//printf("Raw %d %d %x\n",raw_bit_cntr, sync_count, raw_word);
             // These patterns are MFM encoded all zeros or all ones.
             // We are looking for zeros so we assume they are zeros.
             if (track_time > next_header_time && 
@@ -291,9 +344,15 @@ fprintf(out,"#%lld\n1&\n", bit_time);
 #endif
 //printf("Found header at %d %d\n",tot_raw_bit_cntr, track_time);
                // Time next header should start at
-               next_header_time += 164900;
+               if (drive_params->controller == CONTROLLER_CORVUS_H) {
+                  next_header_time += 164900;
+                  raw_bit_cntr = -2;
+               } else {
+                  // We need the 0x04 that is also the sync we are using
+                  // to start decoding so back up
+                  raw_bit_cntr = 12;
+               }
 //printf("Next header at %d\n",next_header_time);
-               raw_bit_cntr = -2;
                decoded_word = 0;
                decoded_bit_cntr = 0;
                // In this format header is attached to data so both
@@ -305,6 +364,7 @@ fprintf(out,"#%lld\n1&\n", bit_time);
                // Figure out the length of data we should look for
                bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->sector_size + 
+                        mfm_controller_info[drive_params->controller].data_trailer_bytes +
                         drive_params->header_crc.length / 8;
                bytes_needed = bytes_crc_len;
                if (bytes_needed >= sizeof(bytes)) {
@@ -334,6 +394,7 @@ fprintf(out,"#%lld\n%d^\n#%lld\n%d^\n", bit_time,
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
                      bytes[byte_cntr++] = decoded_word;
+//printf("Decoded %d  %d %08x\n",byte_cntr, tot_raw_bit_cntr, decoded_word);
                   } else {
 #if VCD
 fprintf(out,"#%lld\n0&\n", bit_time);

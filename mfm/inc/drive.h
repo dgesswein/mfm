@@ -23,6 +23,8 @@ double drive_rpm(void);
 #define DRIVE_STEP_RET_ERR 0
 #define DRIVE_STEP_NO_UPDATE_CYL 0
 #define DRIVE_STEP_UPDATE_CYL 1
+#define DRIVE_STEP_TIMEOUT 1
+#define DRIVE_STEP_RECAL 2
 int drive_step(int seek_speed, int steps, int update_cyl, int err_fatal);
 int drive_current_cyl(void);
 void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
@@ -30,5 +32,4 @@ void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
 void drive_initialize(void);
 int drive_get_board_revision(void);
 void drive_write_disk(DRIVE_PARAMS *drive_params);
-
 #endif /* DRIVE_H_ */

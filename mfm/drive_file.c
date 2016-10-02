@@ -48,6 +48,10 @@ int drive_step(int seek_speed, int steps, int update_cyl, int err_fatal) {
    return 0;
 }
 
+int drive_at_track0(void) {
+   return 0;
+}
+
 void drive_seek_track0(void) {
 }
 
