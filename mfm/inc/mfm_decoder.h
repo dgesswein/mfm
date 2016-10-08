@@ -75,7 +75,10 @@ typedef struct {
       CONTROLLER_WD_1006, CONTROLLER_WD_3B1,
       CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
-      CONTROLLER_OMTI_5510, CONTROLLER_DEC_RQDX3, 
+      CONTROLLER_OMTI_5510, 
+      CONTROLLER_XEROX_6085, 
+      CONTROLLER_MORROW_MD11,
+      CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
@@ -700,6 +703,18 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+      {"Xerox_6085",           256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+      {"Morrow_MD11",            1024, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 1024, 9, 0, 5209,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
 // OMTI_5200 uses initial value 0x409e10aa for data
       {"DEC_RQDX3",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -766,7 +781,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         3, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         3, 3, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 5209,
 // Should be model after data filled in
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
@@ -780,7 +795,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
       {"Cromemco",             10240, 10000000,  0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         9, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         9, 9, 0, 0, CHECK_CRC, CHECK_CRC,
          7, 0, NULL, 0, 0, 0, 5209,
 // Should be model after data filled in
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
@@ -833,6 +848,9 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS *drive_parms, int cyl,
 SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_parms, int cyl, 
    int head, uint16_t deltas[], int *seek_difference, 
    SECTOR_STATUS bad_sector_list[]);
+SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_parms, int cyl, 
+   int head, uint16_t deltas[], int *seek_difference, 
+   SECTOR_STATUS bad_sector_list[]);
 SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_parms, int cyl, 
    int head, uint16_t deltas[], int *seek_difference, 
    SECTOR_STATUS bad_sector_list[]);
@@ -861,7 +879,7 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // PROCESS_HEADER is processing the header bytes and PROCESS_DATA processing
 // the data bytes. HEADER_SYNC and DATA_SYNC are looking for the one bit to sync to
 // in CONTROLLER_XEBEC_104786. Not all decoders use all states.
-typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_DATA
+typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
 } STATE_TYPE;
 
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],
@@ -869,6 +887,10 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes
       int *seek_difference, SECTOR_STATUS sector_status_list[]);
 
 SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
+      uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
+      DRIVE_PARAMS *drive_params, int *seek_difference,
+      SECTOR_STATUS sector_status_list[], int ecc_span);
+SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
       SECTOR_STATUS sector_status_list[], int ecc_span);

@@ -9,6 +9,8 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 10/07/16 DJG More fixes for Cromemco format. Change when looking for
+//    header to avoid false sync. Suppress out of data when all sectors read.
 // 10/01/16 DJG Added Cromemco format
 // 05/21/16 DJG Parameter change to mfm_mark* routines
 // 12/31/15 DJG Parameter change to mfm_mark* routines
@@ -153,7 +155,9 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
-         if (mfm_write_sector(&bytes[3], drive_params, &sector_status,
+         int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
+         // TODO: Make handling of correction data for extract cleaner
+         if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
                sector_status_list, &bytes[0], drive_params->sector_size +
                drive_params->header_crc.length + 3) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
@@ -252,7 +256,7 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       // Zeros found earlier cause false syncs unless skipped. TODO:
       // May be better to check for sync data following and resync if
       // not correct for Coromemco.
-      next_header_time = 24000;
+      next_header_time = 32000;
    }
 #if VCD
 long long int bit_time = 0;
@@ -337,6 +341,7 @@ fprintf(out,"$var wire 1 & sector $end\n");
             }
          // We need to wait for the one bit to resynchronize.
          } else if (state == HEADER_SYNC) {
+//printf("Raw %d %d %x\n",raw_bit_cntr, sync_count, raw_word);
             if ((raw_word & 0xf) == 0x9) {
 #if VCD
 bit_time = track_time / 198e6 * 1e12;
@@ -374,6 +379,7 @@ fprintf(out,"#%lld\n1&\n", bit_time);
                byte_cntr = 0;
             }
          } else {
+//printf("Raw %d %d %x\n",raw_bit_cntr, sync_count, raw_word);
             int entry_state = state;
             // If we have enough bits to decode do so. Stop if state changes
             while (raw_bit_cntr >= 4 && entry_state == state) {
@@ -418,7 +424,7 @@ fprintf(out,"#%lld\n0&\n", bit_time);
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
-   if (state == PROCESS_HEADER) {
+   if (state == PROCESS_HEADER && sector_index < drive_params->num_sectors) {
       msg(MSG_ERR, "Ran out of data while processing sector index %d\n",
          sector_index);
    }

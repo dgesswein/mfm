@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 10/04/16 DJG Added Morrow MD11
 // 10/02/16 DJG Sort of handle DEC_RQDX3 which has different header format
 //    on last cylinder.
 // 05/21/16 DJG Parameter change to mfm_mark* functions and moved 
@@ -88,7 +89,7 @@ static inline float filter(float v, float *delay)
 }
 
 // Return non zero if cylinder passed in is last cylinder on drive
-int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
+static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 {
 	return cyl == drive_params->num_cyl - 1;
 }
@@ -128,6 +129,25 @@ int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 3 cylinder low
 //      byte 4 head and flags. (bit 7 bad, bit 6 assigned alternate track,
 //         bit 5 is alternate track)
+//      byte 5 sector
+//      byte 6-9 ECC code
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size 
+//         (alt cyl first 2 bytes msb first, head third)
+//      ECC code (4 byte)
+//
+//   CONTROLLER_Morrow_MD11
+//   Manual http://bitsavers.trailing-edge.com/pdf/sms/pc/
+//   6 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder low
+//      byte 3 cylinder high
+//      byte 4 head and flags. (bit 7 bad, bit 6 assigned alternate track,
+//         bit 5 is alternate track) The format copied from OMTI_5510.
+//         Unknown if these bits are the same.
 //      byte 5 sector
 //      byte 6-9 ECC code
 //   Data
@@ -414,6 +434,24 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       if (drive_params->controller == CONTROLLER_OMTI_5510) {
          sector_status.cyl = bytes[2]<< 8;
          sector_status.cyl |= bytes[3];
+
+         // More is in here but what is not documented in manual
+         sector_status.head = bytes[4] & 0xf;
+         bad_block = bytes[4] >> 7;;
+         alt_assigned = (bytes[4] & 0x40) >> 6;
+         is_alternate = (bytes[4] & 0x20) >> 5;
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+
+         sector_status.sector = bytes[5];
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_MORROW_MD11) {
+         sector_status.cyl = bytes[3]<< 8;
+         sector_status.cyl |= bytes[2];
 
          // More is in here but what is not documented in manual
          sector_status.head = bytes[4] & 0xf;
@@ -953,10 +991,10 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                printf("cyl %d head %d sector index %d zero %d byte %d %x tot raw %d\n",
                      cyl, head, sector_index, zero_count, byte_cntr, raw_word, tot_raw_bit_cntr);
             }
-#endif
             if ((raw_word & 0xffff) == 0x4489) {
-   //printf("mark at %d zero %d\n", tot_raw_bit_cntr, zero_count);
+   printf("mark at %d zero %d\n", tot_raw_bit_cntr, zero_count);
 }
+#endif
 //printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
             if ((raw_word & 0xffff) == 0x4489
                   && zero_count >= MARK_NUM_ZEROS) {

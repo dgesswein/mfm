@@ -362,6 +362,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
+         drive_params->controller == CONTROLLER_MORROW_MD11 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_OLIVETTI ||
@@ -374,6 +375,9 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
+            sector_status_list);
+   } else if (drive_params->controller == CONTROLLER_XEROX_6085) {
+      rc = tagged_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
          drive_params->controller == CONTROLLER_EC1841)  {
@@ -857,6 +861,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
+            drive_params->controller == CONTROLLER_MORROW_MD11 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_OLIVETTI ||
@@ -869,6 +874,9 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
+               drive_params, seek_difference, sector_status_list, ecc_span);
+      } else if (drive_params->controller == CONTROLLER_XEROX_6085) {
+         status |= tagged_process_data(state, bytes, crc, cyl, head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_EC1841)  {
