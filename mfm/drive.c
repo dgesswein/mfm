@@ -89,7 +89,7 @@ void drive_select(int drive)
       for (i = 0; i < 4; i++) {
          fd[i] = open(drive_pins[i], O_WRONLY);
          if (fd[i] < 0) {
-            msg(MSG_FATAL, "Unable to open pin %s\n", drive_pins[i]);
+            msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pins[i]);
             exit(1);
          }
       }
