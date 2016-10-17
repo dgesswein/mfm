@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 10/16/16 DJG Indicate sector 255 is flagging bad block for RQDX3.
+//    Added MOTOROLA_VME10. Renamed OLIVETTI to DTC.
 // 10/04/16 DJG Added Morrow MD11
 // 10/02/16 DJG Sort of handle DEC_RQDX3 which has different header format
 //    on last cylinder.
@@ -35,6 +37,7 @@
 // 11/09/14 DJG Added bad block and alternate track decoding for OMTI_5510
 // 09/10/14 DJG Added new Olivetti format decode. Format is best guess
 //    based on one XM5220/2 drive sample. Unknown what controller wrote it.
+//    Controller likely DTC so renamed.
 //   
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
@@ -120,6 +123,15 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
+//   CONTROLLER_MOTOROLA_VME10
+//   5 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder high
+//      byte 3 cylinder low
+//      byte 4 bits 7-5 head 4-0 sector
+//      CRC/ECC code
+//
 //   CONTROLLER_OMTI_5510
 //   Manual http://bitsavers.trailing-edge.com/pdf/sms/pc/
 //   6 byte header + 4 byte CRC
@@ -139,7 +151,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      ECC code (4 byte)
 //
 //   CONTROLLER_Morrow_MD11
-//   Manual http://bitsavers.trailing-edge.com/pdf/sms/pc/
+//   Manual  http://www.bitsavers.org/pdf/morrow/boards/HD-DMA_Preliminary_Technical_Manual_Jan82.pdf
 //   6 byte header + 4 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe
@@ -173,7 +185,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      ECC code (4 byte)
 //
-//   CONTROLLER_OLIVETTI, Olivetti is drive since controller is not known
+//   CONTROLLER_DTC, From Olivetti drive.
 //   5 byte header + 3 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe 
@@ -482,7 +494,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.sector = bytes[4];
          // Don't know how/if these are encoded in header
          sector_size = drive_params->sector_size;
-         bad_block = 0;
+         // TODO: Figure out a better way to deal with sector number invalid
+         // when bad block.
+         bad_block = (sector_status.sector == 255);
          // Don't know what's in this byte. Print a message so it can be
          // investigated if not the 2 seen previously.
          if (bytes[5] != 0x2) {
@@ -513,6 +527,17 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (bytes[1] != 0xfe) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_MOTOROLA_VME10) {
+         sector_status.cyl = (bytes[2] << 8) | bytes[3];
+         sector_status.head = bytes[4] >> 5;
+         sector_status.sector = bytes[4] & 0x1f;
+         sector_size = drive_params->sector_size;
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
@@ -588,7 +613,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_OLIVETTI) {
+      } else if (drive_params->controller == CONTROLLER_DTC) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x70) << 4);
 
          sector_status.head = bytes[3] & 0xf;

@@ -17,6 +17,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/16/16 DJG Renamed OLIVETTI to DTC. Added MOTOROLA_VME10 and SOLOSYSTEMS
 // 05/21/16 DJG Improvements in alternate track handling and fix marking
 //    of header and data location for fixing emulator file with ECC corrections
 // 04/23/16 DJG Added EC1841 support
@@ -361,11 +362,12 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
+         drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_MORROW_MD11 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_MVME320 ||
-         drive_params->controller == CONTROLLER_OLIVETTI ||
+         drive_params->controller == CONTROLLER_DTC ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
@@ -380,7 +382,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
       rc = tagged_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
-         drive_params->controller == CONTROLLER_EC1841)  {
+         drive_params->controller == CONTROLLER_EC1841 ||
+         drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
       rc = xebec_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
@@ -860,11 +863,12 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
+            drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_MORROW_MD11 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_MVME320 ||
-            drive_params->controller == CONTROLLER_OLIVETTI ||
+            drive_params->controller == CONTROLLER_DTC ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
@@ -879,7 +883,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          status |= tagged_process_data(state, bytes, crc, cyl, head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
-            drive_params->controller == CONTROLLER_EC1841)  {
+            drive_params->controller == CONTROLLER_EC1841 ||
+            drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
          status |= xebec_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span);

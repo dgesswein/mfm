@@ -1,5 +1,6 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
+// 10/16/16 DJG Fixed spelling error
 // 01/24/16 DJG Fix for ext2emu when sectors start at 1
 // 01/06/16 DJG Rename structure
 // 01/02/16 DJG Fix ext2emu for Northstar
@@ -102,7 +103,7 @@ int main (int argc, char *argv[])
          orig_note = emu_file_info.note;
       }
       if (orig_cmdline != NULL) {
-         msg(MSG_INFO, "Origional decode arguments: %s\n", orig_cmdline);
+         msg(MSG_INFO, "Original decode arguments: %s\n", orig_cmdline);
          if (orig_note != NULL && strlen(orig_note) != 0) {
             msg(MSG_INFO, "Note: %s\n", orig_note);
          }

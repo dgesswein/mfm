@@ -9,6 +9,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/16/16 DJG Added parameter to control seeks to --retry
 // 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled. If controller defines other parameters such as polynomial
 //     set them
@@ -110,8 +111,9 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
    safe_print(&cmdptr, &cmdleft,
          "--sector_length %d ", drive_params->sector_size);
    if (!no_retries_drive_interleave) {
-      safe_print(&cmdptr, &cmdleft, "--retries %d --drive %d ",
-         drive_params->retries, drive_params->drive);
+      safe_print(&cmdptr, &cmdleft, "--retries %d,%d --drive %d ",
+         drive_params->retries, drive_params->no_seek_retries,
+         drive_params->drive);
    }
    if (drive_params->step_speed == DRIVE_STEP_SLOW) {
       safe_print(&cmdptr, &cmdleft, "--unbuffered_seek ");
@@ -465,6 +467,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
       drive_params->ext_fd = -1;
       drive_params->step_speed = DRIVE_STEP_FAST;
       drive_params->retries = 50;
+      drive_params->no_seek_retries = 4;
       drive_params->sector_size = 512;
       drive_params->emulation_output = 1; // This will be adjusted by caller
       drive_params->analyze = 0;
@@ -579,6 +582,10 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'r':
             drive_params->retries = atoi(optarg);
+            tok = strstr(optarg,",");
+            if (tok != NULL) {
+               drive_params->no_seek_retries = atoi(tok+1);
+            }
             break;
          case 'a':
             drive_params->analyze = 1;
