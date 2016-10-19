@@ -605,25 +605,37 @@ DEF_EXTERN TRK_L trk_seagate_ST11M[]
 DEF_EXTERN TRK_L trk_cromemco_stdc[] 
 #ifdef DEF_DATA
  = 
-{ { 64, TRK_FILL, 0x00, NULL },
+{ { 121, TRK_FILL, 0x00, NULL },
   { 1, TRK_SUB, 0x00, 
      (TRK_L []) 
      {
-        {1, TRK_FILL, 0x04, NULL},
-        {10260, TRK_FIELD, 0x00, 
+        {10258, TRK_FIELD, 0x00,  // All bytes in CRC must be in TRK_FIELD
            (FIELD_L []) {
-              {1, FIELD_FILL, 0x00, OP_SET, 0, NULL},
-              {3, FIELD_FILL, 0xaa, OP_SET, 1, NULL},
-              {1, FIELD_FILL, 0x00, OP_SET, 4, NULL},
-              {2, FIELD_CYL, 0x00, OP_SET, 5, NULL},
-              {1, FIELD_HEAD, 0x00, OP_SET, 7, NULL},
-              {10240, FIELD_SECTOR_DATA, 0x00, OP_SET, 8, NULL},
-              {1, FIELD_FILL, 0x00, OP_SET, 10248, NULL},
-              {3, FIELD_FILL, 0xaa, OP_SET, 10249, NULL},
+              {1, FIELD_FILL, 0x04, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {3, FIELD_FILL, 0xaa, OP_SET, 2, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 5, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 16,  //6
+                 (BIT_L []) {
+                    { 56, 8}, // High byte
+                    { 48, 8}, // Low byte
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 8, NULL},
+              {10240, FIELD_SECTOR_DATA, 0x00, OP_SET, 9, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 10249, NULL},
+              {2, FIELD_FILL, 0xaa, OP_SET, 10250, NULL},
               {1, FIELD_FILL, 0x00, OP_SET, 10252, NULL},
-              {2, FIELD_CYL, 0x00, OP_SET, 10253, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 16,  //10253
+                 (BIT_L []) {
+                    { 82032, 8},
+                    { 82024, 8},
+                    { -1, -1},
+                 }
+              },
               {1, FIELD_HEAD, 0x00, OP_SET, 10255, NULL},
-              {4, FIELD_DATA_CRC, 0x00, OP_SET, 10256, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 10256, NULL},
               {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
@@ -632,7 +644,7 @@ DEF_EXTERN TRK_L trk_cromemco_stdc[]
         {-1, 0, 0, NULL},
      }
    },
-   {89, TRK_FILL, 0x00, NULL},
+   {35, TRK_FILL, 0x00, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -850,7 +862,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          9, 9, 0, 0, CHECK_CRC, CHECK_CRC,
          7, 0, trk_cromemco_stdc, 10240, 1, 0, 5209,
 // Should be model after data filled in
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALIZE },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
