@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2016-01-13T21:54:29.418158547"/>
+	<meta name="changed" content="2016-10-18T07:47:19.211043359"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -51,7 +51,7 @@ emulation bit data to. No file created if not specified</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
 decoded data to. No file created if not specified.</p>
 <p style="margin-bottom: 0in">--format  -f WD_1006 | OMTI_5510 | 
-DEC_RQDX3 | Xebec_104786 | Olivetti</p>
+DEC_RQDX3 | Xebec_104786</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
 Not all formats listed. Use --format help to list all currently
 supported formats. Some formats will also set  header_crc, data_crc,
@@ -76,9 +76,11 @@ numbers from header in physical sector order or the interleave value</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">String is stored in
 header of transition and emulation file for information about image.
 mfm_util will display.</p>
-<p style="margin-bottom: 0in">--retries  -r #</p>
+<p style="margin-bottom: 0in">--retries  -r #[,#]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Select number of
-retries on read errors. Only valid for read command. Default 50.</p>
+retries on read errors. Only valid for read command. The optional
+second parameter specifies the number of retries before seeking off
+track and back. Default 50,4.</p>
 <p style="margin-bottom: 0in">--sector_length  -l #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The sector data
 area length in bytes. Default is 512.</p>
@@ -170,7 +172,16 @@ adjusted as needed.</p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
-<p style="margin-bottom: 0in">Examples:</p>
+<p style="margin-bottom: 0in">For retrying read errors on some drives
+seeking helps to recover the error since the heads end up at a
+slightly different location. On a drive that is unhappy the extra
+seeks bad be bad. It may be advisable to do the first read with
+–retries 50,51 to prevent any seeks and then go back to the default
+or adjust the parameters to try to recover more data.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in; page-break-before: always">Examples:</p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>

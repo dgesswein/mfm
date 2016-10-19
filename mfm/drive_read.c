@@ -6,6 +6,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 10/16/2016 DJG Added control over seek on retry
 // 10/02/2016 DJG Rob Jarratt change to clean up confusing code.
 //
 // Copyright 2016 David Gesswein.
@@ -59,8 +60,10 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
    // Loop variable
    int cyl, head;
    int cntr;
-   // Retry counter
+   // Retry counter, counts up
    int err_cnt;
+   // No seek retry counter, counts down
+   int no_seek_count;
    // Read status
    SECTOR_DECODE_STATUS sector_status = 0;
    // The status of each sector
@@ -68,7 +71,7 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
    // We use this to summarize the list above has any errors
    int sect_err;
    // For retry we do various length seeks. This is the maximum length we will do
-   int max_seek, seek_len;
+   int seek_len;
    // Cylinder difference when a seek error occurs
    int seek_difference;
 
@@ -78,18 +81,10 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
 #else
 #define CLOCK CLOCK_MONOTONIC
 #endif
-struct timespec tv_start;
+   struct timespec tv_start;
    double start, last = 0;
    double min = 9e9, max = 0, tot = 0;
    int count = 0;
-
-   // Determine maximum seek distance. Round up since we will
-   // later limit to end of disk. Seeks are done in power of 2
-   // steps with shift so calculate this in a power of 2 for the shift
-   max_seek = ceil(log(drive_params->num_cyl) / log(2));
-   if (max_seek == 0) {
-      max_seek = 1; // Prevent possibility of divide by zero
-   }
 
    // Start up delta reader
    deltas_start_thread(drive_params);
@@ -103,6 +98,8 @@ struct timespec tv_start;
          int recovered = 0;
 
          err_cnt = 0;
+         no_seek_count = drive_params->no_seek_retries;
+         seek_len = 1;
          // Clear sector status here so we can see if different sectors
          // successfully read on different reads.
          mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
@@ -110,25 +107,32 @@ struct timespec tv_start;
             // First error retry without seek, second with third without etc
             // Hopefully by moving head it will settle slightly differently
             // allowing data to be read
-            if (err_cnt > 0 && ((err_cnt - 1) & 1)) {
-               seek_len = 1 << (((err_cnt - 1) >> 2) % max_seek);
-               if ((err_cnt - 1) & 2) {
-                  seek_len = -seek_len;
-               }
+            if (no_seek_count <= 0) {
+               int clip_seek_len = seek_len;
+
                if (cyl + seek_len >= drive_params->num_cyl) {
-                  seek_len = drive_params->num_cyl - cyl - 1;
+                  clip_seek_len = drive_params->num_cyl - cyl - 1;
                }
                if (cyl + seek_len < 0) {
-                  seek_len = -cyl;
+                  clip_seek_len = -cyl;
                }
                //printf("seeking %d %d %d\n",err_cnt, seek_len, seek_len + cyl);
-               if (seek_len != 0) {
-                  drive_step(drive_params->step_speed, seek_len, 
+               if (clip_seek_len != 0) {
+                  drive_step(drive_params->step_speed, clip_seek_len, 
                      DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
-                  drive_step(drive_params->step_speed, -seek_len, 
+                  drive_step(drive_params->step_speed, -clip_seek_len, 
                      DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
                }
+               if (seek_len < 0) {
+                  seek_len = (seek_len * 2) % drive_params->num_cyl;
+               }
+               seek_len = -seek_len;
+               if (seek_len == 0) {
+                  seek_len = 1;
+               }
+               no_seek_count = drive_params->no_seek_retries;
             }
+            no_seek_count--;
             clock_gettime(CLOCK, &tv_start);
             start = tv_start.tv_sec + tv_start.tv_nsec / 1e9;
             if (last != 0) {

@@ -58,3 +58,5 @@ void deltas_stop_thread(void) {
    exit(1);
 }
 
+void deltas_wait_read_finished(void) {
+}

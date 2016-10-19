@@ -6,6 +6,7 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 10/16/16 DJG Added logic to detect RLL disks.
 // 10/02/16 DJG Rob Jarratt change to detect recalibrate when finding number
 //    of cylinders and suggested simplification for determining slow/fast
 //    seek.
@@ -49,6 +50,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <math.h>
 
 #include "msg.h"
 #include "crc_ecc.h"
@@ -76,6 +78,76 @@ static uint64_t trim_value(uint64_t value, int length) {
    return value;
 }
 
+// This routine finds the weighted index of the next peak in the histogram
+// The bins used in the calculattion are cleared
+// histogram: counts for each bin
+// length: number of entries in histogram
+static double avg_peak(int histogram[], int length)
+{
+   int start = 0;
+   #define HIST_LIMIT 300
+   int sum = 0, sum_mult = 0;
+   int i;
+
+   for (i = 0; i < length-1; i++) {
+      if (histogram[i] > HIST_LIMIT) {
+         start = i;
+         break;
+      }
+   }
+   if (start == 0) {
+      msg(MSG_INFO, "No more peaks in histogram\n");
+      return 0;
+   } else {
+      for (i = start; i < length && histogram[i] > HIST_LIMIT ; i++) {
+         sum += histogram[i];
+         sum_mult += histogram[i] * i;
+         histogram[i] = 0;
+      }
+      return (double) sum_mult / sum;
+   }
+}
+
+// Estimate the clock rate used to encode the data. We find the
+// difference in average delta for the minimum delta and the next
+// time in the histogram. The difference is the clock rate used to
+// encode. Estimate is coarse.
+static void analyze_rate(DRIVE_PARAMS *drive_params, int cyl, int head, 
+   uint16_t *deltas, int max_deltas)
+{
+    int histogram[100];
+    int i;
+    double rate1, rate2;
+
+    memset(histogram, 0, sizeof(histogram));
+
+    deltas_wait_read_finished();
+    for (i = 0; i < deltas_get_count(0); i++) {
+       if (deltas[i] < ARRAYSIZE(histogram)) {
+          histogram[deltas[i]]++;
+       }
+    }
+#if 0
+    for (i = 0; i < ARRAYSIZE(histogram); i++) {
+      printf("%d, %d\n", i, histogram[i]);
+    }
+#endif
+    rate1 = avg_peak(histogram, ARRAYSIZE(histogram)) * CLOCKS_TO_NS;
+    rate2 = avg_peak(histogram, ARRAYSIZE(histogram)) * CLOCKS_TO_NS;
+  
+    if (fabs(rate1 - 200) > 8.0) {
+       msg(MSG_ERR, "Primary transition period %.0f ns, should be around 200\n",
+         rate1);
+    } else {
+       if (rate2 <= 280) {
+          msg(MSG_ERR, "Secondary transition period %.0f ns, likely RLL\n",
+            rate2);
+          msg(MSG_ERR, "RLL is not currently supported\n");
+       }
+    }
+    msg(MSG_DEBUG, "First two transition periods %.0f, %.0f ns\n",
+         rate1, rate2);
+}
 
 // Try to find the controller type (header format) and CRC parameters for the
 // header portion of sectors.
@@ -109,6 +181,8 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
    int drive_params_list_index = 0;
 
    drive_read_track(drive_params, cyl, head, deltas, max_deltas);
+
+   analyze_rate(drive_params, cyl, head, deltas, max_deltas);
 
    drive_params->num_sectors = MAX_SECTORS;
    drive_params->num_head = MAX_HEAD;

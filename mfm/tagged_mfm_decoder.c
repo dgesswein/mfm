@@ -6,6 +6,7 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 10/16/16 DJG Fixes for XEROX_6085.
 // 10/07/16 DJG Add support for disks with tag header in addition to the
 //    normal header. Xerox 6085
 //   
@@ -72,22 +73,26 @@ static inline float filter(float v, float *delay)
 // assigned to the first controller found writing that format.
 // The formats are
 //   CONTROLLER_XEROX_6085
-//   6 byte header + 4 byte CRC
-// ** TODO, Update this header **************
+//   6 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe
 //      byte 2 cylinder high
 //      byte 3 cylinder low
-//      byte 4 head and flags. (bit 7 bad, bit 6 assigned alternate track,
-//         bit 5 is alternate track)
+//      byte 4 head low four bits, unknown if upper used
 //      byte 5 sector
-//      byte 6-9 ECC code
+//      byte 6-7 ECC code
+//   Tag
+//      byte 0 0xa1
+//      byte 1 0xfc
+//      20 bytes of data
+//      ECC code (2 byte)
 //   Data
 //      byte 0 0xa1
-//      byte 1 0xf8
+//      byte 1 0xfb
 //      Sector data for sector size 
-//         (alt cyl first 2 bytes msb first, head third)
-//      ECC code (4 byte)
+//         (alt cyl first 2 bytes msb first, head third. Also not known
+//          if correct for this format)
+//      ECC code (2 byte)
 //
 // state: Current state in the decoding
 // bytes: bytes to process
@@ -112,15 +117,9 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
    static int sector_size;
    // Non zero if sector is a bad block, has alternate track assigned,
    // or is an alternate track
-   static int bad_block, alt_assigned, is_alternate;
    static SECTOR_STATUS sector_status;
 
    if (*state == PROCESS_HEADER) {
-      // Clear these since not used by all formats
-      alt_assigned = 0;
-      is_alternate = 0;
-      bad_block = 0;
-
       memset(&sector_status, 0, sizeof(sector_status));
       sector_status.status |= SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
@@ -134,10 +133,12 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
 
          // More is in here but what is not documented in manual
          sector_status.head = bytes[4] & 0xf;
-         bad_block = bytes[4] >> 7;;
-         alt_assigned = (bytes[4] & 0x40) >> 6;
-         is_alternate = (bytes[4] & 0x20) >> 5;
-         // Don't know how/if these are encoded in header
+         if ((bytes[4] & 0xf0) != 0) {
+            msg(MSG_INFO, "byte 4 upper bits not zero: %02x on cyl %d head %d sector %d\n",
+                bytes[4], sector_status.cyl, sector_status.head, sector_status.sector);
+           msg(MSG_INFO, "May indicate bad block or alternate sector\n");
+           // Rest of format matches CONTROLLER_OMTI_5510 so this byte may also
+         }
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[5];
@@ -155,18 +156,9 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
             seek_difference, &sector_status, drive_params);
 
       msg(MSG_DEBUG,
-         "Got exp %d,%d cyl %d head %d sector %d,%d size %d bad block %d\n",
+         "Got exp %d,%d cyl %d head %d sector %d,%d size %d\n",
             exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
-            sector_status.sector, *sector_index, sector_size, bad_block);
-
-      if (bad_block) {
-         msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
-               sector_status.cyl, sector_status.head, sector_status.sector);
-      }
-      if (is_alternate) {
-         msg(MSG_INFO,"Alternate cylinder set on cyl %d, head %d, sector %d\n",
-               sector_status.cyl, sector_status.head, sector_status.sector);
-      }
+            sector_status.sector, *sector_index, sector_size);
       *state = MARK_DATA1;
    } else if (*state == PROCESS_HEADER2) {
          if (bytes[1] != 0xfc) {
@@ -192,12 +184,6 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
                bytes[id_byte_index], id_byte_expected,
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_DATA;
-      }
-      if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
-         msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
-            (bytes[2] << 8) + bytes[3], bytes[4]);
-          mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
-            sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
       }
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
@@ -367,9 +353,7 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    //printf("mark at %d zero %d\n", tot_raw_bit_cntr, zero_count);
 }
 #endif
-//printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
-            if (((raw_word & 0xffff) == 0x4489 ||
-                (raw_word & 0xffff) == 0x4449)
+            if (((raw_word & 0xffff) == 0x4489)
                   && zero_count >= MARK_NUM_ZEROS) {
                zero_count = 0;
                bytes[0] = 0xa1;
@@ -429,6 +413,38 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
                      bytes[byte_cntr++] = decoded_word;
+                     //Ugly hack to handle if we missed a header. TODO
+                     //when switching to table driven format the table and
+                     //track time will indicate what header should be found
+                     if (byte_cntr == 2) {
+                        if (bytes[1] == 0xfe) {
+                           if (state != PROCESS_HEADER) {
+                              msg(MSG_INFO,"Found sector header out of order (state %d)\n", state);
+                              bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
+                                  drive_params->header_crc.length / 8;
+                              bytes_needed = bytes_crc_len + HEADER_IGNORE_BYTES;
+                              state = PROCESS_HEADER;
+                           }
+                        } else if (bytes[1] == 0xfc) {
+                           if (state != PROCESS_HEADER2) {
+                              msg(MSG_INFO,"Found tag header out of order (state %d)\n", state);
+                              bytes_crc_len = 22 + 
+                                 drive_params->header_crc.length / 8;
+                              bytes_needed = bytes_crc_len + HEADER_IGNORE_BYTES;
+                              state = PROCESS_HEADER2;
+                           }
+                        } else if (bytes[1] == 0xfb) {
+                           if (state != PROCESS_DATA) {
+                              msg(MSG_INFO,"Found data header out of order (state %d)\n", state);
+                              bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
+                                  mfm_controller_info[drive_params->controller].data_trailer_bytes + 
+                                  drive_params->sector_size +
+                                  drive_params->data_crc.length / 8;
+                              bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+                              state = PROCESS_DATA;
+                           }
+                        }
+                     }
                   } else {
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,

@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 10/16/16 DJG Added SOLOSYSTEMS.
 // 05/21/16 DJG Added support to Xebec 1410A with 256 byte sectors. This
 //    format will need --begin_time 100500 specified when reading.
 // 05/07/16 DJG Ignore MSB of head byte which Xebec S1410 sets.
@@ -107,6 +108,25 @@ static inline float filter(float v, float *delay)
 //      number of sectors.
 //      Needs --begin_time 220000
 //
+//   CONTROLLER_SOLOSYSTEMS.
+//   7 byte header + 4 byte CRC
+//      byte 0-1 0x00
+//      byte 2 sector number. Seems to be encoded as
+//         1, 2, 4, 7, 8, 0xb, 0xd, 0xe, 0x50, 
+//         0x53, 0x55, 0x56, 0x59, 0x5a, 0x5c, 0x5f, 0xa0
+//      byte 3 high bits of cylinder
+//      byte 4 low 8 bits of cylinder
+//      byte 5 head number
+//      byte 6 flag bits. MSB is always set and bit 4 set on last sector
+//         bit 0 is set if alternate track assigned and bit 2 on alternate
+//         track. Alt/alternate not seen on disk to verify if used in this
+//         format.
+//      bytes 7-10 32 bit ECC
+//   Data
+//      byte 0 0x00
+//      byte 1 0x00
+//      Sector data for sector size
+//      4 byte ECC code
 // TODO: Same as WD decoder
 SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -130,60 +150,109 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_ECC_RECOVERED;
       }
 
-      sector_status.cyl = bytes[3]<< 8;
-      sector_status.cyl |= bytes[4];
-      sector_status.head = bytes[5] & 0xf;
-      if (drive_params->controller == CONTROLLER_EC1841) {
-         if (bytes[6]<3) {
-             sector_status.sector = bytes[6]+14;
+      if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+            drive_params->controller == CONTROLLER_EC1841) {
+         sector_status.cyl = bytes[3]<< 8;
+         sector_status.cyl |= bytes[4];
+         sector_status.head = bytes[5] & 0xf;
+         if (drive_params->controller == CONTROLLER_EC1841) {
+            if (bytes[6]<3) {
+                sector_status.sector = bytes[6]+14;
+            } else {
+                sector_status.sector = bytes[6]-3;
+            }
          } else {
-             sector_status.sector = bytes[6]-3;
+            sector_status.sector = bytes[6];
          }
-      } else {
-         sector_status.sector = bytes[6];
-      }
-      // Don't know how/if these are encoded in header
-      sector_size = drive_params->sector_size;
-      bad_block = 0;
-      //Xebec S1410 sets the MSB on cylinder 132 on, not sure what
-      //it indicates
-      if ((bytes[5] & 0x70) != 0) {
-         msg(MSG_INFO, "Upper bits set in head byte: %02x on cyl %d head %d sector %d\n",
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+         //Xebec S1410 sets the MSB on cylinder 132 on, not sure what
+         //it indicates
+         if ((bytes[5] & 0x70) != 0) {
+            msg(MSG_ERR, "Upper bits set in head byte: %02x on cyl %d head %d sector %d\n",
                bytes[5],
                sector_status.cyl, sector_status.head, sector_status.sector);
-         sector_status.status |= SECT_BAD_HEADER;
-      }
-      if (bytes[0] != 0 || bytes[1] != 0 || bytes[8] != 0) {
-         msg(MSG_INFO, "Header gap bytes not zero: %02x, %02x, %02x on cyl %d head %d sector %d\n",
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         if (bytes[0] != 0 || bytes[1] != 0 || bytes[8] != 0) {
+            msg(MSG_INFO, "Header gap bytes not zero: %02x, %02x, %02x on cyl %d head %d sector %d\n",
                bytes[0], bytes[1], bytes[8],
                sector_status.cyl, sector_status.head, sector_status.sector);
-      }
-      compare_byte = 0xc2;
-      if (bytes[2] != compare_byte) {
-         msg(MSG_INFO, "Header compare byte not 0x%02x: %02x on cyl %d head %d sector %d\n",
+         }
+         compare_byte = 0xc2;
+         if (bytes[2] != compare_byte) {
+            msg(MSG_ERR, "Header compare byte not 0x%02x: %02x on cyl %d head %d sector %d\n",
                compare_byte, bytes[2],
                sector_status.cyl, sector_status.head, sector_status.sector);
-         sector_status.status |= SECT_BAD_HEADER;
-      }
-      // This must be executed before data processed below
-      alt_assigned = (bytes[7] & 0x01) != 0;
-      is_alternate = (bytes[7] & 0x04) != 0;
-      if (is_alternate) {
-         if (last_cyl_print != sector_status.cyl || 
-               last_head_print != sector_status.head) {
-            msg(MSG_INFO, "Alternate cylinder set on cyl %d, head %d\n",
-               sector_status.cyl, sector_status.head);
-            last_cyl_print = sector_status.cyl;
-            last_head_print = sector_status.head; 
+            sector_status.status |= SECT_BAD_HEADER;
          }
-      }
+         // This must be executed before data processed below
+         alt_assigned = (bytes[7] & 0x01) != 0;
+         is_alternate = (bytes[7] & 0x04) != 0;
+         if (is_alternate) {
+            if (last_cyl_print != sector_status.cyl || 
+                  last_head_print != sector_status.head) {
+               msg(MSG_INFO, "Alternate cylinder set on cyl %d, head %d\n",
+                  sector_status.cyl, sector_status.head);
+               last_cyl_print = sector_status.cyl;
+               last_head_print = sector_status.head; 
+            }
+         }
       
-      // More stuff likely in here but not documented.
-      if ((bytes[7] & 0xea) != 0x80) {
-         msg(MSG_INFO, "Header flag byte not expected value: %02x on cyl %d head %d sector %d\n",
+         // More stuff likely in here but not documented.
+         if ((bytes[7] & 0xea) != 0x80) {
+            msg(MSG_ERR, "Header flag byte not expected value: %02x on cyl %d head %d sector %d\n",
                bytes[7],
                sector_status.cyl, sector_status.head, sector_status.sector);
-         sector_status.status |= SECT_BAD_HEADER;
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
+         uint8_t sector_map[] = {1, 2, 4, 7, 8, 0xb, 0xd, 0xe, 0x50, 
+           0x53, 0x55, 0x56, 0x59, 0x5a, 0x5c, 0x5f, 0xa0};
+         int i;
+
+         sector_status.cyl = bytes[3]<< 8;
+         sector_status.cyl |= bytes[4];
+         sector_status.head = bytes[5];
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+         for (i = 0; i < sizeof(sector_map); i++) {
+            if (bytes[2] == sector_map[i]) {
+               sector_status.sector = i;
+               break;
+            }
+         }
+         if (i >= sizeof(sector_map)) {
+            msg(MSG_ERR, "Bad sector number: %02x on cyl %d head %d sector index %d\n",
+              sector_status.cyl, sector_status.head, *sector_index);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         if (bytes[0] != 0 || bytes[1] != 0) {
+            msg(MSG_INFO, "Header gap bytes not zero: %02x, %02x on cyl %d head %d sector %d\n",
+               bytes[0], bytes[1],
+               sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+
+         alt_assigned = (bytes[6] & 0x01) != 0;
+         is_alternate = (bytes[6] & 0x04) != 0;
+         if (is_alternate) {
+            if (last_cyl_print != sector_status.cyl || 
+                  last_head_print != sector_status.head) {
+               msg(MSG_INFO, "Alternate cylinder set on cyl %d, head %d\n",
+                  sector_status.cyl, sector_status.head);
+               last_cyl_print = sector_status.cyl;
+               last_head_print = sector_status.head; 
+            }
+         }
+      
+         // More stuff likely in here but not documented.
+         if ((bytes[6] & 0xea) != 0x80) {
+            msg(MSG_ERR, "Header flag byte not expected value: %02x on cyl %d head %d sector %d\n",
+               bytes[6],
+               sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       }
       msg(MSG_DEBUG,
          "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
@@ -200,7 +269,8 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                bytes[0],
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
-      if (drive_params->controller == CONTROLLER_EC1841) {
+      if (drive_params->controller == CONTROLLER_EC1841 ||
+          drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
          compare_byte = 0x00;
       } else {
          compare_byte = 0xc9;

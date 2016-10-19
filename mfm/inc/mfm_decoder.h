@@ -72,8 +72,10 @@ typedef struct {
    // ORDER IN THE TWO LISTS MUST MATCH
    // TODO, replace this with pointer to CONTROLLER entry
    enum {CONTROLLER_NONE, CONTROLLER_NEWBURYDATA,
-      CONTROLLER_WD_1006, CONTROLLER_WD_3B1,
-      CONTROLLER_OLIVETTI, CONTROLLER_MACBOTTOM, 
+      CONTROLLER_WD_1006, 
+      CONTROLLER_WD_3B1,
+      CONTROLLER_MOTOROLA_VME10, 
+      CONTROLLER_DTC, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
@@ -84,6 +86,7 @@ typedef struct {
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
+      CONTROLLER_SOLOSYSTEMS, 
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_EC1841, 
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
@@ -108,6 +111,8 @@ typedef struct {
    int head_3bit;
    // Number of retries to do when an error is found reading the disk
    int retries;
+   // Number of retries to do without seeking
+   int no_seek_retries;
    // Disables some header checks. Not currently used.
    int ignore_header_mismatch;
    // Drive number for setting select lines
@@ -597,6 +602,53 @@ DEF_EXTERN TRK_L trk_seagate_ST11M[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_cromemco_stdc[] 
+#ifdef DEF_DATA
+ = 
+{ { 121, TRK_FILL, 0x00, NULL },
+  { 1, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {10258, TRK_FIELD, 0x00,  // All bytes in CRC must be in TRK_FIELD
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x04, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {3, FIELD_FILL, 0xaa, OP_SET, 2, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 5, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 16,  //6
+                 (BIT_L []) {
+                    { 56, 8}, // High byte
+                    { 48, 8}, // Low byte
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 8, NULL},
+              {10240, FIELD_SECTOR_DATA, 0x00, OP_SET, 9, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 10249, NULL},
+              {2, FIELD_FILL, 0xaa, OP_SET, 10250, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 10252, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 16,  //10253
+                 (BIT_L []) {
+                    { 82032, 8},
+                    { 82024, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 10255, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 10256, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {4, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {35, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY} CHECK_TYPE;
 
 typedef struct {
@@ -679,7 +731,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_3B1, 512, 17, 0, 5209,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL },
-      {"Olivetti",             256, 10000000,      0,
+      {"Motorola_VME10",  256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         {0,0xa00805,32,0},{0,0xa00805,32,0}, CONT_ANALIZE },
+      {"DTC",             256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
@@ -766,6 +824,12 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 //    Changed begin time from 0 to 100500 to work with 1410A. The sample
 //    I have of the 104786 says it should work with it also so changing default.
 //    Its possible this will cause problems with other variants.
+      {"SOLOsystems",         256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Xebec_104786",         256, 10000000,      100500,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -796,9 +860,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 9, 0, 0, CHECK_CRC, CHECK_CRC,
-         7, 0, NULL, 0, 0, 0, 5209,
+         7, 0, trk_cromemco_stdc, 10240, 1, 0, 5209,
 // Should be model after data filled in
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALIZE },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
