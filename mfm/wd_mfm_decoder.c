@@ -654,7 +654,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          bad_block = 0;
          if (bytes[5] != 0 && bytes[5] != 0x40) {
             msg(MSG_INFO, "Unknown header flag byte %02x on cyl %d,%d head %d,%d sector %d\n",
-                  bytes[1], exp_cyl, sector_status.cyl,
+                  bytes[5], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
          }
 

@@ -219,7 +219,7 @@ DEF_EXTERN int mfm_all_sector_size[]
 // Number of sectors to search for LBA format
 DEF_EXTERN int mfm_lba_num_sectors[]
 #ifdef DEF_DATA
- = {17, 32, 33, -1}
+ = {17, 18, 32, 33, -1}
   // -1 marks end of array
 #endif
 ;
