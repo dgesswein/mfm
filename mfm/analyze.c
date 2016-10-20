@@ -444,7 +444,8 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
              }
              // Mightyframe encodes head 8-15 differently. If we don't find
              // any good headers on head 8 see if its a Mightyframe.
-             if (!good_header && head == 8) {
+             // TODO, Should we stop search after a few bad heads?
+             if (!good_header && last_good_head == 7 && head == 8) {
                 int orig_controller = drive_params->controller;
                 drive_params->controller = CONTROLLER_MIGHTYFRAME;
                 status = mfm_decode_track(drive_params, cyl, head, deltas, 
