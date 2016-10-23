@@ -17,6 +17,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/22/16 DJG Added unknown format found on ST-212 disk
 // 10/16/16 DJG Renamed OLIVETTI to DTC. Added MOTOROLA_VME10 and SOLOSYSTEMS
 // 05/21/16 DJG Improvements in alternate track handling and fix marking
 //    of header and data location for fixing emulator file with ECC corrections
@@ -365,6 +366,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_MORROW_MD11 ||
+         drive_params->controller == CONTROLLER_UNKNOWN1 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
@@ -866,6 +868,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_MORROW_MD11 ||
+            drive_params->controller == CONTROLLER_UNKNOWN1 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||

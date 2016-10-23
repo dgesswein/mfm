@@ -1,6 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 
+// 10/22/16 DJG Added unknown format found on ST-212 disk
+// 10/16/16 DJG Renamed OLIVETTI to DTC. Added MOTOROLA_VME10 and SOLOSYSTEMS
+//
 //
 // MFM is up to 32 for 256 byte sectors. This allows growth for RLL/ESDI
 #define MAX_SECTORS 50
@@ -80,6 +83,7 @@ typedef struct {
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_MORROW_MD11,
+      CONTROLLER_UNKNOWN1,
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ADAPTEC, 
@@ -286,6 +290,8 @@ typedef struct trk_l {
    void *list;
 } TRK_L;
 
+// *** NOTE: These define the track starting from start_time_ns ****
+//
 // For more information on the track formats see the *decoder.c files.
 //
 // TODO, use these tables to drive reading the data also instead of the
@@ -605,7 +611,7 @@ DEF_EXTERN TRK_L trk_seagate_ST11M[]
 DEF_EXTERN TRK_L trk_cromemco_stdc[] 
 #ifdef DEF_DATA
  = 
-{ { 121, TRK_FILL, 0x00, NULL },
+{ { 108, TRK_FILL, 0x00, NULL },
   { 1, TRK_SUB, 0x00, 
      (TRK_L []) 
      {
@@ -644,7 +650,7 @@ DEF_EXTERN TRK_L trk_cromemco_stdc[]
         {-1, 0, 0, NULL},
      }
    },
-   {35, TRK_FILL, 0x00, NULL},
+   {48, TRK_FILL, 0x00, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -773,6 +779,12 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 1024, 9, 0, 5209,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+      {"Unknown1",            256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
 // OMTI_5200 uses initial value 0x409e10aa for data
       {"DEC_RQDX3",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -856,7 +868,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_northstar, 512, 16, 0, 5209,
 // Should be model after data filled in
          {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
-      {"Cromemco",             10240, 10000000,  0,
+      {"Cromemco",             10240, 10000000,  20000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 9, 0, 0, CHECK_CRC, CHECK_CRC,

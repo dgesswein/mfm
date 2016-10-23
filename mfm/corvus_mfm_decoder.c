@@ -252,7 +252,7 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
    if (drive_params->controller == CONTROLLER_CORVUS_H) {
       next_header_time = 71500;
-   } else {
+   } else { // CROMEMCO
       // Zeros found earlier cause false syncs unless skipped. TODO:
       // May be better to check for sync data following and resync if
       // not correct for Coromemco.
@@ -346,8 +346,9 @@ fprintf(out,"$var wire 1 & sector $end\n");
 #if VCD
 bit_time = track_time / 198e6 * 1e12;
 fprintf(out,"#%lld\n1&\n", bit_time);
+printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time, 
+   track_time + drive_params->start_time_ns / CLOCKS_TO_NS);
 #endif
-//printf("Found header at %d %d\n",tot_raw_bit_cntr, track_time);
                // Time next header should start at
                if (drive_params->controller == CONTROLLER_CORVUS_H) {
                   next_header_time += 164900;

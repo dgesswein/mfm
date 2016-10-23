@@ -6,6 +6,8 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 10/19/16 DJG Fixed Mightyframe detection to reduce probability of false
+//    deteection.
 // 10/16/16 DJG Added logic to detect RLL disks.
 // 10/02/16 DJG Rob Jarratt change to detect recalibrate when finding number
 //    of cylinders and suggested simplification for determining slow/fast

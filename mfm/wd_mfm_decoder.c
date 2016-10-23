@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 10/21/16 DJG Added unknown controller similar to MD11
 // 10/16/16 DJG Indicate sector 255 is flagging bad block for RQDX3.
 //    Added MOTOROLA_VME10. Renamed OLIVETTI to DTC.
 // 10/04/16 DJG Added Morrow MD11
@@ -169,6 +170,26 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //         (alt cyl first 2 bytes msb first, head third)
 //      ECC code (4 byte)
 //
+//   CONTROLLER_UNKNOWN1
+//   From image ST-212_190385_4H_306C.td
+//   6 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder low
+//      byte 3 cylinder high
+//      byte 4 head and flags. (bit 7 bad, bit 6 assigned alternate track,
+//         bit 5 is alternate track) The format copied from OMTI_5510.
+//         Unknown if these bits are the same.
+//      byte 5 sector
+//      byte 6-9 ECC code
+//   Data
+//      byte 0 0xa1
+//      byte 1 sector number
+//      Sector data for sector size 
+//         (alt cyl first 2 bytes msb first, head third)
+//      ECC code (4 byte)
+//      
+//
 //   CONTROLLER_DEC_RQDX3
 //   No manual found describing low level format
 //   6 byte header + 2 byte CRC
@@ -224,7 +245,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 2 Upper 8 bits of logical block address (LBA)
 //      byte 3 Middle 8 bits of LBA
 //      byte 4 Lower 8 bits of LBA
-//      byte 5 Flag bit 0x40 indicates last sector on track
+//      byte 5 Flag bit 0x40 indicates last sector on track. On another image
+//         probably a 4000 series controller 0x80 used to mark last sector.
 //      bytes 6-9 32 bit CRC
 //   Data
 //      byte 0 0xa1
@@ -461,7 +483,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_MORROW_MD11) {
+      } else if (drive_params->controller == CONTROLLER_MORROW_MD11 ||
+           drive_params->controller == CONTROLLER_UNKNOWN1) {
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[2];
 
@@ -652,7 +675,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 //   sector_status.head, sector_status.cyl);
          sector_size = drive_params->sector_size;
          bad_block = 0;
-         if (bytes[5] != 0 && bytes[5] != 0x40) {
+         if (bytes[5] != 0 && bytes[5] != 0x40 && bytes[5] != 0x80) {
             msg(MSG_INFO, "Unknown header flag byte %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[5], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
@@ -837,6 +860,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          id_byte_expected = 0xe0;
          id_byte_index = 1;
+      } else if (drive_params->controller == CONTROLLER_UNKNOWN1) {
+         id_byte_expected = sector_status.sector;
       }
       if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
