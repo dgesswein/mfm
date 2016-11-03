@@ -8,6 +8,7 @@
 //   possibly written to a file
 // call mfm_check_deltas to get number of deltas in the buffer
 // call mfm_check_header_values to verify header parameters
+// call mfm_write_metadata to write extra data for each sector
 // call mfm_write_sector to check sector information and possibly write it to
 //   the extract file
 // call mfm_decode_done when all tracks have been processed
@@ -17,6 +18,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/02/16 DJG Add ability to write tag/metadata if it exists
+// 10/28/16 DJG Improved support for LBA format disks
 // 10/22/16 DJG Added unknown format found on ST-212 disk
 // 10/16/16 DJG Renamed OLIVETTI to DTC. Added MOTOROLA_VME10 and SOLOSYSTEMS
 // 05/21/16 DJG Improvements in alternate track handling and fix marking
@@ -87,6 +90,9 @@ static SECTOR_STATUS last_sector_list[MAX_SECTORS];
 static int last_cyl;
 static int last_head;
 
+// Last LBA address processed for detecting bad sectors
+static int last_lba_addr;
+
 static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
       uint8_t bytes[], int num_bytes);
 void update_emu_track_words(DRIVE_PARAMS * drive_params,
@@ -147,58 +153,138 @@ static inline float filter(float v, float *delay)
 }
 
 
+// Compare two integers for qsort
+static int cmpint(const void *i1, const void *i2) {
+   if (*(int *) i1 < *(int *)i2) {
+       return -1;
+   } else if (*(int *) i1 == *(int *) i2) {
+      return 0;
+   } else {
+      return 1;
+   }
+}
+
 // Print any errors and ECC correction from the sector_status_list.
 //
+// drive_params: Parameters for drive. Stats updated.
 // sector_status_list: List of sector statuses
-// num_sectors: Length of list
-// first_sector_number: Number of first sector in sector header
 // cyl, head: Track status if for
-static void print_sector_list_status(SECTOR_STATUS *sector_status_list,
-      int num_sectors, int first_sector_number, int cyl, int head) {
+static void print_sector_list_status(DRIVE_PARAMS *drive_params,
+      SECTOR_STATUS *sector_status_list, int cyl, int head) {
    int cntr;
    int ecc_corrections = 0;
    int hard_errors = 0;
+   int data_errors = 0;
+   int lba_addrs[MAX_SECTORS];
+   int first_sector_number = drive_params->first_sector_number;
+   int num_sectors = drive_params->num_sectors;
 
    // Find if anything needs printing
    for (cntr = 0; cntr < num_sectors; cntr++) {
-      if (UNRECOVERED_ERROR(sector_status_list[cntr].status)) {
-         hard_errors = 1;
-      }
-      if (sector_status_list[cntr].status & SECT_ECC_RECOVERED) {
-         ecc_corrections = 1;
-      }
-   }
-   // And if so print it
-   if (hard_errors) {
-      msg(MSG_ERR_SUMMARY, "Bad sectors on cylinder %d head %d:",cyl,head);
-      for (cntr = 0; cntr < num_sectors; cntr++) {
-         if (sector_status_list[cntr].status & SECT_BAD_HEADER) {
-            msg(MSG_ERR_SUMMARY, " %dH", cntr + first_sector_number);
+      if (!(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
+         if (UNRECOVERED_ERROR(sector_status_list[cntr].status)) {
+            hard_errors = 1;
          }
          if (sector_status_list[cntr].status & SECT_BAD_DATA) {
-            msg(MSG_ERR_SUMMARY, " %d", cntr + first_sector_number);
+            data_errors = 1;
+         }
+         if (sector_status_list[cntr].status & SECT_ECC_RECOVERED) {
+            ecc_corrections = 1;
          }
       }
-      msg(MSG_ERR_SUMMARY,"\n");
    }
-   if (ecc_corrections) {
-      msg(MSG_ERR_SUMMARY, "ECC Corrections on cylinder %d head %d:",cyl,head);
+   if (mfm_controller_info[drive_params->controller].analyze_type == CINFO_LBA) {
+      int lba_missing = 0;
+   
+      if (data_errors) {
+         msg(MSG_ERR_SUMMARY, "Bad sectors on cylinder %d head %d LBA:",cyl,head);
+      }
+      // Make a list of all LBA addresses found. If SECT_BAD_HEADER set then
+      // LBA address is not valid. We then sort the list and check that the
+      // numbers are consecutive.
       for (cntr = 0; cntr < num_sectors; cntr++) {
-         if (sector_status_list[cntr].status & SECT_ECC_RECOVERED) {
-            msg(MSG_ERR_SUMMARY, " %d(", cntr + first_sector_number);
-            if (sector_status_list[cntr].ecc_span_corrected_header) {
-               msg(MSG_ERR_SUMMARY, "%dH%s",
+         if (sector_status_list[cntr].status & (SECT_BAD_HEADER |
+              SECT_BAD_LBA_NUMBER)) {
+            lba_missing++;
+         } else {
+            lba_addrs[cntr - lba_missing] = sector_status_list[cntr].lba_addr;
+            if (sector_status_list[cntr].status & SECT_BAD_DATA &&
+               !(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
+               msg(MSG_ERR_SUMMARY, " %d", sector_status_list[cntr].lba_addr);
+            }
+         }
+      }
+      if (data_errors) {
+         msg(MSG_ERR_SUMMARY,"\n");
+      }
+      if (ecc_corrections) {
+         msg(MSG_ERR_SUMMARY, "ECC Corrections on cylinder %d head %d LBA:",cyl,head);
+         for (cntr = 0; cntr < num_sectors; cntr++) {
+            if (sector_status_list[cntr].status & SECT_ECC_RECOVERED &&
+                 !(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
+               msg(MSG_ERR_SUMMARY, " %d(", sector_status_list[cntr].lba_addr);
+               if (sector_status_list[cntr].ecc_span_corrected_header) {
+                  msg(MSG_ERR_SUMMARY, "%dH%s",
                      sector_status_list[cntr].ecc_span_corrected_header,
                      sector_status_list[cntr].ecc_span_corrected_data != 0 ? "," : "");
+               }
+               if (sector_status_list[cntr].ecc_span_corrected_data) {
+                  msg(MSG_ERR_SUMMARY, "%d", sector_status_list[cntr].ecc_span_corrected_data);
+               }
+               msg(MSG_ERR_SUMMARY,")");
             }
-            if (sector_status_list[cntr].ecc_span_corrected_data) {
-               msg(MSG_ERR_SUMMARY, "%d", sector_status_list[cntr].ecc_span_corrected_data);
-            }
-            msg(MSG_ERR_SUMMARY,")");
          }
+         msg(MSG_ERR_SUMMARY, "\n");
       }
-      msg(MSG_ERR_SUMMARY, "\n");
+
+      qsort(lba_addrs, num_sectors - lba_missing, sizeof(lba_addrs[0]), cmpint);
+      for (cntr = 0; cntr < num_sectors - lba_missing; cntr++) {
+         if (last_lba_addr + 1 != lba_addrs[cntr]) {
+            msg(MSG_ERR, "Missing LBA address %d", last_lba_addr + 1);
+            if (last_lba_addr + 2 != lba_addrs[cntr]) {
+               msg(MSG_ERR, " to %d", lba_addrs[cntr] - 1);
+            }
+            msg(MSG_ERR, "\n");
+         }
+         last_lba_addr = lba_addrs[cntr];
+      }
+   } else {
+      // Print CHS errors
+      if (hard_errors) {
+         msg(MSG_ERR_SUMMARY, "Bad sectors on cylinder %d head %d:",cyl,head);
+         for (cntr = 0; cntr < num_sectors; cntr++) {
+            if (!(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
+               if (sector_status_list[cntr].status & SECT_BAD_HEADER) {
+                  msg(MSG_ERR_SUMMARY, " %dH", cntr + first_sector_number);
+               }
+               if (sector_status_list[cntr].status & SECT_BAD_DATA) {
+                  msg(MSG_ERR_SUMMARY, " %d", cntr + first_sector_number);
+               }
+            }
+         }
+         msg(MSG_ERR_SUMMARY,"\n");
+      }
+      if (ecc_corrections) {
+         msg(MSG_ERR_SUMMARY, "ECC Corrections on cylinder %d head %d:",cyl,head);
+         for (cntr = 0; cntr < num_sectors; cntr++) {
+            if (sector_status_list[cntr].status & SECT_ECC_RECOVERED &&
+                 !(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
+               msg(MSG_ERR_SUMMARY, " %d(", cntr + first_sector_number);
+               if (sector_status_list[cntr].ecc_span_corrected_header) {
+                  msg(MSG_ERR_SUMMARY, "%dH%s",
+                     sector_status_list[cntr].ecc_span_corrected_header,
+                     sector_status_list[cntr].ecc_span_corrected_data != 0 ? "," : "");
+               }
+               if (sector_status_list[cntr].ecc_span_corrected_data) {
+                  msg(MSG_ERR_SUMMARY, "%d", sector_status_list[cntr].ecc_span_corrected_data);
+               }
+               msg(MSG_ERR_SUMMARY,")");
+            }
+         }
+         msg(MSG_ERR_SUMMARY, "\n");
+      }
    }
+
 }
 
 
@@ -215,31 +301,28 @@ static void update_stats(DRIVE_PARAMS *drive_params, int cyl, int head,
 {
    STATS *stats = &drive_params->stats;
    int i;
-   int error_found = 0;
 
    // If track changed and list has been set (last_cyl != -1) then process
    if (last_cyl != -1 && (cyl != last_cyl || head != last_head)) {
       update_emu_track_words(drive_params, sector_status_list, 1, 1, 
           last_cyl, last_head);
       for (i = 0; i < drive_params->num_sectors; i++) {
-         if (last_sector_list[i].status & SECT_ECC_RECOVERED) {
+         if (last_sector_list[i].status & SECT_ECC_RECOVERED &&
+             !(last_sector_list[i].status & SECT_SPARE_BAD)) {
             stats->num_ecc_recovered++;
-            error_found = 1;
          }
          if (last_sector_list[i].status & SECT_BAD_DATA) {
             stats->num_bad_data++;
-            error_found = 1;
          } else if (last_sector_list[i].status & SECT_BAD_HEADER) {
             stats->num_bad_header++;
-            error_found = 1;
+         } else if (last_sector_list[i].status & SECT_SPARE_BAD) {
+            stats->num_spare_bad++;
          } else {
             stats->num_good_sectors++;
          }
       }
-      if (error_found) {
-         print_sector_list_status(last_sector_list, drive_params->num_sectors,
-            drive_params->first_sector_number, last_cyl, last_head);
-      }
+      print_sector_list_status(drive_params, last_sector_list, 
+         last_cyl, last_head);
    } else {
       update_emu_track_words(drive_params, sector_status_list, 0, last_cyl == -1, cyl, head);
    }
@@ -434,6 +517,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    // set to value indicating not yet set.
    last_head = -1;
    last_cyl = -1;
+   last_lba_addr = -1;
 
    if (write_files && drive_params->emulation_filename != NULL &&
          drive_params->emulation_output == 1) {
@@ -447,14 +531,26 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
         drive_params->start_time_ns, drive_params->emu_track_data_bytes);
    }
 
-   if (!write_files || drive_params->extract_filename == NULL) {
-      drive_params->ext_fd = -1;
-   } else {
+   drive_params->metadata_fd = -1;
+   drive_params->ext_fd = -1;
+   if (write_files && drive_params->extract_filename != NULL) {
       drive_params->ext_fd = open(drive_params->extract_filename, O_RDWR | O_CREAT |
             O_TRUNC, 0664);
       if (drive_params->ext_fd < 0) {
-         perror("Unable to create output file");
+         perror("Unable to create output extracted data file");
          exit(1);
+      }
+      if (mfm_controller_info[drive_params->controller].metadata_bytes != 0) {
+         char extention[] = ".metadata";
+         char fn[strlen(drive_params->extract_filename) + strlen(extention) + 1];
+
+         strcpy(fn, drive_params->extract_filename);
+         strcat(fn, extention);
+         drive_params->metadata_fd = open(fn, O_RDWR | O_CREAT | O_TRUNC, 0664);
+         if (drive_params->metadata_fd < 0) {
+            perror("Unable to create metadata output file");
+            exit(1);
+         }
       }
    }
    memset(stats, 0, sizeof(*stats));
@@ -543,6 +639,7 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
             drive_params->num_cyl * drive_params->num_head *
             drive_params->num_sectors, stats->num_good_sectors,
             stats->num_bad_header, stats->num_bad_data);
+      msg(MSG_STATS, "%d sectors marked bad or spare\n", stats->num_spare_bad);
       msg(MSG_STATS,
             "%d sectors corrected with ECC. Max bits in burst corrected %d\n",
             stats->num_ecc_recovered, stats->max_ecc_span);
@@ -577,7 +674,8 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
    if (drive_params->head_3bit && sector_status->head == (exp_head & 0x7)) {
       sector_status->head = exp_head;
    }
-   if (sector_status->head != exp_head || sector_status->cyl != exp_cyl) {
+   if (!sector_status->is_lba &&
+       (sector_status->head != exp_head || sector_status->cyl != exp_cyl)) {
       msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
             sector_status->cyl, exp_cyl, sector_status->head, exp_head,
             *sector_index);
@@ -646,6 +744,7 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    int rc;
    STATS *stats = &drive_params->stats;
    int update;
+   off_t offset;
 
    // Some disks number sectors starting from 1. We need them starting
    // from 0.
@@ -699,16 +798,24 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
          update = 1;
       }
    }
+   // If LBA number bad don't update
+   if (sector_status->status & SECT_BAD_LBA_NUMBER) {
+      update = 0;
+   }
    if (update) {
       update_emu_track_sector(sector_status, sect_rel0, all_bytes, all_bytes_len);
       if (drive_params->ext_fd >= 0) {
-         if (lseek(drive_params->ext_fd,
-               (sect_rel0) * drive_params->sector_size +
+         if (sector_status->is_lba) {
+            offset = (off_t) sector_status->lba_addr * drive_params->sector_size;
+         } else {
+            offset = (sect_rel0) * drive_params->sector_size +
                sector_status->head * (drive_params->sector_size *
                      drive_params->num_sectors) +
                      (off_t) sector_status->cyl * (drive_params->sector_size *
                            drive_params->num_sectors *
-                           drive_params->num_head), SEEK_SET) < 0) {
+                           drive_params->num_head);
+         }
+         if (lseek(drive_params->ext_fd, offset, SEEK_SET) < 0) {
             msg(MSG_FATAL, "Seek failed decoded data: %s\n", strerror(errno));
             exit(1);
          };
@@ -724,6 +831,42 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
 
    return 0;
 }
+
+// Write the sector metadata to file. We will write the last sector read
+// data. TODO: Should we do the keep the best logic?
+// drive_params: specifies the length and other information.
+// sector_status: is the status of the sector writing
+// return: -1 if error found, 0 if OK.
+int mfm_write_metadata(uint8_t bytes[], DRIVE_PARAMS * drive_params,
+      SECTOR_STATUS *sector_status)
+{
+   int size = mfm_controller_info[drive_params->controller].metadata_bytes;
+   size_t offset;
+   int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
+   int rc;
+
+   if (drive_params->metadata_fd >= 0) {
+      if (sector_status->is_lba) {
+         offset = (off_t) sector_status->lba_addr * size;
+      } else {
+         offset = (sect_rel0) * size +
+            sector_status->head * (drive_params->sector_size *
+                  drive_params->num_sectors) +
+                  (off_t) sector_status->cyl * (size *
+                       drive_params->num_sectors * drive_params->num_head);
+      }
+      if (lseek(drive_params->metadata_fd, offset, SEEK_SET) < 0) {
+         msg(MSG_FATAL, "Seek failed metadata: %s\n", strerror(errno));
+         exit(1);
+      };
+      if ((rc = write(drive_params->metadata_fd, bytes, size)) != size) {
+         msg(MSG_FATAL, "Metadata write failed, rc %d: %s", rc, strerror(errno));
+         exit(1);
+      }
+   }
+   return 0;
+}
+
 
 // This prints the header or data bytes for decoding new formats
 void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
@@ -850,6 +993,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       // specified
       if (crc_info.ecc_max_span != 0) {
          ecc_span = ecc64(bytes, bytes_crc_len, crc, &crc_info);
+         // TODO: This includes SECT_SPARE_BAD ECC corrections in the
+         // final value printed. We don't have the info to fix here
          if (ecc_span != 0) {
             drive_params->stats.max_ecc_span = MAX(ecc_span,
                   drive_params->stats.max_ecc_span);
@@ -1209,6 +1354,10 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head) {
    ALT_INFO *alt_info;
 
+   // Don't perform alt track processing if analyzing.
+   if (drive_params->analyze_in_progress) {
+      return;
+   }
    if (bad_cyl >= drive_params->num_cyl) {
       msg(MSG_ERR, "Bad alternate cylinder %d out of valid range %d to %d",
          bad_cyl, 0, drive_params->num_cyl - 1);

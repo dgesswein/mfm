@@ -265,7 +265,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       *state = DATA_SYNC;
    } else { // Data
       if (bytes[0] != 0 ) {
-         msg(MSG_INFO, "Data gap byte not zero %02x on cyl %d head %d sector %d\n",
+         msg(MSG_INFO, "Data gap byte not zero 0x%02x on cyl %d head %d sector %d\n",
                bytes[0],
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
@@ -276,8 +276,8 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          compare_byte = 0xc9;
       }
       if (bytes[1] != compare_byte) {
-         msg(MSG_INFO, "Data compare byte not 0xc9: %02x on cyl %d head %d sector %d\n",
-               bytes[1],
+         msg(MSG_INFO, "Data compare byte not 0x%02x: 0x%02x on cyl %d head %d sector %d\n",
+               compare_byte, bytes[1],
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_DATA;
       }
