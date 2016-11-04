@@ -845,12 +845,13 @@ int mfm_write_metadata(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
    int rc;
 
+
    if (drive_params->metadata_fd >= 0) {
       if (sector_status->is_lba) {
          offset = (off_t) sector_status->lba_addr * size;
       } else {
          offset = (sect_rel0) * size +
-            sector_status->head * (drive_params->sector_size *
+            sector_status->head * (size *
                   drive_params->num_sectors) +
                   (off_t) sector_status->cyl * (size *
                        drive_params->num_sectors * drive_params->num_head);
