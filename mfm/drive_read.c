@@ -6,6 +6,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 11/05/2016 DJG Made retry seek progression more like it was before change below
 // 10/16/2016 DJG Added control over seek on retry
 // 10/02/2016 DJG Rob Jarratt change to clean up confusing code.
 //
@@ -124,7 +125,10 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
                      DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
                }
                if (seek_len < 0) {
-                  seek_len = (seek_len * 2) % drive_params->num_cyl;
+                  seek_len = seek_len * 2;
+                  if (seek_len <= -drive_params->num_cyl) {
+                     seek_len = -1;
+                  }
                }
                seek_len = -seek_len;
                if (seek_len == 0) {
