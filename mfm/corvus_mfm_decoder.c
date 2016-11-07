@@ -9,6 +9,7 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 10/28/16 DJG Document extra header Cromemco drives have
 // 10/07/16 DJG More fixes for Cromemco format. Change when looking for
 //    header to avoid false sync. Suppress out of data when all sectors read.
 // 10/01/16 DJG Added Cromemco format
@@ -81,6 +82,14 @@ static inline float filter(float v, float *delay)
 //      2 byte CRC code (polynomial 0x8005)
 //      
 //   CONTROLLER_CROMEMCO,
+//   At about 65,000 ns from index the track has a header
+//      byte 0 0x04
+//      byte 1 0xaa
+//      byte 2 low cylinder
+//      byte 3 high cylinder
+//      byte 4 head
+//
+//   At about 190,000 ns the one sector has a header
 //   9 byte header + 7 byte trailer + 2 byte CRC
 //      byte 0 0x04
 //      byte 1 0x00
@@ -252,7 +261,7 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
    if (drive_params->controller == CONTROLLER_CORVUS_H) {
       next_header_time = 71500;
-   } else {
+   } else { // CROMEMCO
       // Zeros found earlier cause false syncs unless skipped. TODO:
       // May be better to check for sync data following and resync if
       // not correct for Coromemco.
@@ -346,8 +355,9 @@ fprintf(out,"$var wire 1 & sector $end\n");
 #if VCD
 bit_time = track_time / 198e6 * 1e12;
 fprintf(out,"#%lld\n1&\n", bit_time);
+printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time, 
+   track_time + drive_params->start_time_ns / CLOCKS_TO_NS);
 #endif
-//printf("Found header at %d %d\n",tot_raw_bit_cntr, track_time);
                // Time next header should start at
                if (drive_params->controller == CONTROLLER_CORVUS_H) {
                   next_header_time += 164900;

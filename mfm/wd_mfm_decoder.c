@@ -12,6 +12,9 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 10/31/16 DJG Improved Adaptec LBA support and handling sectors
+//    marked bad or spare.
+// 10/21/16 DJG Added unknown controller similar to MD11
 // 10/16/16 DJG Indicate sector 255 is flagging bad block for RQDX3.
 //    Added MOTOROLA_VME10. Renamed OLIVETTI to DTC.
 // 10/04/16 DJG Added Morrow MD11
@@ -169,6 +172,26 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //         (alt cyl first 2 bytes msb first, head third)
 //      ECC code (4 byte)
 //
+//   CONTROLLER_UNKNOWN1
+//   From image ST-212_190385_4H_306C.td
+//   6 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder low
+//      byte 3 cylinder high
+//      byte 4 head and flags. (bit 7 bad, bit 6 assigned alternate track,
+//         bit 5 is alternate track) The format copied from OMTI_5510.
+//         Unknown if these bits are the same.
+//      byte 5 sector
+//      byte 6-9 ECC code
+//   Data
+//      byte 0 0xa1
+//      byte 1 sector number
+//      Sector data for sector size 
+//         (alt cyl first 2 bytes msb first, head third)
+//      ECC code (4 byte)
+//      
+//
 //   CONTROLLER_DEC_RQDX3
 //   No manual found describing low level format
 //   6 byte header + 2 byte CRC
@@ -224,7 +247,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 2 Upper 8 bits of logical block address (LBA)
 //      byte 3 Middle 8 bits of LBA
 //      byte 4 Lower 8 bits of LBA
-//      byte 5 Flag bit 0x40 indicates last sector on track
+//      byte 5 Flag bit 0x40 indicates last sector on track. On another image
+//         probably a 4000 series controller 0x80 used to mark last sector.
 //      bytes 6-9 32 bit CRC
 //   Data
 //      byte 0 0xa1
@@ -461,7 +485,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_MORROW_MD11) {
+      } else if (drive_params->controller == CONTROLLER_MORROW_MD11 ||
+           drive_params->controller == CONTROLLER_UNKNOWN1) {
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[2];
 
@@ -497,6 +522,13 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          // TODO: Figure out a better way to deal with sector number invalid
          // when bad block.
          bad_block = (sector_status.sector == 255);
+         if (bad_block) {
+            sector_status.status |= SECT_BAD_SECTOR_NUMBER | SECT_SPARE_BAD;
+            // TODO: Print added here since count not properly updated due
+            // to not knowing sector number
+            msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
+               sector_status.cyl, sector_status.head, sector_status.sector);
+         }
          // Don't know what's in this byte. Print a message so it can be
          // investigated if not the 2 seen previously.
          if (bytes[5] != 0x2) {
@@ -636,30 +668,33 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_ADAPTEC) {
          uint32_t lba_addr;
          lba_addr = (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
-         sector_status.sector = lba_addr % drive_params->num_sectors;
-         // Prevent divide by 0
-         if (drive_params->num_sectors == 0 || drive_params->num_head == 0) {
-            sector_status.head = 0;
-            sector_status.cyl = 0;
-         } else {
-            sector_status.head = (lba_addr / drive_params->num_sectors) %
-              drive_params->num_head;
-            sector_status.cyl = lba_addr / (drive_params->num_sectors *
-              drive_params->num_head);
+         sector_status.lba_addr = lba_addr;
+         sector_status.is_lba = 1;
+
+         if (lba_addr & 0x800000) {
+            msg(MSG_DEBUG, "Sector marked bad/spare flag %x on cyl %d head %d physical sector %d\n",
+                  lba_addr, exp_cyl, exp_head, sector_status.sector);
+            sector_status.status |= SECT_SPARE_BAD;
+            sector_status.status |= SECT_BAD_LBA_NUMBER;
          }
+         // We can't determine what the actual cylinder sector and head is.
+         // If we track rotation time we can take a guess at sector
+         // TODO: Add this when driven by track format information
+         sector_status.sector = *sector_index;
+         sector_status.head = exp_head;
+         sector_status.cyl = exp_cyl;
 
 //printf("lba %d sect %d head %d cyl %d\n", lba_addr, sector_status.sector,
 //   sector_status.head, sector_status.cyl);
          sector_size = drive_params->sector_size;
          bad_block = 0;
-         if (bytes[5] != 0 && bytes[5] != 0x40) {
-            msg(MSG_INFO, "Unknown header flag byte %02x on cyl %d,%d head %d,%d sector %d\n",
-                  bytes[1], exp_cyl, sector_status.cyl,
-                  exp_head, sector_status.head, sector_status.sector);
+         if (bytes[5] != 0 && bytes[5] != 0x40 && bytes[5] != 0x80) {
+            msg(MSG_INFO, "Unknown header flag byte %02x on cyl %d head %d physical sector %d\n",
+                  bytes[5], exp_cyl, exp_head, sector_status.sector);
          }
 
          if (bytes[1] !=  0xfe) {
-            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d physical sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
@@ -804,7 +839,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.sector, *sector_index, sector_size, bad_block);
 
       if (bad_block) {
-         msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
+         sector_status.status |= SECT_SPARE_BAD;
+         msg(MSG_DEBUG,"Bad block set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
       if (is_alternate) {
@@ -837,6 +873,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          id_byte_expected = 0xe0;
          id_byte_index = 1;
+      } else if (drive_params->controller == CONTROLLER_UNKNOWN1) {
+         id_byte_expected = sector_status.sector;
       }
       if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
@@ -857,7 +895,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_ECC_RECOVERED;
       }
       sector_status.ecc_span_corrected_data = ecc_span;
-      if (!(sector_status.status & SECT_BAD_HEADER)) {
+      // TODO: If bad sector number the stats such as count of spare/bad
+      // sectors is not updated. We need to know the sector # to update
+      // our statistics array. This happens with RQDX3
+      if (!(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER))) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
          // TODO: Make handling of correction data for extract cleaner
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,

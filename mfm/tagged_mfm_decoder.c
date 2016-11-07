@@ -6,6 +6,7 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 11/02/16 DJG Write out tag/metadata also if extract file speccified
 // 10/16/16 DJG Fixes for XEROX_6085.
 // 10/07/16 DJG Add support for disks with tag header in addition to the
 //    normal header. Xerox 6085
@@ -175,6 +176,9 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
       sector_status.ecc_span_corrected_data = ecc_span;
       *state = MARK_DATA;
+      if (!(sector_status.status & SECT_BAD_HEADER)) {
+         mfm_write_metadata(&bytes[2], drive_params, &sector_status);
+      }
    } else { // Data
       // Value and where to look for header mark byte
       int id_byte_expected = 0xfb;
@@ -368,7 +372,7 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                } else if (state == MARK_DATA1) {
                   state = PROCESS_HEADER2;
                   // Figure out the length of data we should look for
-                  bytes_crc_len = 22 + 
+                  bytes_crc_len = 2 + mfm_controller_info[drive_params->controller].metadata_bytes + 
                         drive_params->header_crc.length / 8;
                   bytes_needed = bytes_crc_len + HEADER_IGNORE_BYTES;
                } else {

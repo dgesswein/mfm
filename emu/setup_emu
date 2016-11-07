@@ -1,10 +1,15 @@
 #!/bin/bash
 /usr/bin/dtc -O dtb -o emu-00A0.dtbo -b 0 -@ emu-00A0.dts
 cp emu-00A0.dtbo /lib/firmware
-echo emu:00A0 > /sys/devices/bone_capemgr.*/slots
-
-#Enable A/D
-echo cape-bone-iio > /sys/devices/bone_capemgr.*/slots
+if [ -e /sys/devices/platform/bone_capemgr/slots ]
+then
+   CAPE=/sys/devices/platform/bone_capemgr/slots
+else
+   CAPE=/sys/devices/bone_capemgr.*/slots
+   # Enable A/D
+   echo cape-bone-iio > $CAPE
+fi
+echo emu:00A0 > $CAPE
 
 # 2-5, 22,23,26,27 Drive select and head select
 pins="2 3 4 5 22 23 26 27 8 9 10 11 46"

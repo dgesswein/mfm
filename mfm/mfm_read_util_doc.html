@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2016-10-18T07:47:19.211043359"/>
+	<meta name="changed" content="2016-11-02T20:48:32.859822582"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -49,7 +49,9 @@ to 4.
 emulation bit data to. No file created if not specified</p>
 <p style="margin-bottom: 0in">--extracted_data_file  -e filename</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
-decoded data to. No file created if not specified.</p>
+decoded data to. No file created if not specified. If drive has
+metadata for the sectors it will be extracted to filename.metadata.
+Currently only Xerox 6085 has metadata</p>
 <p style="margin-bottom: 0in">--format  -f WD_1006 | OMTI_5510 | 
 DEC_RQDX3 | Xebec_104786</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
@@ -181,7 +183,18 @@ or adjust the parameters to try to recover more data.</p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
-<p style="margin-bottom: 0in; page-break-before: always">Examples:</p>
+<p style="margin-bottom: 0in">The Adaptec format uses logical block
+addresses (LBA) instead of cylinder head sector (CHS) in the header.
+This program does not have enough information to determine the CHS
+for the LBA in the header so if a seek error occurs it can not
+recover. Messages like  Missing LBA address # to # where the second
+number is less than the first or large range may indicate a seek
+error. Some disks have a large jump near the end of the disk due to
+the spare and bad sector handling.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in"><b>Examples:</b></p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
@@ -344,6 +357,14 @@ specified. The first number is the sector header number and the
 number in parenthesis the physical sector starting with 0. A bad
 sector message will be printed if the data is bad. Some disks vary
 the interleave. Try again without the interleave option.</i></p>
+<p style="margin-bottom: 0in; font-style: normal">Missing LBA address
+2576 to 2579</p>
+<p style="margin-left: 0.12in; margin-bottom: 0in; font-style: normal">
+ <i>Indicates some LBA addresses in the single value or range
+specified were not found. The data for those sectors was not
+recovered. Some drives have an intentional jump in the LBA address
+near the end of the disk when sectors marked bad or spare reported is
+non zero.</i></p>
 <p style="margin-bottom: 0in">Good data after 20 Retries cyl 219 head
 0</p>
 <p style="margin-bottom: 0in">   <i>Informational. Indicates we
@@ -355,11 +376,14 @@ was specified</i></p>
 <p style="margin-bottom: 0in">Expected 65280 sectors got 65276 good
 sectors, 0 bad header, 4 bad data 
 </p>
+<p style="margin-bottom: 0in">0 sectors marked bad or spare</p>
 <p style="margin-bottom: 0in">11 sectors corrected with ECC. Max bits
 in burst corrected 5 
 </p>
-<p style="margin-bottom: 0in">   <i>Summary of errors during the
-read. We have 4 sectors with bad data.</i></p>
+<p style="margin-left: 0.13in; margin-bottom: 0in; page-break-before: auto">
+<i>S</i><i>ummary of errors during the read. We have 4 sectors with
+bad data. </i><i>Sectors marked bad or spare are one the drive format
+has either marked bad to not use or reserving for spare sectors.</i></p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>

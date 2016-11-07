@@ -1,6 +1,11 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
-
+// 11/02/16 DJG Added metadata length field. Only Xerox 6085 uses
+// 10/31/16 DJG Added extra header needed by Cromemco to make ext2emu
+//    files work. Changes to handle Adaptec and sectors marked bad better
+// 10/22/16 DJG Added unknown format found on ST-212 disk
+// 10/16/16 DJG Renamed OLIVETTI to DTC. Added MOTOROLA_VME10 and SOLOSYSTEMS
+//
 //
 // MFM is up to 32 for 256 byte sectors. This allows growth for RLL/ESDI
 #define MAX_SECTORS 50
@@ -33,6 +38,7 @@ typedef struct {
    int num_good_sectors;
    int num_bad_header;
    int num_bad_data;
+   int num_spare_bad;
    int num_ecc_recovered;
    int num_retries;
    int max_ecc_span;
@@ -80,6 +86,7 @@ typedef struct {
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_MORROW_MD11,
+      CONTROLLER_UNKNOWN1,
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ADAPTEC, 
@@ -123,6 +130,7 @@ typedef struct {
    int tran_fd;
    int emu_fd;
    int ext_fd;
+   int metadata_fd;
    TRAN_FILE_INFO *tran_file_info;
    EMU_FILE_INFO *emu_file_info;
    // Size of data for each emulator track. Only valid when writing
@@ -130,6 +138,8 @@ typedef struct {
    int emu_track_data_bytes;
    // non zero if analyze option set
    int analyze;
+   // non zero if in process of performing format analyze. Disable
+   int analyze_in_progress;
    // What cylinder and head to analyze
    int analyze_cyl;
    int analyze_head;
@@ -219,7 +229,7 @@ DEF_EXTERN int mfm_all_sector_size[]
 // Number of sectors to search for LBA format
 DEF_EXTERN int mfm_lba_num_sectors[]
 #ifdef DEF_DATA
- = {17, 32, 33, -1}
+ = {17, 18, 32, 33, -1}
   // -1 marks end of array
 #endif
 ;
@@ -286,6 +296,8 @@ typedef struct trk_l {
    void *list;
 } TRK_L;
 
+// *** NOTE: These define the track starting from start_time_ns ****
+//
 // For more information on the track formats see the *decoder.c files.
 //
 // TODO, use these tables to drive reading the data also instead of the
@@ -605,8 +617,30 @@ DEF_EXTERN TRK_L trk_seagate_ST11M[]
 DEF_EXTERN TRK_L trk_cromemco_stdc[] 
 #ifdef DEF_DATA
  = 
-{ { 121, TRK_FILL, 0x00, NULL },
+{ { 40, TRK_FILL, 0x00, NULL },
   { 1, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {5, TRK_FIELD, 0x00,  // Track header
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x04, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xaa, OP_SET, 1, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 16,  //6
+                 (BIT_L []) {
+                    { 24, 8}, // High byte
+                    { 16, 8}, // Low byte
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 4, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {75, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   { 1, TRK_SUB, 0x00, 
      (TRK_L []) 
      {
         {10258, TRK_FIELD, 0x00,  // All bytes in CRC must be in TRK_FIELD
@@ -644,7 +678,7 @@ DEF_EXTERN TRK_L trk_cromemco_stdc[]
         {-1, 0, 0, NULL},
      }
    },
-   {35, TRK_FILL, 0x00, NULL},
+   {36, TRK_FILL, 0x00, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -691,6 +725,9 @@ typedef struct {
       // Number of 32 bit words in track MFM data
    int track_words;
 
+      // Non zero of drive has metadata we which to extract.
+   int metadata_bytes;
+
       // Check information
    CRC_INFO write_header_crc, write_data_crc;
 
@@ -712,66 +749,84 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0,0, CINFO_NONE,
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, 0 },
       {"NewburyData",          256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE},
       {"WD_1006",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"WD_3B1",          512, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_3B1, 512, 17, 0, 5209,
+         0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL },
       {"Motorola_VME10",  256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 0, 5209,
+         0,
          {0,0xa00805,32,0},{0,0xa00805,32,0}, CONT_ANALIZE },
       {"DTC",             256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"MacBottom",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Elektronika_85",      256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          16, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
+         0,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
       {"Xerox_6085",           256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
+         20,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
       {"Morrow_MD11",            1024, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 1024, 9, 0, 5209,
+         0,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+      {"Unknown1",            256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
 // OMTI_5200 uses initial value 0x409e10aa for data
       {"DEC_RQDX3",            256, 10000000,      0,
@@ -779,12 +834,14 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Seagate_ST11M",        256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
+         0,
          {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
@@ -792,12 +849,14 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"MVME320",        256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_mvme320, 256, 32, 1, 5209,
+         0,
          {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,5}, CONT_ANALIZE },
       {"Symbolics_3620",       256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -805,21 +864,27 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          7, 3, 3, 3, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
 // Should be model after data filled in
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 3, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
          11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
+         0,
          {0x0,0x0,1,0},{0x0,0xa00805,32,5}, CONT_MODEL },
 // This format is detected by special case code so it doesn't need to
-// be sorted by number
+// be sorted by number. It should not be part of a normal search
+// since it will match wd_1006 for drives less than 8 heads
+// CONT_MODEL is currently doing TODO: when model support
+// added revisit this
       {"Mightyframe",          256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
-         0, ARRAYSIZE(mfm_all_init), CINFO_NONE,
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         0,
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
 // END of WD type controllers
 //    Changed begin time from 0 to 100500 to work with 1410A. The sample
 //    I have of the 104786 says it should work with it also so changing default.
@@ -829,18 +894,21 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Xebec_104786",         256, 10000000,      100500,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"EC1841",         256, 10000000,      220000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -848,6 +916,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, 3, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 5209,
 // Should be model after data filled in
+         0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2,3,
@@ -855,6 +924,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          7, 0, 0, 0, CHECK_CHKSUM, CHECK_CHKSUM,
          0, 1, trk_northstar, 512, 16, 0, 5209,
 // Should be model after data filled in
+         0,
          {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
       {"Cromemco",             10240, 10000000,  0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -862,12 +932,14 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          9, 9, 0, 0, CHECK_CRC, CHECK_CRC,
          7, 0, trk_cromemco_stdc, 10240, 1, 0, 5209,
 // Should be model after data filled in
+         0,
          {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALIZE },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 0,
+         0,
          {0,0,0,0},{0,0,0,0}, 0 }
    }
 #endif
@@ -876,6 +948,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // The possible states from reading each sector.
 
 // These are ORed into the state
+//
+// Set if the sector number is bad when BAD_HEADER is not set.
+// Some formats use bad sector numbers to flag bad blocks
+#define SECT_BAD_LBA_NUMBER 0x200
+#define SECT_BAD_SECTOR_NUMBER 0x100
+// This is used to mark sectors that are spare sectors or are marked
+// bad and don't contain user data. 
+// It suppresses counting as errors other errors seen.
+#define SECT_SPARE_BAD      0x80
 #define SECT_ZERO_HEADER_CRC 0x40
 #define SECT_ZERO_DATA_CRC  0x20
 #define SECT_HEADER_FOUND   0x10
@@ -897,6 +978,10 @@ typedef struct {
    int cyl_difference;
    // The values from the sector header
    int cyl, head, sector;
+   // Non zero if drive is LBA
+   int is_lba;
+   // The logical block address for LBA drives.
+   int lba_addr;
    // A sequential count of sectors starting from 0
    // Logical sector will only be accurate if no header read errors
    // on preceding sectors
@@ -933,6 +1018,8 @@ void mfm_decode_done(DRIVE_PARAMS *drive_params);
 int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS *drive_params,
    SECTOR_STATUS *sector_status, SECTOR_STATUS bad_sector_list[],
    uint8_t all_bytes[], int all_bytes_len);
+int mfm_write_metadata(uint8_t bytes[], DRIVE_PARAMS *drive_params,
+   SECTOR_STATUS *sector_status);
 void mfm_init_sector_status_list(SECTOR_STATUS *sector_status_list, int num_sectors); 
 void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
       int sector_index, int msg_level);

@@ -1,7 +1,15 @@
 #!/bin/bash
 dtc -O dtb -o mfm_read-00A0.dtbo -b 0 -@ mfm_read-00A0.dts
 cp mfm_read-00A0.dtbo /lib/firmware
-echo mfm_read:00A0 > /sys/devices/bone_capemgr.*/slots
+if [ -e /sys/devices/platform/bone_capemgr/slots ]
+then
+   CAPE=/sys/devices/platform/bone_capemgr/slots
+else
+   CAPE=/sys/devices/bone_capemgr.*/slots
+   # Enable A/D
+   echo cape-bone-iio > $CAPE
+fi
+echo mfm_read:00A0 > $CAPE
 # 2-5 rev A head, 8-11 rev B head, all high is head 0
 # 44 emu second driver emulation, disable
 # 60 MFM emulation tranceiver enable, high is disabled
@@ -25,8 +33,6 @@ for pin in $pins; do
    echo in > /sys/class/gpio/gpio$pin/direction
 done
 
-# Enable A/D
-echo cape-bone-iio > /sys/devices/bone_capemgr.*/slots
 
 REV=`cat /sys/class/gpio/gpio46/value`
 if [ $REV == '0' ]; then

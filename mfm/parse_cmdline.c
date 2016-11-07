@@ -9,6 +9,8 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/31/16 DJG Change default analyze cylinder and head to detect
+//     formats better
 // 10/16/16 DJG Added parameter to control seeks to --retry
 // 01/13/16 DJG Changes for ext2emu related changes on how drive formats will
 //     be handled. If controller defines other parameters such as polynomial
@@ -309,8 +311,9 @@ static uint8_t *parse_interleave(char *arg, DRIVE_PARAMS *drive_params) {
 static void parse_analyze(char *arg, DRIVE_PARAMS *drive_params) {
    char *tok;
 
-   drive_params->analyze_cyl = 0;
-   drive_params->analyze_head = 0;
+   // Best for separating formats
+   drive_params->analyze_cyl = 2;
+   drive_params->analyze_head = 1;
    if (arg == NULL) {
       return;
    }
