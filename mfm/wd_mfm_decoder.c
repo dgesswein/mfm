@@ -446,7 +446,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span)
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status)
 {
    static int sector_size;
    // Non zero if sector is a bad block, has alternate track assigned,
@@ -1144,7 +1145,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
                            bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list);
+                           seek_difference, sector_status_list, 0);
                   }
                   decoded_bit_cntr = 0;
                }

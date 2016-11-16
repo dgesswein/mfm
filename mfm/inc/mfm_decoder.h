@@ -1,5 +1,6 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 11/14/16 DJG Added Telenex Autoscope, Xebec S1420 and Vector4 formats
 // 11/02/16 DJG Added metadata length field. Only Xerox 6085 uses
 // 10/31/16 DJG Added extra header needed by Cromemco to make ext2emu
 //    files work. Changes to handle Adaptec and sectors marked bad better
@@ -85,6 +86,7 @@ typedef struct {
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
+      CONTROLLER_TELENEX_AUTOSCOPE, 
       CONTROLLER_MORROW_MD11,
       CONTROLLER_UNKNOWN1,
       CONTROLLER_DEC_RQDX3, 
@@ -95,9 +97,12 @@ typedef struct {
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_SOLOSYSTEMS, 
       CONTROLLER_XEBEC_104786, 
+      CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
-      CONTROLLER_CROMEMCO
+      CONTROLLER_CROMEMCO,
+      CONTROLLER_VECTOR4,
+      CONTROLLER_VECTOR4_ST506
    } controller;
    // The sector numbering used. This will vary from the physical order if
    // interleave is used. Only handles all sectors the same.
@@ -814,6 +819,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          20,
          { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+      {"Telenex_Autoscope",           256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         20,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
       {"Morrow_MD11",            1024, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -903,6 +915,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"Xebec_S1420",         256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"EC1841",         256, 10000000,      220000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -934,6 +953,22 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0,
          {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALIZE },
+      {"Vector4",             256, 10000000,  278000,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 4, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 256, 32, 0, 5209,
+// Should be model after data filled in
+         0,
+         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE },
+      {"Vector4_ST506",             256, 10000000,  278000,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 4, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 256, 32, 0, 5209,
+// Should be model after data filled in
+         0,
+         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
@@ -948,7 +983,8 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // The possible states from reading each sector.
 
 // These are ORed into the state
-//
+// If set treat as error for analyze but otherwise ignore it
+#define SECT_ANALYZE_ERROR 0x400
 // Set if the sector number is bad when BAD_HEADER is not set.
 // Some formats use bad sector numbers to flag bad blocks
 #define SECT_BAD_LBA_NUMBER 0x200
@@ -1035,28 +1071,34 @@ typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, HEADER_SYNC, DATA_SYNC, PROCESS_H
 
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],
       int bytes_crc_len, STATE_TYPE *state, int cyl, int head, int *sector_index,
-      int *seek_difference, SECTOR_STATUS sector_status_list[]);
+      int *seek_difference, SECTOR_STATUS sector_status_list[],
+      SECTOR_DECODE_STATUS init_status);
 
 SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span);
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status);
 SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span);
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status);
 SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span);
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status);
 SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span);
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status);
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span);
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status);
 
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word);

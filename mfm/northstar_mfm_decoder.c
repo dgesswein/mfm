@@ -97,7 +97,8 @@ static inline float filter(float v, float *delay)
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
          DRIVE_PARAMS *drive_params, int *seek_difference,
-         SECTOR_STATUS sector_status_list[], int ecc_span)
+         SECTOR_STATUS sector_status_list[], int ecc_span,
+         SECTOR_DECODE_STATUS init_status)
 {
    static int sector_size;
    static int bad_block;
@@ -352,7 +353,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 //printf("End data %d,%d state %d cyl %d head %d sect %d\n",tot_raw_bit_cntr, 166666 - (track_time  * 5 + drive_params->start_time_ns)/100, state, cyl, head, sector_index);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
                            bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list);
+                           seek_difference, sector_status_list, 0);
                      // Look after the fill bytes. 8 is byte to bits, 40 is
                      // 200 MHz clocks per data bit (5 MHz for data bit,
                      // 10 for clock and data bit)

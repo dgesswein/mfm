@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/14/16 DJG Added Telenex Autoscope, Vector4,  and Xebec_S1420 formats
 // 11/02/16 DJG Add ability to write tag/metadata if it exists
 // 10/28/16 DJG Improved support for LBA format disks
 // 10/22/16 DJG Added unknown format found on ST-212 disk
@@ -463,16 +464,20 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int 
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
-   } else if (drive_params->controller == CONTROLLER_XEROX_6085) {
+   } else if (drive_params->controller == CONTROLLER_XEROX_6085 ||
+           drive_params->controller == CONTROLLER_TELENEX_AUTOSCOPE) {
       rc = tagged_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+         drive_params->controller == CONTROLLER_XEBEC_S1420 ||
          drive_params->controller == CONTROLLER_EC1841 ||
          drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
       rc = xebec_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
-         drive_params->controller == CONTROLLER_CROMEMCO)  {
+         drive_params->controller == CONTROLLER_CROMEMCO ||
+         drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
+         drive_params->controller == CONTROLLER_VECTOR4)  {
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE)  {
@@ -903,7 +908,7 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, 
    uint8_t bytes[], int bytes_crc_len, STATE_TYPE *state, int cyl, int head,
    int *sector_index, int *seek_difference, 
-   SECTOR_STATUS sector_status_list[]) {
+   SECTOR_STATUS sector_status_list[], SECTOR_DECODE_STATUS init_status) {
 
    uint64_t crc;
    // CRC to use to process these bytes
@@ -1027,29 +1032,35 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
-               drive_params, seek_difference, sector_status_list, ecc_span);
-      } else if (drive_params->controller == CONTROLLER_XEROX_6085) {
+               drive_params, seek_difference, sector_status_list, ecc_span,
+               init_status);
+      } else if (drive_params->controller == CONTROLLER_XEROX_6085 ||
+             drive_params->controller == CONTROLLER_TELENEX_AUTOSCOPE) {
          status |= tagged_process_data(state, bytes, crc, cyl, head, sector_index,
-               drive_params, seek_difference, sector_status_list, ecc_span);
+               drive_params, seek_difference, sector_status_list, ecc_span,
+               init_status);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+            drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||
             drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
          status |= xebec_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
-               sector_status_list, ecc_span);
+               sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
-            drive_params->controller == CONTROLLER_CROMEMCO) {
+            drive_params->controller == CONTROLLER_CROMEMCO ||
+            drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
+            drive_params->controller == CONTROLLER_VECTOR4) {
          status |= corvus_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
-               sector_status_list, ecc_span);
+               sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
          status |= northstar_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
-               sector_status_list, ecc_span);
+               sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
          status |= northstar_process_data(state, bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
-               sector_status_list, ecc_span);
+               sector_status_list, ecc_span, init_status);
       } else {
          msg(MSG_FATAL, "Unexpected controller %d\n",
                drive_params->controller);
