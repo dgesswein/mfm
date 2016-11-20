@@ -116,6 +116,7 @@ static inline float filter(float v, float *delay)
 //    options and verify headers decoded properly.
 // Handle spared/alternate tracks for extracted data
 SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
+      int total_bytes,
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
       SECTOR_STATUS sector_status_list[], int ecc_span, 
@@ -210,10 +211,8 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
-         // TODO: Make handling of correction data for extract cleaner
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
-               sector_status_list, &bytes[1], drive_params->sector_size +
-               drive_params->data_crc.length / 8 + 1) == -1) {
+               sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -474,8 +473,9 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   } else {
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list, init_status);
+                         bytes_crc_len, bytes_needed, &state, cyl, head, 
+                         &sector_index, seek_difference, sector_status_list,
+                         init_status);
                   }
                   decoded_bit_cntr = 0;
                }

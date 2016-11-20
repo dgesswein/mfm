@@ -18,6 +18,9 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/20/16 DJG Added logic to determine how much emulator track size needs
+//   to be increased by to make data fit. Added logic to pass data size
+//   information. 
 // 11/14/16 DJG Added Telenex Autoscope, Vector4,  and Xebec_S1420 formats
 // 11/02/16 DJG Add ability to write tag/metadata if it exists
 // 10/28/16 DJG Improved support for LBA format disks
@@ -94,7 +97,8 @@ static int last_head;
 // Last LBA address processed for detecting bad sectors
 static int last_lba_addr;
 
-static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
+static void update_emu_track_sector(DRIVE_PARAMS *drive_params,
+       SECTOR_STATUS *sector_status, int sect_rel0,
       uint8_t bytes[], int num_bytes);
 void update_emu_track_words(DRIVE_PARAMS * drive_params,
       SECTOR_STATUS sector_status_list[], int write_track, int new_track,
@@ -434,8 +438,8 @@ static SECTOR_DECODE_STATUS mfm_decode_track_deltas(DRIVE_PARAMS *drive_params,
 
 // This routine calls the proper decoder for the drive format
 // See called routines for parameters and return value
-SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, int head,
-      uint16_t deltas[], int *seek_difference,
+SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl, 
+      int head, uint16_t deltas[], int *seek_difference,
       SECTOR_STATUS sector_status_list[])
 {
    int rc;
@@ -527,8 +531,11 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    if (write_files && drive_params->emulation_filename != NULL &&
          drive_params->emulation_output == 1) {
          // Assume 3600 RPM, 60 RPS. Make round number of words
-      drive_params->emu_track_data_bytes = ceil(1/60.0 * 
-         mfm_controller_info[drive_params->controller].clk_rate_hz / 8 / 4)*4;
+         // Set if not set on command line
+      if (drive_params->emu_track_data_bytes == 0) {
+         drive_params->emu_track_data_bytes = ceil(1/60.0 * 
+            mfm_controller_info[drive_params->controller].clk_rate_hz / 8 / 4)*4;
+      }
       drive_params->emu_fd = emu_file_write_header(drive_params->emulation_filename,
         drive_params->num_cyl, drive_params->num_head, 
         drive_params->cmdline, drive_params->note,
@@ -648,6 +655,12 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
       msg(MSG_STATS,
             "%d sectors corrected with ECC. Max bits in burst corrected %d\n",
             stats->num_ecc_recovered, stats->max_ecc_span);
+
+      if (stats->max_track_words * 4 > drive_params->emu_track_data_bytes &&
+            stats->emu_data_truncated) {
+         msg(MSG_ERR, "*** To create valid emulator file rerun with --track_words %d\n",
+            stats->max_track_words + 2);
+      }
    }
    emu_file_close(drive_params->emu_fd, drive_params->emulation_output);
 }
@@ -807,8 +820,11 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    if (sector_status->status & SECT_BAD_LBA_NUMBER) {
       update = 0;
    }
+   // Always update errors in emu data in case it ends up being used as
+   // the best data to write
+   update_emu_track_sector(drive_params, sector_status, sect_rel0, 
+      all_bytes, all_bytes_len);
    if (update) {
-      update_emu_track_sector(sector_status, sect_rel0, all_bytes, all_bytes_len);
       if (drive_params->ext_fd >= 0) {
          if (sector_status->is_lba) {
             offset = (off_t) sector_status->lba_addr * drive_params->sector_size;
@@ -906,7 +922,8 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // sector_status_list: Return of status of decoded sector
 // return: Status of sector decoded
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, 
-   uint8_t bytes[], int bytes_crc_len, STATE_TYPE *state, int cyl, int head,
+   uint8_t bytes[], int bytes_crc_len, int total_bytes,
+   STATE_TYPE *state, int cyl, int head,
    int *sector_index, int *seek_difference, 
    SECTOR_STATUS sector_status_list[], SECTOR_DECODE_STATUS init_status) {
 
@@ -1031,35 +1048,37 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
-         status |= wd_process_data(state, bytes, crc, cyl, head, sector_index,
+         status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
+               head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span,
                init_status);
       } else if (drive_params->controller == CONTROLLER_XEROX_6085 ||
              drive_params->controller == CONTROLLER_TELENEX_AUTOSCOPE) {
-         status |= tagged_process_data(state, bytes, crc, cyl, head, sector_index,
+         status |= tagged_process_data(state, bytes, total_bytes, crc, cyl,
+               head, sector_index,
                drive_params, seek_difference, sector_status_list, ecc_span,
                init_status);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||
             drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
-         status |= xebec_process_data(state, bytes, crc, cyl, head,
+         status |= xebec_process_data(state, bytes, total_bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
             drive_params->controller == CONTROLLER_CROMEMCO ||
             drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
             drive_params->controller == CONTROLLER_VECTOR4) {
-         status |= corvus_process_data(state, bytes, crc, cyl, head,
-               sector_index, drive_params, seek_difference,
+         status |= corvus_process_data(state, bytes, total_bytes, crc, cyl,
+               head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
-         status |= northstar_process_data(state, bytes, crc, cyl, head,
-               sector_index, drive_params, seek_difference,
+         status |= northstar_process_data(state, bytes, total_bytes, crc, cyl,
+               head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
-         status |= northstar_process_data(state, bytes, crc, cyl, head,
-               sector_index, drive_params, seek_difference,
+         status |= northstar_process_data(state, bytes, total_bytes, crc, cyl,
+               head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
       } else {
          msg(MSG_FATAL, "Unexpected controller %d\n",
@@ -1230,6 +1249,10 @@ void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params) {
       msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes, need %d words\n",
            current_track_words_ndx*4 - drive_params->emu_track_data_bytes+
            (bit_count+7)/8, current_track_words_ndx);
+      drive_params->stats.emu_data_truncated = 1;
+   }
+   if (current_track_words_ndx > drive_params->stats.max_track_words) {
+      drive_params->stats.max_track_words = current_track_words_ndx;
    }
 }
 
@@ -1237,8 +1260,8 @@ void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params) {
 // If we fixed an ECC error we try to put the fixed data bits back into the
 // sector. Header is not fixed if it has an ECC correction. We copy the
 // track words into the best track in the area for that sector.
-static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
-      uint8_t bytes[], int num_bytes) {
+static void update_emu_track_sector(DRIVE_PARAMS *drive_params, SECTOR_STATUS 
+      *sector_status, int sect_rel0, uint8_t bytes[], int num_bytes) {
    int i, bit;
    int word_ndx;
    int last_bit;
@@ -1294,7 +1317,9 @@ static void update_emu_track_sector(SECTOR_STATUS *sector_status, int sect_rel0,
    // If cyl or head changed we are starting a new track so don't copy it
    // here. update_emu_track_words will copy the entire track.
    if (sector_status->cyl == last_cyl && sector_status->head == last_head) {
-      for (i = header_track_word_ndx; i < current_track_words_ndx; i++) {
+      int start = MAX(0, header_track_word_ndx -  
+         mfm_controller_info[drive_params->controller].copy_extra);
+      for (i = start; i < current_track_words_ndx; i++) {
          best_fixed_track_words[i] = current_track_words[i];
       }
    }

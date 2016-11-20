@@ -8,6 +8,8 @@
 //
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
+//
+// 11/17/16 DJG Added emulator file track length option
 // 11/14/16 DJG Changes for Vector4 format
 // 10/31/16 DJG Change default analyze cylinder and head to detect
 //     formats better
@@ -420,9 +422,10 @@ static struct option long_options[] = {
          {"version", 0, NULL, 'v'},
          {"note", 1, NULL, 'n'},
          {"mark_bad", 1, NULL, 'M'},
+         {"track_words", 1, NULL, 'w'},
          {NULL, 0, NULL, 0}
 };
-static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:";
+static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:W:";
 
 // Main routine for parsing command lines
 //
@@ -625,6 +628,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'M':
             drive_params->mark_bad_list = parse_mark_bad(optarg, drive_params);
+            break;
+         case 'w':
+            drive_params->emu_track_data_bytes = atoi(optarg) * 4;
             break;
          default:
             msg(MSG_FATAL, "Didn't process argument %c\n", rc);

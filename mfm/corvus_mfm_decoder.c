@@ -9,6 +9,8 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 11/20/16 DJG Add Vector4 format and fixes for marking data for
+//   fixing emulator data.
 // 10/28/16 DJG Document extra header Cromemco drives have
 // 10/07/16 DJG More fixes for Cromemco format. Change when looking for
 //    header to avoid false sync. Suppress out of data when all sectors read.
@@ -131,6 +133,7 @@ static inline float filter(float v, float *delay)
 //      4 byte ecc
 //      
 SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
+         int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
          DRIVE_PARAMS *drive_params, int *seek_difference,
          SECTOR_STATUS sector_status_list[], int ecc_span,
@@ -210,10 +213,8 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
-         // TODO: Make handling of correction data for extract cleaner
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
-               sector_status_list, &bytes[0], drive_params->sector_size +
-               drive_params->header_crc.length + 3) == -1) {
+               sector_status_list, &bytes[0], total_bytes) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -428,13 +429,17 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                state = PROCESS_HEADER;
                mfm_mark_header_location(all_raw_bits_count, raw_bit_cntr, 
                   tot_raw_bit_cntr);
-               //mfm_mark_data_location(all_raw_bits_count);
+               mfm_mark_data_location(all_raw_bits_count, raw_bit_cntr,
+                  tot_raw_bit_cntr);
                // Figure out the length of data we should look for
                bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->sector_size + 
                         mfm_controller_info[drive_params->controller].data_trailer_bytes +
                         drive_params->header_crc.length / 8;
                bytes_needed = bytes_crc_len;
+               // Must read enough extra bytes to ensure we send last 32
+               // bit word to mfm_save_raw_word
+               bytes_needed += 2;
                if (bytes_needed >= sizeof(bytes)) {
                   printf("Too many bytes needed %d\n",bytes_needed);
                   exit(1);
@@ -470,8 +475,8 @@ fprintf(out,"#%lld\n0&\n", bit_time);
 #endif
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list, 0);
+                        bytes_crc_len, bytes_needed, &state, cyl, head, 
+                        &sector_index, seek_difference, sector_status_list, 0);
                   }
                   decoded_bit_cntr = 0;
                }

@@ -95,6 +95,7 @@ static inline float filter(float v, float *delay)
 //      16 bit complement of checksum of data
 //      
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
+         int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
          DRIVE_PARAMS *drive_params, int *seek_difference,
          SECTOR_STATUS sector_status_list[], int ecc_span,
@@ -138,8 +139,7 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
    
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          if (mfm_write_sector(&bytes[0], drive_params, &sector_status,
-               sector_status_list, &bytes[0], drive_params->sector_size +
-               drive_params->header_crc.length + 3) == -1) {
+               sector_status_list, &bytes[0], total_bytes) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -352,8 +352,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
 //printf("End data %d,%d state %d cyl %d head %d sect %d\n",tot_raw_bit_cntr, 166666 - (track_time  * 5 + drive_params->start_time_ns)/100, state, cyl, head, sector_index);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list, 0);
+                        bytes_crc_len, bytes_needed, &state, cyl, head, 
+                        &sector_index, seek_difference, sector_status_list, 0);
                      // Look after the fill bytes. 8 is byte to bits, 40 is
                      // 200 MHz clocks per data bit (5 MHz for data bit,
                      // 10 for clock and data bit)
