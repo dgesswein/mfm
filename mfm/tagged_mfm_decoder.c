@@ -6,6 +6,8 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 11/14/16 DJG Added Telenex Autoscope. Same as Xerox but without tags
+//    so naming problems again
 // 11/02/16 DJG Write out tag/metadata also if extract file speccified
 // 10/16/16 DJG Fixes for XEROX_6085.
 // 10/07/16 DJG Add support for disks with tag header in addition to the
@@ -95,6 +97,9 @@ static inline float filter(float v, float *delay)
 //          if correct for this format)
 //      ECC code (2 byte)
 //
+//   CONTROLLER_TELENEX_AUTOSCOPE
+//      Same as XEROX_6085 except no tag
+//      
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -111,9 +116,11 @@ static inline float filter(float v, float *delay)
 //    options and verify headers decoded properly.
 // Handle spared/alternate tracks for extracted data
 SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
+      int total_bytes,
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span)
+      SECTOR_STATUS sector_status_list[], int ecc_span, 
+      SECTOR_DECODE_STATUS init_status)
 {
    static int sector_size;
    // Non zero if sector is a bad block, has alternate track assigned,
@@ -122,13 +129,15 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
+      sector_status.status = init_status;
       sector_status.status |= SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;
       }
 
-      if (drive_params->controller == CONTROLLER_XEROX_6085) {
+      if (drive_params->controller == CONTROLLER_XEROX_6085 ||
+            drive_params->controller == CONTROLLER_TELENEX_AUTOSCOPE) {
          sector_status.cyl = bytes[2]<< 8;
          sector_status.cyl |= bytes[3];
 
@@ -160,7 +169,11 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
          "Got exp %d,%d cyl %d head %d sector %d,%d size %d\n",
             exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
             sector_status.sector, *sector_index, sector_size);
-      *state = MARK_DATA1;
+      if (drive_params->controller == CONTROLLER_XEROX_6085) {
+         *state = MARK_DATA1;
+      } else {
+         *state = MARK_DATA;
+      }
    } else if (*state == PROCESS_HEADER2) {
          if (bytes[1] != 0xfc) {
             msg(MSG_INFO, "Invalid tag id byte %02x on cyl %d,%d head %d,%d sector %d\n",
@@ -198,10 +211,8 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
-         // TODO: Make handling of correction data for extract cleaner
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
-               sector_status_list, &bytes[1], drive_params->sector_size +
-               drive_params->data_crc.length / 8 + 1) == -1) {
+               sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -283,6 +294,10 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int sector_index = 0;
    // Count all the raw bits for emulation file
    int all_raw_bits_count = 0;
+   // Used for analyze to distinguish formats with and without extra
+   // header
+   SECTOR_DECODE_STATUS init_status = 0;
+
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
@@ -423,6 +438,8 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                      if (byte_cntr == 2) {
                         if (bytes[1] == 0xfe) {
                            if (state != PROCESS_HEADER) {
+                              // Flag error for analyze
+                              init_status = SECT_ANALYZE_ERROR;
                               msg(MSG_INFO,"Found sector header out of order (state %d)\n", state);
                               bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
                                   drive_params->header_crc.length / 8;
@@ -431,6 +448,8 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                            }
                         } else if (bytes[1] == 0xfc) {
                            if (state != PROCESS_HEADER2) {
+                              // Flag error for analyze
+                              init_status = SECT_ANALYZE_ERROR;
                               msg(MSG_INFO,"Found tag header out of order (state %d)\n", state);
                               bytes_crc_len = 22 + 
                                  drive_params->header_crc.length / 8;
@@ -440,6 +459,8 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         } else if (bytes[1] == 0xfb) {
                            if (state != PROCESS_DATA) {
                               msg(MSG_INFO,"Found data header out of order (state %d)\n", state);
+                              // Flag error for analyze
+                              init_status = SECT_ANALYZE_ERROR;
                               bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
                                   mfm_controller_info[drive_params->controller].data_trailer_bytes + 
                                   drive_params->sector_size +
@@ -452,8 +473,9 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   } else {
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list);
+                         bytes_crc_len, bytes_needed, &state, cyl, head, 
+                         &sector_index, seek_difference, sector_status_list,
+                         init_status);
                   }
                   decoded_bit_cntr = 0;
                }

@@ -4,9 +4,12 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 11/12/16 DJG Added support for Xebec S1420 winc/floppy controller with rev
+//    104689B firmware
 // 10/16/16 DJG Added SOLOSYSTEMS.
 // 05/21/16 DJG Added support to Xebec 1410A with 256 byte sectors. This
 //    format will need --begin_time 100500 specified when reading.
+//    raw_data_schweikert_1410a
 // 05/07/16 DJG Ignore MSB of head byte which Xebec S1410 sets.
 // 04/23/16 DJG Added support for EC1841, Thanks to Denis Kushch for changes
 //    needed.
@@ -102,8 +105,15 @@ static inline float filter(float v, float *delay)
 //      to mark the start of the header then more zeros followed bhy a one to
 //      mark the data
 //
+//   Xebec S1420 winc/floppy controller with rev 104689B firmware
+//   ms3438_gimix_xe1420.td
+//      same as CONTROLLER_XEBEC_104786 except byte 7 flag is 0xc0. 
+//      Bit 4 is set on last cylinder. Unknow if bits 0 and 2 used.
+//      The offset from index of first header is 47,500 ns vs 125,000 for 
+//      512 byte sector 104786 and 104,000 for 256 byte sector XEBEC 1410A.
+//      
 //   CONTROLLER_EC1841 (Also seems to be Xebec S1410)
-//      Same as XEBEC_104786 except compare byte is 0x00, not 0xc9
+//      Same as XEBEC_104786 except data compare byte is 0x00, not 0xc9
 //      Sector numbers start at 3 for first sector and wrap back to 0 at
 //      number of sectors.
 //      Needs --begin_time 220000
@@ -129,9 +139,11 @@ static inline float filter(float v, float *delay)
 //      4 byte ECC code
 // TODO: Same as WD decoder
 SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
+         int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
          DRIVE_PARAMS *drive_params, int *seek_difference,
-         SECTOR_STATUS sector_status_list[], int ecc_span)
+         SECTOR_STATUS sector_status_list[], int ecc_span,
+         SECTOR_DECODE_STATUS init_status)
 {
    static int sector_size;
    static int bad_block;
@@ -151,6 +163,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
 
       if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+            drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841) {
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
@@ -201,9 +214,14 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       
          // More stuff likely in here but not documented.
-         if ((bytes[7] & 0xea) != 0x80) {
-            msg(MSG_ERR, "Header flag byte not expected value: %02x on cyl %d head %d sector %d\n",
-               bytes[7],
+         if (drive_params->controller == CONTROLLER_XEBEC_S1420) {
+            compare_byte = 0xc0; 
+         } else {
+            compare_byte = 0x80; 
+         }
+         if ((bytes[7] & 0xea) != compare_byte) {
+            msg(MSG_ERR, "Header flag byte not %02x value: %02x on cyl %d head %d sector %d\n",
+               compare_byte, bytes[7],
                sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
@@ -307,8 +325,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          if (mfm_write_sector(&bytes[2], drive_params, &sector_status,
-               sector_status_list, &bytes[0], drive_params->sector_size +
-               drive_params->data_crc.length + 2) == -1) {
+               sector_status_list, &bytes[0], total_bytes) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -511,8 +528,9 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   } else {
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list);
+                           bytes_crc_len, bytes_needed, &state, cyl, head, 
+                           &sector_index,
+                           seek_difference, sector_status_list, 0);
                   }
                   decoded_bit_cntr = 0;
                }

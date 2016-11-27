@@ -6,6 +6,10 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 11/14/16 DJG Make Data CRC max span reasonable for formats not using
+//    separate data CRC. Doesn't really do anything, just prevents it
+//    looking funny. Added error for analyze only to handle Telenex Autoscope
+//    without hurting error recovery on Xerox 6085
 // 10/31/16 DJG Redid how Logical block address disks are detected.
 //    Previous method didn't work when spare/bad sectors marked.
 // 10/19/16 DJG Fixed Mightyframe detection to reduce probability of false
@@ -293,6 +297,10 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
                  *drive_params;
                drive_params_list[drive_params_list_index].header_crc.ecc_max_span 
                   = mfm_all_poly[poly].ecc_span;
+               // Set the data CRC span also so drives without seaparate data
+               // and header ECC will have both fields correct.
+               drive_params_list[drive_params_list_index].data_crc.ecc_max_span 
+                  = mfm_all_poly[poly].ecc_span;
                match_count[drive_params_list_index++] = good_header_count; 
                msg(MSG_DEBUG, "Found %d headers matching:\n", good_header_count);
                print_crc_info(&drive_params->header_crc, MSG_DEBUG);
@@ -379,7 +387,8 @@ static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *del
             // Now find out how many good sectors we got with these parameters
             good_data_count = 0;
             for (i = 0; i < drive_params->num_sectors; i++) {
-               if (!UNRECOVERED_ERROR(sector_status_list[i].status)) {
+               if (!UNRECOVERED_ERROR(sector_status_list[i].status) &&
+                     !(sector_status_list[i].status & SECT_ANALYZE_ERROR)) {
                   good_data_count++;
                }
             }

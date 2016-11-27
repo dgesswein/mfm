@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2016-11-02T20:48:32.859822582"/>
+	<meta name="changed" content="2016-11-17T21:55:30.063549413"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -89,6 +89,11 @@ area length in bytes. Default is 512.</p>
 <p style="margin-bottom: 0in">--sectors  -s #[,#]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
 sectors per track, lowest sector number.</p>
+<p style="margin-bottom: 0in">--track_words -w #</p>
+<p style="margin-left: 0.49in; margin-bottom: 0in">The number of 32
+bit words of track data to use for emulator file. If this parameter
+needs to be set the messages during generation of the emulator file
+will specify the value to use.</p>
 <p style="margin-bottom: 0in">--transitions_file  -t filename</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
 raw MFM transitions to. No file created if not specified. Only valid

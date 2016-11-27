@@ -9,6 +9,8 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 11/17/16 DJG Added emulator file track length option
+// 11/14/16 DJG Changes for Vector4 format
 // 10/31/16 DJG Change default analyze cylinder and head to detect
 //     formats better
 // 10/16/16 DJG Added parameter to control seeks to --retry
@@ -420,9 +422,10 @@ static struct option long_options[] = {
          {"version", 0, NULL, 'v'},
          {"note", 1, NULL, 'n'},
          {"mark_bad", 1, NULL, 'M'},
+         {"track_words", 1, NULL, 'w'},
          {NULL, 0, NULL, 0}
 };
-static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:";
+static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:W:";
 
 // Main routine for parsing command lines
 //
@@ -626,6 +629,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
          case 'M':
             drive_params->mark_bad_list = parse_mark_bad(optarg, drive_params);
             break;
+         case 'w':
+            drive_params->emu_track_data_bytes = atoi(optarg) * 4;
+            break;
          default:
             msg(MSG_FATAL, "Didn't process argument %c\n", rc);
             if (!ignore_invalid_options) {
@@ -656,7 +662,9 @@ void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
    // Corvus H  and Cromemco drive doesn't have separate header and data 
    // CRC. We use header for both
    if (drive_params->controller == CONTROLLER_CORVUS_H ||
-       drive_params->controller == CONTROLLER_CROMEMCO) {
+       drive_params->controller == CONTROLLER_CROMEMCO ||
+       drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
+       drive_params->controller == CONTROLLER_VECTOR4) {
       min_read_opts &= ~data_crc_opt;
    }
    if ((drive_params->extract_filename != NULL)

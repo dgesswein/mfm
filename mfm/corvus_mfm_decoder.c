@@ -9,6 +9,8 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 11/20/16 DJG Add Vector4 format and fixes for marking data for
+//   fixing emulator data.
 // 10/28/16 DJG Document extra header Cromemco drives have
 // 10/07/16 DJG More fixes for Cromemco format. Change when looking for
 //    header to avoid false sync. Suppress out of data when all sectors read.
@@ -107,10 +109,36 @@ static inline float filter(float v, float *delay)
 //      0x00
 //      2 byte CRC code (polynomial 0x8005, init value 0 with all
 //         above in the CRC))
+//   
+//   CONTROLLER_VECTOR4
+//      format 7100-6501_Disktest_Technical_Information_Oct82.pdf,
+//         pdf/vectorGraphics on bitsavers
+//      30 bytes of zeros (not considered part of header
+//      byte 0 0xff
+//      byte 1 upper 4 bits head, lower 4 bits upper part of cylinder
+//      byte 2 lower 8 bits of cylinder
+//      byte 3 sector
+//      256 bytes of sector data
+//      4 byte ecc
+//      
+//   CONTROLLER_VECTOR4_ST506
+//      format 7100-6501_Disktest_Technical_Information_Oct82.pdf,
+//         pdf/vectorGraphics on bitsavers
+//      30 bytes of zeros (not considered part of header
+//      byte 0 0xff
+//      byte 1 head
+//      byte 2 cylinder
+//      byte 3 sector
+//      256 bytes of sector data
+//      4 byte ecc
+//      
 SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
+         int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
          DRIVE_PARAMS *drive_params, int *seek_difference,
-         SECTOR_STATUS sector_status_list[], int ecc_span)
+         SECTOR_STATUS sector_status_list[], int ecc_span,
+         SECTOR_DECODE_STATUS init_status)
+
 {
    static int sector_size;
    static int bad_block;
@@ -139,6 +167,26 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head);
          }
+      } else if (drive_params->controller == CONTROLLER_VECTOR4) {
+         if (bytes[0] != 0xff) {
+            msg(MSG_ERR, "Bad sync byte %x on cyl %d,%d head %d,%d\n",
+               bytes[0], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         sector_status.cyl = ((bytes[1] & 0xf) << 8)  | bytes[2];
+         sector_status.head = bytes[1] >> 4;
+         sector_status.sector = bytes[3];
+      } else if (drive_params->controller == CONTROLLER_VECTOR4_ST506) {
+         if (bytes[0] != 0xff) {
+            msg(MSG_ERR, "Bad sync byte %x on cyl %d,%d head %d,%d\n",
+               bytes[0], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         sector_status.cyl = bytes[2];
+         sector_status.head = bytes[1];
+         sector_status.sector = bytes[3];
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -165,10 +213,8 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
-         // TODO: Make handling of correction data for extract cleaner
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
-               sector_status_list, &bytes[0], drive_params->sector_size +
-               drive_params->header_crc.length + 3) == -1) {
+               sector_status_list, &bytes[0], total_bytes) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -261,11 +307,13 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
    if (drive_params->controller == CONTROLLER_CORVUS_H) {
       next_header_time = 71500;
-   } else { // CROMEMCO
+   } else if (drive_params->controller == CONTROLLER_CROMEMCO) {
       // Zeros found earlier cause false syncs unless skipped. TODO:
       // May be better to check for sync data following and resync if
       // not correct for Coromemco.
       next_header_time = 32000;
+   } else { // VECTOR4, VECTOR4_ST506
+      next_header_time = 58000;
    }
 #if VCD
 long long int bit_time = 0;
@@ -303,10 +351,10 @@ fprintf(out,"$var wire 1 & sector $end\n");
          //if (cyl == 70 & head == 5 && track_time > next_header_time)
          if (cyl == 0 && head == 0)
          printf
-         ("  delta %d %.2f int %d avg_bit %.2f time %d dec %08x raw %08x\n",
+         ("  delta %d %.2f int %d avg_bit %.2f time %d dec %08x raw %08x byte %d\n",
                deltas[i], clock_time,
                int_bit_pos, avg_bit_sep_time, track_time, decoded_word,
-               raw_word);
+               raw_word, byte_cntr);
 #endif
          if (all_raw_bits_count + int_bit_pos >= 32) {
             all_raw_bits_count = mfm_save_raw_word(drive_params, 
@@ -362,12 +410,18 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                if (drive_params->controller == CONTROLLER_CORVUS_H) {
                   next_header_time += 164900;
                   raw_bit_cntr = -2;
-               } else {
+                  // May be better to time from current track time in
+               } else if (drive_params->controller == CONTROLLER_VECTOR4 ||
+                     drive_params->controller == CONTROLLER_VECTOR4_ST506) {
+                  // case drive rotation speed varies
+                  next_header_time = track_time + 96000;
+                  raw_bit_cntr = 2;
+               } else { //CROMEMCO
                   // We need the 0x04 that is also the sync we are using
                   // to start decoding so back up
                   raw_bit_cntr = 12;
                }
-//printf("Next header at %d\n",next_header_time);
+//printf("Next header at %d track time %d\n",next_header_time, track_time);
                decoded_word = 0;
                decoded_bit_cntr = 0;
                // In this format header is attached to data so both
@@ -375,13 +429,17 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                state = PROCESS_HEADER;
                mfm_mark_header_location(all_raw_bits_count, raw_bit_cntr, 
                   tot_raw_bit_cntr);
-               //mfm_mark_data_location(all_raw_bits_count);
+               mfm_mark_data_location(all_raw_bits_count, raw_bit_cntr,
+                  tot_raw_bit_cntr);
                // Figure out the length of data we should look for
                bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->sector_size + 
                         mfm_controller_info[drive_params->controller].data_trailer_bytes +
                         drive_params->header_crc.length / 8;
                bytes_needed = bytes_crc_len;
+               // Must read enough extra bytes to ensure we send last 32
+               // bit word to mfm_save_raw_word
+               bytes_needed += 2;
                if (bytes_needed >= sizeof(bytes)) {
                   printf("Too many bytes needed %d\n",bytes_needed);
                   exit(1);
@@ -417,8 +475,8 @@ fprintf(out,"#%lld\n0&\n", bit_time);
 #endif
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list);
+                        bytes_crc_len, bytes_needed, &state, cyl, head, 
+                        &sector_index, seek_difference, sector_status_list, 0);
                   }
                   decoded_bit_cntr = 0;
                }
@@ -435,8 +493,8 @@ fprintf(out,"#%lld\n0&\n", bit_time);
       num_deltas = deltas_get_count(i);
    }
    if (state == PROCESS_HEADER && sector_index < drive_params->num_sectors) {
-      msg(MSG_ERR, "Ran out of data while processing sector index %d\n",
-         sector_index);
+      msg(MSG_ERR, "Ran out of data while processing sector index %d track time %d\n",
+         sector_index, track_time);
    }
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count,

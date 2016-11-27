@@ -444,9 +444,11 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //    options and verify headers decoded properly.
 // Handle spared/alternate tracks for extracted data
 SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
+      int total_bytes,
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,
-      SECTOR_STATUS sector_status_list[], int ecc_span)
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status)
 {
    static int sector_size;
    // Non zero if sector is a bad block, has alternate track assigned,
@@ -900,10 +902,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       // our statistics array. This happens with RQDX3
       if (!(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER))) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
-         // TODO: Make handling of correction data for extract cleaner
+
+         // Bytes[1] is because 0xa1 can't be updated from bytes since
+         // won't get encoded as special sync pattern
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
-               sector_status_list, &bytes[1], drive_params->sector_size +
-               drive_params->data_crc.length / 8 + 1) == -1) {
+               sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -1143,8 +1146,8 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   } else {
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
-                           bytes_crc_len, &state, cyl, head, &sector_index,
-                           seek_difference, sector_status_list);
+                        bytes_crc_len, bytes_needed, &state, cyl, head, 
+                        &sector_index, seek_difference, sector_status_list, 0);
                   }
                   decoded_bit_cntr = 0;
                }
