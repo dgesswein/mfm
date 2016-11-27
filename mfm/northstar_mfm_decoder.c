@@ -327,6 +327,10 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                 drive_params->sector_size +
                 drive_params->data_crc.length / 8;
             bytes_needed = bytes_crc_len;
+            // Must read enough extra bytes to ensure we send last 32
+            // bit word to mfm_save_raw_word
+            bytes_needed += 2;
+
             if (bytes_needed >= sizeof(bytes)) {
                printf("Too many bytes needed %d\n",bytes_needed);
                exit(1);
