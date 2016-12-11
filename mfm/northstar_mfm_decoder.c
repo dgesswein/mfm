@@ -107,7 +107,7 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
-      sector_status.status |= SECT_HEADER_FOUND;
+      sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;
@@ -197,8 +197,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    //STATE_TYPE state = PROCESS_HEADER;
    // Status of decoding returned
    int sector_status = SECT_NO_STATUS;
-   // How many zeros we need to see before we will look for the 0xa1 byte.
-   // When write turns on and off can cause codes that look like the 0xa1
+   // How many zeros we need to see before we will look for the mark byte.
+   // When write turns on and off can cause codes that look like the mark
    // so this avoids them.
    #define MARK_NUM_ZEROS 30
    int sync_count = 0;

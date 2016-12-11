@@ -129,8 +129,7 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
-      sector_status.status = init_status;
-      sector_status.status |= SECT_HEADER_FOUND;
+      sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;
@@ -175,12 +174,13 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
          *state = MARK_DATA;
       }
    } else if (*state == PROCESS_HEADER2) {
-         if (bytes[1] != 0xfc) {
-            msg(MSG_INFO, "Invalid tag id byte %02x on cyl %d,%d head %d,%d sector %d\n",
-                  bytes[1], exp_cyl, sector_status.cyl,
-                  exp_head, sector_status.head, sector_status.sector);
-            sector_status.status |= SECT_BAD_HEADER;
-         }
+      sector_status.status |= init_status;
+      if (bytes[1] != 0xfc) {
+         msg(MSG_INFO, "Invalid tag id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+               bytes[1], exp_cyl, sector_status.cyl,
+               exp_head, sector_status.head, sector_status.sector);
+         sector_status.status |= SECT_BAD_HEADER;
+      }
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
       }

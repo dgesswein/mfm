@@ -6,6 +6,8 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 12/10/16 DJG Added logic to ignore Ambiguous CRC polynomial match on all
+//    zero data.
 // 11/14/16 DJG Make Data CRC max span reasonable for formats not using
 //    separate data CRC. Doesn't really do anything, just prevents it
 //    looking funny. Added error for analyze only to handle Telenex Autoscope
@@ -217,6 +219,9 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
          mfm_controller_info[cont].analyze_sector_size;
       drive_params->start_time_ns = 
          mfm_controller_info[cont].start_time_ns;
+      // TODO: This would be faster if we just searched in mfm_process_bytes
+      // where we check the CRC instead of decoding the MFM transitions
+      // each time.
       for (poly = mfm_controller_info[cont].header_start_poly; 
              poly < mfm_controller_info[cont].header_end_poly; poly++) {
          drive_params->header_crc.poly = mfm_all_poly[poly].poly;
@@ -259,7 +264,8 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
             min_lba_addr = 0x7fffffff;
             max_lba_addr = -1;
             for (i = 0; i < drive_params->num_sectors; i++) {
-               if (!(sector_status_list[i].status & SECT_BAD_HEADER)) {
+               if (!(sector_status_list[i].status & SECT_BAD_HEADER) &&
+                   !(sector_status_list[i].status & SECT_AMBIGUOUS_CRC)) {
                   good_header_count++;
                   if (sector_status_list[i].lba_addr < min_lba_addr) {
                      min_lba_addr = sector_status_list[i].lba_addr;
@@ -388,7 +394,8 @@ static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *del
             good_data_count = 0;
             for (i = 0; i < drive_params->num_sectors; i++) {
                if (!UNRECOVERED_ERROR(sector_status_list[i].status) &&
-                     !(sector_status_list[i].status & SECT_ANALYZE_ERROR)) {
+                     !(sector_status_list[i].status & SECT_ANALYZE_ERROR) &&
+                     !(sector_status_list[i].status & SECT_AMBIGUOUS_CRC)) {
                   good_data_count++;
                }
             }

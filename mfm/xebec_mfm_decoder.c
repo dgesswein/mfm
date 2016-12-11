@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 12/04/16 DJG Added Intel iSBC_215 format
 // 11/12/16 DJG Added support for Xebec S1420 winc/floppy controller with rev
 //    104689B firmware
 // 10/16/16 DJG Added SOLOSYSTEMS.
@@ -102,7 +103,7 @@ static inline float filter(float v, float *delay)
 //         format)
 //         The CRC at the end of the sector is not valid.
 //   There is a a1 dropped clock sync byte then zeros followed by a one
-//      to mark the start of the header then more zeros followed bhy a one to
+//      to mark the start of the header then more zeros followed by a one to
 //      mark the data
 //
 //   Xebec S1420 winc/floppy controller with rev 104689B firmware
@@ -137,6 +138,28 @@ static inline float filter(float v, float *delay)
 //      byte 1 0x00
 //      Sector data for sector size
 //      4 byte ECC code
+//
+//   Controller CONTROLLER_ISBC_215
+//      http://www.mirrorservice.org/sites/www.bitsavers.org/pdf/intel/iSBC/144780-002_iSBC_215_Generic_Winchester_Disk_Controller_Hardware_Reference_Manual_Dec84.pdf
+//      See pages around 80 and 132.
+//      0xa1 address mark
+//      gap
+//      byte 0 0x19 sync byte
+//      byte 1 flag & high cyl
+//         3-0 high cyl
+//         5-4 sector size 00 = 128, 01 = 256, 10 = 512, 11 = 1024
+//         7-6 flag 00 = data track, 01 = aassigned alternate
+//                  10 = defective, 11 = invalid
+//         No example of alternate so not properly handled
+//      byte 2 low cyl
+//      byte 3 sector
+//      byte 4 head
+//      byte 5-8 ECC
+//
+//      0xa1 address mark
+//      byte 0 0x19 sync byte or 0xd9 sync byte. drive sample had 0xd9
+//      Sector data
+//      4 byte ECC code
 // TODO: Same as WD decoder
 SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          int total_bytes,
@@ -156,7 +179,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
-      sector_status.status |= SECT_HEADER_FOUND;
+      sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;
@@ -271,6 +294,14 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_ISBC_215) {
+         sector_status.cyl = (bytes[1] & 0xf) << 8;
+         sector_status.cyl |= bytes[2];
+         sector_status.head = bytes[4];
+         sector_status.sector = bytes[3];;
+         sector_size = 128 << ((bytes[1] & 0x30) >> 4);
+         bad_block = (bytes[1] & 0xc0) == 0x80;
+         alt_assigned = (bytes[1] & 0xc0) == 0x40;
       }
       msg(MSG_DEBUG,
          "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
@@ -282,54 +313,72 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
 
       *state = DATA_SYNC;
    } else { // Data
-      if (bytes[0] != 0 ) {
-         msg(MSG_INFO, "Data gap byte not zero 0x%02x on cyl %d head %d sector %d\n",
-               bytes[0],
-               sector_status.cyl, sector_status.head, sector_status.sector);
-      }
-      if (drive_params->controller == CONTROLLER_EC1841 ||
-          drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
-         compare_byte = 0x00;
-      } else {
-         compare_byte = 0xc9;
-      }
-      if (bytes[1] != compare_byte) {
-         msg(MSG_INFO, "Data compare byte not 0x%02x: 0x%02x on cyl %d head %d sector %d\n",
-               compare_byte, bytes[1],
-               sector_status.cyl, sector_status.head, sector_status.sector);
-         sector_status.status |= SECT_BAD_DATA;
-      }
-      // Alternate only checksums the alternate header information. The
-      // checksum at the end of the sector is zero
-      if (alt_assigned) {
-         if (crc64(&bytes[0], 9, &drive_params->header_crc) == 0) {
-            if (last_cyl_print != sector_status.cyl || 
-                  last_head_print != sector_status.head) {
-               msg(MSG_INFO,"cyl %d head %d assigned alternate cyl %d head %d (extract data fixed)\n", 
-                  sector_status.cyl, sector_status.head,
-                  (bytes[2] << 8) + bytes[3], bytes[4]);
-               last_cyl_print = sector_status.cyl;
-               last_head_print = sector_status.head; 
-            }
-            mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
-               sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
-         } else {
+      sector_status.status |= init_status;
+      if (drive_params->controller == CONTROLLER_ISBC_215) {
+         if (crc != 0) {
             sector_status.status |= SECT_BAD_DATA;
          }
-      } else if (crc != 0) {
-         sector_status.status |= SECT_BAD_DATA;
-      }
-      if (ecc_span != 0) {
-         sector_status.status |= SECT_ECC_RECOVERED;
-      }
-      sector_status.ecc_span_corrected_data = ecc_span;
-      if (!(sector_status.status & SECT_BAD_HEADER)) {
-         if (mfm_write_sector(&bytes[2], drive_params, &sector_status,
-               sector_status_list, &bytes[0], total_bytes) == -1) {
-            sector_status.status |= SECT_BAD_HEADER;
+         if (ecc_span != 0) {
+            sector_status.status |= SECT_ECC_RECOVERED;
          }
+         sector_status.ecc_span_corrected_data = ecc_span;
+         if (!(sector_status.status & SECT_BAD_HEADER)) {
+            if (mfm_write_sector(&bytes[2], drive_params, &sector_status,
+                  sector_status_list, &bytes[0], total_bytes) == -1) {
+               sector_status.status |= SECT_BAD_HEADER;
+            }
+         }
+         *state = MARK_ID;
+      } else {
+         if (bytes[0] != 0 ) {
+            msg(MSG_INFO, "Data gap byte not zero 0x%02x on cyl %d head %d sector %d\n",
+                  bytes[0],
+                  sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+         if (drive_params->controller == CONTROLLER_EC1841 ||
+             drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
+            compare_byte = 0x00;
+         } else {
+            compare_byte = 0xc9;
+         }
+         if (bytes[1] != compare_byte) {
+            msg(MSG_INFO, "Data compare byte not 0x%02x: 0x%02x on cyl %d head %d sector %d\n",
+                  compare_byte, bytes[1],
+                  sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_DATA;
+         }
+         // Alternate only checksums the alternate header information. The
+         // checksum at the end of the sector is zero
+         if (alt_assigned) {
+            if (crc64(&bytes[0], 9, &drive_params->header_crc) == 0) {
+               if (last_cyl_print != sector_status.cyl || 
+                     last_head_print != sector_status.head) {
+                  msg(MSG_INFO,"cyl %d head %d assigned alternate cyl %d head %d (extract data fixed)\n", 
+                     sector_status.cyl, sector_status.head,
+                     (bytes[2] << 8) + bytes[3], bytes[4]);
+                  last_cyl_print = sector_status.cyl;
+                  last_head_print = sector_status.head; 
+               }
+               mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+                  sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
+            } else {
+               sector_status.status |= SECT_BAD_DATA;
+            }
+         } else if (crc != 0) {
+            sector_status.status |= SECT_BAD_DATA;
+         }
+         if (ecc_span != 0) {
+            sector_status.status |= SECT_ECC_RECOVERED;
+         }
+         sector_status.ecc_span_corrected_data = ecc_span;
+         if (!(sector_status.status & SECT_BAD_HEADER)) {
+            if (mfm_write_sector(&bytes[2], drive_params, &sector_status,
+                  sector_status_list, &bytes[0], total_bytes) == -1) {
+               sector_status.status |= SECT_BAD_HEADER;
+            }
+         }
+         *state = MARK_ID;
       }
-      *state = MARK_ID;
    }
    return sector_status.status;
 }
@@ -478,9 +527,22 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          // Using 49 seems to be more reliable than looking for 0x09 for
          // a single one. Bit errors were causing false syncs.
          } else if (state == HEADER_SYNC || state == DATA_SYNC) {
-            if (sync_count++ > 50 && (raw_word & 0xff) == 0x49) {
+            // If iSBC_215 controller 0xa949 and 0x2949 are the 0x19 sync byte
+            // used for header and data on some drives. 
+            // 5149 is the 0xd9 data area sync byte for some drives.
+            // 0x49 is sync for Xebec drives.
+            if ( (drive_params->controller != CONTROLLER_ISBC_215 &&
+                  sync_count++ > 50 && (raw_word & 0xff) == 0x49) ||
+                (drive_params->controller == CONTROLLER_ISBC_215 &&
+                  ((raw_word & 0xffff) == 0xa949 ||
+                   (raw_word & 0xffff) == 0x2949 ||
+                   (raw_word & 0xffff) == 0x5149)) ) {
+               if (drive_params->controller == CONTROLLER_ISBC_215) {
+                  raw_bit_cntr = 16; // We want sync byte in data
+               } else {
+                  raw_bit_cntr = 3; // One isn't in data zeros following are
+               }
                sync_count = 0;
-               raw_bit_cntr = 3;
                decoded_word = 0;
                decoded_bit_cntr = 0;
                if (state == HEADER_SYNC) {

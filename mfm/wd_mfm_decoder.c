@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 12/11/16 DJG Fixed handling of Adaptec bad blocks
 // 10/31/16 DJG Improved Adaptec LBA support and handling sectors
 //    marked bad or spare.
 // 10/21/16 DJG Added unknown controller similar to MD11
@@ -455,6 +456,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
    // or is an alternate track
    static int bad_block, alt_assigned, is_alternate;
    static SECTOR_STATUS sector_status;
+   // 0 after first sector marked spare/bad found. Only used for Adaptec 
+   static int first_spare_bad_sector = 1;
 
    if (*state == PROCESS_HEADER) {
       // Clear these since not used by all formats
@@ -463,7 +466,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       bad_block = 0;
 
       memset(&sector_status, 0, sizeof(sector_status));
-      sector_status.status |= SECT_HEADER_FOUND;
+      sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;
@@ -678,6 +681,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   lba_addr, exp_cyl, exp_head, sector_status.sector);
             sector_status.status |= SECT_SPARE_BAD;
             sector_status.status |= SECT_BAD_LBA_NUMBER;
+            if ((bytes[5] & 0xf) == 0x1 && first_spare_bad_sector) {
+               drive_params->format_adjust = FORMAT_ADAPTEC_COUNT_BAD_BLOCKS;
+            }
+            first_spare_bad_sector = 0;
          }
          // We can't determine what the actual cylinder sector and head is.
          // If we track rotation time we can take a guess at sector
@@ -690,7 +697,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 //   sector_status.head, sector_status.cyl);
          sector_size = drive_params->sector_size;
          bad_block = 0;
-         if (bytes[5] != 0 && bytes[5] != 0x40 && bytes[5] != 0x80) {
+         // If FORMAT_ADAPTEC_COUNT_BAD_BLOCKS all bits are used
+         if (bytes[5] != 0 && bytes[5] != 0x40 && bytes[5] != 0x80 &&
+             drive_params->format_adjust != FORMAT_ADAPTEC_COUNT_BAD_BLOCKS) {
             msg(MSG_INFO, "Unknown header flag byte %02x on cyl %d head %d physical sector %d\n",
                   bytes[5], exp_cyl, exp_head, sector_status.sector);
          }
@@ -859,6 +868,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       // Value and where to look for header mark byte
       int id_byte_expected = 0xf8;
       int id_byte_index = 1;
+
+      sector_status.status |= init_status;
+
       if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_MVME320) {

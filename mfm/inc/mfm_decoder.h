@@ -1,5 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 12/11/16 DJG Added Intel iSBC_215 controller. Fix for Adaptec format
+//    bad block handling. Handle sector contents which make CRC detection
+//    ambiguous. 
 // 11/20/16 DJG Add logic to allow emulator track length to be increased if
 //    data won't fit. Found with Vector4. Most likly drive rotation speed
 //    and pad bits distributed between sectors instead of grouped at end.
@@ -108,6 +111,7 @@ typedef struct {
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
+      CONTROLLER_ISBC_215,
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
@@ -152,7 +156,7 @@ typedef struct {
    int emu_track_data_bytes;
    // non zero if analyze option set
    int analyze;
-   // non zero if in process of performing format analyze. Disable
+   // non zero if in process of performing format analyze.
    int analyze_in_progress;
    // What cylinder and head to analyze
    int analyze_cyl;
@@ -174,6 +178,10 @@ typedef struct {
    // Precompensation time in nanoseconds
    int early_precomp_ns;
    int late_precomp_ns;
+   // If we detect special cases of the format durring running we
+   // set them here. ADAPTEC_COUNT_BAD_BLOCKS is when bits 0 to at least
+   // 5
+   enum {FORMAT_NONE, FORMAT_ADAPTEC_COUNT_BAD_BLOCKS} format_adjust;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so
@@ -229,7 +237,13 @@ DEF_EXTERN struct {
 #ifdef DEF_DATA
  = 
    {{-1, 0}, {-1, 0xffffffffffffffff}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
-     {32, 0x409e10aa} }
+     {32, 0x409e10aa} ,
+
+    // These two are for iSBC_215. The final CRC is inverted but special
+    // init value will also make it match
+    {32, 0xed800493},
+    {32, 0x03affc1d}
+  }
 #endif
 ;
 // Smallest sector size should be first in list
@@ -942,6 +956,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"Intel_iSBC_215",         256, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 1, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -996,6 +1017,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // The possible states from reading each sector.
 
 // These are ORed into the state
+// If this is set the data being CRC'd is zero so the zero CRC
+// result is ambiguous since any polynomial will match
+#define SECT_AMBIGUOUS_CRC 0x800
 // If set treat as error for analyze but otherwise ignore it
 #define SECT_ANALYZE_ERROR 0x400
 // Set if the sector number is bad when BAD_HEADER is not set.
