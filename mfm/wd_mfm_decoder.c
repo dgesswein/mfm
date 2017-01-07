@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 01/06/17 DJG Change bad block message to MSG_INFO since no longer
+//    causes retry
 // 12/11/16 DJG Fixed handling of Adaptec bad blocks
 // 10/31/16 DJG Improved Adaptec LBA support and handling sectors
 //    marked bad or spare.
@@ -851,7 +853,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 
       if (bad_block) {
          sector_status.status |= SECT_SPARE_BAD;
-         msg(MSG_DEBUG,"Bad block set on cyl %d, head %d, sector %d\n",
+         msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
       if (is_alternate) {

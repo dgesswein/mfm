@@ -1,5 +1,6 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 01/06/17 DJG Don't consider SECT_SPARE_BAD unrecoverable error
 // 12/11/16 DJG Added Intel iSBC_215 controller. Fix for Adaptec format
 //    bad block handling. Handle sector contents which make CRC detection
 //    ambiguous. 
@@ -1040,7 +1041,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 #define SECT_BAD_DATA       0x01
 #define SECT_NO_STATUS      0x00
 typedef uint32_t SECTOR_DECODE_STATUS;
-#define UNRECOVERED_ERROR(x) (x & (SECT_BAD_HEADER | SECT_BAD_DATA))
+#define UNRECOVERED_ERROR(x) ((x & (SECT_BAD_HEADER | SECT_BAD_DATA)) && !(x & SECT_SPARE_BAD))
 
 // The state of a sector
 typedef struct {
