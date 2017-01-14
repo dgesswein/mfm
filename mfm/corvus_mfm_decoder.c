@@ -147,7 +147,7 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
 
    if (*state == PROCESS_HEADER) {
       memset(&sector_status, 0, sizeof(sector_status));
-      sector_status.status |= SECT_HEADER_FOUND;
+      sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;

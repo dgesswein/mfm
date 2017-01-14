@@ -18,6 +18,10 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/11/16 DJG Added logic for detecting sectors with zero contect that
+//    make polynomial detection ambiguous.
+// 12/04/16 DJG Added Intel iSBC_215 format. Fixed handling of bad blocks
+//   for Adaptec format.
 // 11/20/16 DJG Added logic to determine how much emulator track size needs
 //   to be increased by to make data fit. Added logic to pass data size
 //   information. 
@@ -316,12 +320,12 @@ static void update_stats(DRIVE_PARAMS *drive_params, int cyl, int head,
              !(last_sector_list[i].status & SECT_SPARE_BAD)) {
             stats->num_ecc_recovered++;
          }
-         if (last_sector_list[i].status & SECT_BAD_DATA) {
+         if (last_sector_list[i].status & SECT_SPARE_BAD) {
+            stats->num_spare_bad++;
+         } else if (last_sector_list[i].status & SECT_BAD_DATA) {
             stats->num_bad_data++;
          } else if (last_sector_list[i].status & SECT_BAD_HEADER) {
             stats->num_bad_header++;
-         } else if (last_sector_list[i].status & SECT_SPARE_BAD) {
-            stats->num_spare_bad++;
          } else {
             stats->num_good_sectors++;
          }
@@ -475,6 +479,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
          drive_params->controller == CONTROLLER_XEBEC_S1420 ||
          drive_params->controller == CONTROLLER_EC1841 ||
+         drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
       rc = xebec_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
@@ -818,6 +823,8 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    }
    // If LBA number bad don't update
    if (sector_status->status & SECT_BAD_LBA_NUMBER) {
+      // Update status that would normally be updated when sector written
+      sector_status_list[sect_rel0] = *sector_status;
       update = 0;
    }
    // Always update errors in emu data in case it ends up being used as
@@ -998,7 +1005,20 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
       }
    } else {
+      int i;
       crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
+      // If all the data and CRC is zero and CRC returns zero
+      // mark it as ambiguous crc since any polynomial will match 
+      if (crc == 0 && drive_params->analyze_in_progress) {
+         for (i = start; i < bytes_crc_len; i++) {
+            if (bytes[i] != 0) {
+               break;
+            }
+         }
+         if (i == bytes_crc_len) {
+            init_status |= SECT_AMBIGUOUS_CRC;
+         }
+      }
    }
    // Zero CRC is no error
    if (crc == 0) {
@@ -1061,6 +1081,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||
+            drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
          status |= xebec_process_data(state, bytes, total_bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
@@ -1396,22 +1417,22 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
       return;
    }
    if (bad_cyl >= drive_params->num_cyl) {
-      msg(MSG_ERR, "Bad alternate cylinder %d out of valid range %d to %d",
+      msg(MSG_ERR, "Bad alternate cylinder %d out of valid range %d to %d\n",
          bad_cyl, 0, drive_params->num_cyl - 1);
       return;
    }
    if (good_cyl >= drive_params->num_cyl) {
-      msg(MSG_ERR, "Good alternate cylinder %d out of valid range %d to %d",
+      msg(MSG_ERR, "Good alternate cylinder %d out of valid range %d to %d\n",
          good_cyl, 0, drive_params->num_cyl - 1);
       return;
    }
    if (bad_head >= drive_params->num_head) {
-      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d",
+      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d\n",
          bad_head, 0, drive_params->num_head - 1);
       return;
    }
    if (good_head >= drive_params->num_head) {
-      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d",
+      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d\n",
          good_head, 0, drive_params->num_head - 1);
       return;
    }
