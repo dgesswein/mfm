@@ -1,0 +1,67 @@
+#!/bin/bash
+#look at rdiff, xdelta
+# bsdiff takes too much memory
+
+source /etc/mfm_emu.conf
+
+cd $EmuDir
+$EmuDir/setup_emu
+
+if [ "$EmuFN2" == "" ]; then
+  cmd="--file $EmuFN1 --drive 1 $MfmEmuOptions"
+  files="1"
+else
+  cmd="--file $EmuFN1,$EmuFN2 --drive 1,2 $MfmEmuOptions"
+  files="1 2"
+fi
+for fnum in $files ; do
+   name="EmuFN$fnum"
+   base=${!name}
+   if [ "$Backup" == "rdiff" ]; then
+      delta_fn="$base.rdiff"
+      for ((i=NumBackup-1; i >= 1; i-- )); do
+         last=$(($i-1))
+         if [ -e "$delta_fn.$last" ]; then
+            mv "$delta_fn.$last" "$delta_fn.$i"
+         fi
+      done
+      if [ -e "$base.0" ]; then
+         rdiff signature "$base" "$base.sig"
+         rdiff delta "$base.sig" "$base.0" "$delta_fn.0"
+      fi
+      cp "$base" "$base.0"
+   elif [ "$Backup" == "xdelta" ]; then
+      delta_fn="$base.xdelta"
+      for ((i=NumBackup-1; i >= 1; i-- )); do
+         last=$(($i-1))
+         if [ -e "$delta_fn.$last" ]; then
+            mv "$delta_fn.$last" "$delta_fn.$i"
+         fi
+      done
+      if [ -e "$base.0" ]; then
+         xdelta delta "$base" "$base.0" "$delta_fn.0"
+      fi
+      cp "$base" "$base.0"
+   elif [ "$Backup" == "copy" ]; then
+      for ((i=NumBackup-1; i >= 1; i-- )); do
+         last=$(($i-1))
+         if [ -e "$base.$last" ]; then
+         mv "$base.$last" "$base.$i"
+         fi
+      done
+      cp "$base" "$base.0"
+   fi
+done
+for (( i=i ; i < 100; i++ )); do
+   if [ -e /dev/uio1 ]; then
+      break
+   fi
+   sleep .1
+done
+echo Loops $i
+if [ "$NoLineBuffer" != "" ]; then
+   /usr/bin/stdbuf -o L -e L \
+   $PowerFailDir/powerfail --powercmd "$PowerCmd" $PowerFailOptions --command "$EmuDir/mfm_emu $cmd"
+else
+   $PowerFailDir/powerfail --powercmd "$PowerCmd" $PowerFailOptions --command "$EmuDir/mfm_emu $cmd"
+fi
