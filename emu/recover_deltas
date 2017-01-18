@@ -1,0 +1,38 @@
+#!/bin/bash
+if [ $# -lt 2 ]; then
+   echo "Usage: rdiff|xdelta emufilename [directory]"
+   exit
+fi
+new_fn="$2.recovered"
+if [ $# -eq 3 ]; then
+   dir="$3"
+   if [ "${dir: -1}" != "/" ]; then
+      dir="$3/"
+   fi
+   new_fn=`basename $2`
+   new_fn="$dir$new_fn.recovered"
+fi
+last_fn="$2.0"
+if [ "$1" = "xdelta" ]; then 
+   delta_fn="$2.xdelta"
+   num_files=`ls $delta_fn.* | wc -l`
+   for ((i=0; i < $num_files; i++ )); do
+      if [ -e "$delta_fn.$i" ]; then
+         xdelta patch "$delta_fn.$i" "$last_fn" "$new_fn.$i"
+         echo "recovered $new_fn.$i"
+         last_fn="$new_fn.$i"
+      fi
+   done
+elif [ "$1" = "rdiff" ]; then 
+   delta_fn="$2.rdiff"
+   num_files=`ls $delta_fn.* | wc -l`
+   for ((i=0; i < $num_files; i++ )); do
+      if [ -e "$delta_fn.$i" ]; then
+         rdiff patch "$last_fn" "$delta_fn.$i" "$new_fn.$i"
+         echo "recovered $new_fn.$i"
+         last_fn="$new_fn.$i"
+      fi
+   done
+else
+   echo "Unknow delta type $1"
+fi
