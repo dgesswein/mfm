@@ -1,5 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 01/18/17 DJG Added 532 sector length for Sun Remarketing OMTI controller
+//    for Lisa computer and --ignore_seek_errors option
 // 01/06/17 DJG Don't consider SECT_SPARE_BAD unrecoverable error
 // 12/11/16 DJG Added Intel iSBC_215 controller. Fix for Adaptec format
 //    bad block handling. Handle sector contents which make CRC detection
@@ -183,6 +185,8 @@ typedef struct {
    // set them here. ADAPTEC_COUNT_BAD_BLOCKS is when bits 0 to at least
    // 5
    enum {FORMAT_NONE, FORMAT_ADAPTEC_COUNT_BAD_BLOCKS} format_adjust;
+   // Non zero if seek errors should be ignored
+   int ignore_seek_errors;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so
@@ -238,19 +242,23 @@ DEF_EXTERN struct {
 #ifdef DEF_DATA
  = 
    {{-1, 0}, {-1, 0xffffffffffffffff}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
-     {32, 0x409e10aa} ,
+     {32, 0x409e10aa},
+     // This is 532 byte sector OMTI. Above are other OMTI. They likely are
+     // compensating for something OMTI is doing to the CRC like below
+     // TODO: Would be good to find out what. File sun_remarketing/kalok*
+     {32, 0x84a36c27},
 
-    // These two are for iSBC_215. The final CRC is inverted but special
-    // init value will also make it match
-    {32, 0xed800493},
-    {32, 0x03affc1d}
+     // These two are for iSBC_215. The final CRC is inverted but special
+     // init value will also make it match
+     {32, 0xed800493},
+     {32, 0x03affc1d}
   }
 #endif
 ;
 // Smallest sector size should be first in list
 DEF_EXTERN int mfm_all_sector_size[]
 #ifdef DEF_DATA
- = {256, 512, 524, 1024, 1160, 1164, 2048, 4096, 10240, -1}
+ = {256, 512, 524, 532, 1024, 1160, 1164, 2048, 4096, 10240, -1}
   // -1 marks end of array
 #endif
 ;

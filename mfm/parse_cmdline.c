@@ -9,6 +9,8 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/18/17 DJG Added --ignore_seek_errors and fixed missing track_words when
+//     printing command line options
 // 11/17/16 DJG Added emulator file track length option
 // 11/14/16 DJG Changes for Vector4 format
 // 10/31/16 DJG Change default analyze cylinder and head to detect
@@ -139,6 +141,13 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
    if (drive_params->start_time_ns) {
       safe_print(&cmdptr, &cmdleft, " --begin_time %u", 
          drive_params->start_time_ns);
+   }
+   if (drive_params->emu_track_data_bytes != 0) {
+      safe_print(&cmdptr, &cmdleft, "--track_words %d ",
+          drive_params->emu_track_data_bytes/4);
+   }
+   if (drive_params->ignore_seek_errors) {
+      safe_print(&cmdptr, &cmdleft, "--ignore_seek_errors ");
    }
 #if 0
    if (drive_params->note != NULL) {
@@ -423,9 +432,10 @@ static struct option long_options[] = {
          {"note", 1, NULL, 'n'},
          {"mark_bad", 1, NULL, 'M'},
          {"track_words", 1, NULL, 'w'},
+         {"ignore_seek_errors", 0, NULL, 'I'},
          {NULL, 0, NULL, 0}
 };
-static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:W:";
+static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:w:I";
 
 // Main routine for parsing command lines
 //
@@ -631,6 +641,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'w':
             drive_params->emu_track_data_bytes = atoi(optarg) * 4;
+            break;
+         case 'I':
+            drive_params->ignore_seek_errors = 1;
             break;
          default:
             msg(MSG_FATAL, "Didn't process argument %c\n", rc);
