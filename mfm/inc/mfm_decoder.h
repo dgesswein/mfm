@@ -1,5 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 02/07/17 DJG Added support for Altos 586 and adjusted start time for
+//    Cromemco to prevent trying to read past end of track.
 // 01/18/17 DJG Added 532 sector length for Sun Remarketing OMTI controller
 //    for Lisa computer and --ignore_seek_errors option
 // 01/06/17 DJG Don't consider SECT_SPARE_BAD unrecoverable error
@@ -99,6 +101,7 @@ typedef struct {
       CONTROLLER_MOTOROLA_VME10, 
       CONTROLLER_DTC, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
+      CONTROLLER_ALTOS_586,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -251,7 +254,9 @@ DEF_EXTERN struct {
      // These two are for iSBC_215. The final CRC is inverted but special
      // init value will also make it match
      {32, 0xed800493},
-     {32, 0x03affc1d}
+     {32, 0x03affc1d},
+     // This is data area for Altos 586. Unknown why this initial value needed.
+     {16, 0xe60c}
   }
 #endif
 ;
@@ -841,6 +846,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          16, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"Altos_586",              256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -988,7 +1000,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 33,
          {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
-      {"Cromemco",             10240, 10000000,  0,
+      {"Cromemco",             10240, 10000000,  6000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 9, 0, 0, CHECK_CRC, CHECK_CRC,

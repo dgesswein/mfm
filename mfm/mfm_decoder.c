@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 02/07/17 DJG Added support for Altos 586
 // 01/17/17 DJG Add flag to ignore seek errors and report missing cylinders
 // 12/11/16 DJG Added logic for detecting sectors with zero contect that
 //    make polynomial detection ambiguous.
@@ -483,6 +484,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+         drive_params->controller == CONTROLLER_ALTOS_586 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -1092,6 +1094,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+            drive_params->controller == CONTROLLER_ALTOS_586 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
