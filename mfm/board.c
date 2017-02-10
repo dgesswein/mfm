@@ -3,6 +3,7 @@
 // board_initialize sets up this module.
 // board_get_revision returns the revision of the MFM emulator board
 // 
+// 02/08/2017 DJG Fix incorrect format for print
 // 10/16/2016 DJG Improved error message
 // 12/24/2015 DJG Fix wrong value in error print
 // 08/01/2015 DJG New module to support revision B board.
@@ -49,7 +50,7 @@ void board_initialize(void) {
       sprintf(str, "/sys/class/gpio/gpio%d/value", REVB_DETECT_PIN);
       fd = open(str, O_RDONLY);
       if (fd < 0) {
-         msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", REVB_DETECT_PIN);
+         msg(MSG_FATAL, "Unable to open pin %d, did you run the setup script?\n", REVB_DETECT_PIN);
          exit(1);
       }
    }

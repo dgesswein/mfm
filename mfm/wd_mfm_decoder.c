@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 02/09/17 DJG Added AT&T 3B2
 // 02/07/17 DJG Added Altos 586
 // 01/06/17 DJG Change bad block message to MSG_INFO since no longer
 //    causes retry
@@ -446,6 +447,20 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
+//   CONTROLLER_ATT_3B2, AT&T 3B2
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xff xored with upper bits of cylinder
+//      byte 2 low 8 bits of cylinder
+//      byte 3 head number
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -863,6 +878,21 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.sector = bytes[4];
 
          if (bytes[1]  != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_ATT_3B2) {
+         sector_status.cyl = bytes[2] | ((bytes[1] ^ 0xff) << 8);
+
+         sector_status.head = bytes[3];
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = bytes[4];
+
+         if ((bytes[1] & 0xf0)  != 0xf0) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);

@@ -1,5 +1,6 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 02/09/17 DJG Added support for AT&T 3B2
 // 02/07/17 DJG Added support for Altos 586 and adjusted start time for
 //    Cromemco to prevent trying to read past end of track.
 // 01/18/17 DJG Added 532 sector length for Sun Remarketing OMTI controller
@@ -102,6 +103,7 @@ typedef struct {
       CONTROLLER_DTC, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_ALTOS_586,
+      CONTROLLER_ATT_3B2,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -850,6 +852,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"ATT_3B2",              256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
