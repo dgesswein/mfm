@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2016-11-17T21:55:30.063549413"/>
+	<meta name="changed" content="2017-01-18T20:21:45.982957992"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -71,6 +71,18 @@ polynomial length, maximum ECC span.</p>
 <p style="margin-bottom: 0in">--heads  -h #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
 heads.</p>
+<p style="margin-bottom: 0in">--ignore_seek_errors -I</p>
+<p style="margin-left: 0.49in; margin-bottom: 0in">Ignore mismatch
+between expected cylinders and actual cylinder. The primary use is to
+process files from disks read without decoding the data (no analyze)
+that had seek errors. It may also be useful with drives that have
+seek problems that the attempt to correct for makes things worse. 
+Error messages may be confusing since some use expected cylinder
+which won't match actual cylinder. If same cylinder read twice when
+seek was attempted good sectors may be overwritten with bad data from
+the second read. If multiple cylinder data is seen during attempts to
+read one track it will not correct determine which sectors were read
+without error.</p>
 <p style="margin-bottom: 0in">--interleave  -i # | #,#,#,#,...</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The logical sector
 numbers from header in physical sector order or the interleave value</p>
@@ -345,7 +357,9 @@ the specified track. Only mfm_read.</i></p>
 <p style="margin-left: 0.12in; margin-bottom: 0in"><i>Indicates that
 for the specified track that data of sector 3 has uncorrected errors
 and the header for sector 15 has errors. If the header has an error
-the data will be all zero.</i></p>
+the data will be all zero. If –ignore_seek_errors specified it may
+print cylinder 22/21 indicating expected cylinder 22 but found header
+indicating cylinder 21 read.</i></p>
 <p style="margin-bottom: 0in">ECC Corrections on cylinder 56 head 5:
 1(2) 13(4) 15(1H) 
 </p>

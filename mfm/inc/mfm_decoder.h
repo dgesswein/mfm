@@ -1,5 +1,12 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 02/12/17 DJG Added support for Data General MV/2000. Fix mfm_util
+//    for Mightframe
+// 02/09/17 DJG Added support for AT&T 3B2
+// 02/07/17 DJG Added support for Altos 586 and adjusted start time for
+//    Cromemco to prevent trying to read past end of track.
+// 01/18/17 DJG Added 532 sector length for Sun Remarketing OMTI controller
+//    for Lisa computer and --ignore_seek_errors option
 // 01/06/17 DJG Don't consider SECT_SPARE_BAD unrecoverable error
 // 12/11/16 DJG Added Intel iSBC_215 controller. Fix for Adaptec format
 //    bad block handling. Handle sector contents which make CRC detection
@@ -97,6 +104,8 @@ typedef struct {
       CONTROLLER_MOTOROLA_VME10, 
       CONTROLLER_DTC, CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
+      CONTROLLER_ALTOS_586,
+      CONTROLLER_ATT_3B2,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -108,6 +117,7 @@ typedef struct {
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
+      CONTROLLER_DG_MV2000, 
       CONTROLLER_SOLOSYSTEMS, 
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
@@ -183,6 +193,8 @@ typedef struct {
    // set them here. ADAPTEC_COUNT_BAD_BLOCKS is when bits 0 to at least
    // 5
    enum {FORMAT_NONE, FORMAT_ADAPTEC_COUNT_BAD_BLOCKS} format_adjust;
+   // Non zero if seek errors should be ignored
+   int ignore_seek_errors;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so
@@ -238,19 +250,25 @@ DEF_EXTERN struct {
 #ifdef DEF_DATA
  = 
    {{-1, 0}, {-1, 0xffffffffffffffff}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
-     {32, 0x409e10aa} ,
+     {32, 0x409e10aa},
+     // This is 532 byte sector OMTI. Above are other OMTI. They likely are
+     // compensating for something OMTI is doing to the CRC like below
+     // TODO: Would be good to find out what. File sun_remarketing/kalok*
+     {32, 0x84a36c27},
 
-    // These two are for iSBC_215. The final CRC is inverted but special
-    // init value will also make it match
-    {32, 0xed800493},
-    {32, 0x03affc1d}
+     // These two are for iSBC_215. The final CRC is inverted but special
+     // init value will also make it match
+     {32, 0xed800493},
+     {32, 0x03affc1d},
+     // This is data area for Altos 586. Unknown why this initial value needed.
+     {16, 0xe60c}
   }
 #endif
 ;
 // Smallest sector size should be first in list
 DEF_EXTERN int mfm_all_sector_size[]
 #ifdef DEF_DATA
- = {256, 512, 524, 1024, 1160, 1164, 2048, 4096, 10240, -1}
+ = {256, 512, 524, 532, 1024, 1160, 1164, 2048, 4096, 10240, -1}
   // -1 marks end of array
 #endif
 ;
@@ -833,6 +851,20 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          16, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"Altos_586",              256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"ATT_3B2",              256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"OMTI_5510",            256, 10000000,      0,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -922,7 +954,19 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
+// This format is detected by special case code so it doesn't need to
+// be sorted by number. It should not be part of a normal search
+// since it will match wd_1006 for drives less than 8 heads
+// CONT_MODEL is currently doing TODO: when model support
+// added revisit this
+      {"DG_MV2000",          256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL },
 // END of WD type controllers
@@ -980,7 +1024,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 33,
          {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
-      {"Cromemco",             10240, 10000000,  0,
+      {"Cromemco",             10240, 10000000,  6000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 9, 0, 0, CHECK_CRC, CHECK_CRC,

@@ -18,6 +18,10 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 02/12/17 DJG Added support for Data General MV/2000
+// 02/09/17 DJG Added support for AT&T 3B2
+// 02/07/17 DJG Added support for Altos 586
+// 01/17/17 DJG Add flag to ignore seek errors and report missing cylinders
 // 12/11/16 DJG Added logic for detecting sectors with zero contect that
 //    make polynomial detection ambiguous.
 // 12/04/16 DJG Added Intel iSBC_215 format. Fixed handling of bad blocks
@@ -98,6 +102,8 @@ static SECTOR_STATUS last_sector_list[MAX_SECTORS];
 static int last_cyl;
 static int last_head;
 
+static int cyl_found[4096];
+
 // Last LBA address processed for detecting bad sectors
 static int last_lba_addr;
 
@@ -107,6 +113,7 @@ static void update_emu_track_sector(DRIVE_PARAMS *drive_params,
 void update_emu_track_words(DRIVE_PARAMS * drive_params,
       SECTOR_STATUS sector_status_list[], int write_track, int new_track,
       int cyl, int head);
+static void print_missing_cyl(DRIVE_PARAMS *drive_params);
 
 // These are various PLL constants I was trying. For efficiency the
 // filter routine is put in the decoders so it can inline and has the
@@ -260,7 +267,18 @@ static void print_sector_list_status(DRIVE_PARAMS *drive_params,
    } else {
       // Print CHS errors
       if (hard_errors) {
-         msg(MSG_ERR_SUMMARY, "Bad sectors on cylinder %d head %d:",cyl,head);
+         int last_cyl = cyl;
+         msg(MSG_ERR_SUMMARY, "Bad sectors on cylinder %d", cyl);
+         for (cntr = 0; cntr < num_sectors; cntr++) {
+            if (!(sector_status_list[cntr].status & SECT_BAD_HEADER)) {
+               if (sector_status_list[cntr].cyl != cyl &&
+                   sector_status_list[cntr].cyl != last_cyl) {
+                  msg(MSG_ERR_SUMMARY, "/%d",sector_status_list[cntr].cyl);
+                  last_cyl = sector_status_list[cntr].cyl;
+               }
+            }
+         }
+         msg(MSG_ERR_SUMMARY, " head %d:",head);
          for (cntr = 0; cntr < num_sectors; cntr++) {
             if (!(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
                if (sector_status_list[cntr].status & SECT_BAD_HEADER) {
@@ -464,10 +482,13 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DTC ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
+         drive_params->controller == CONTROLLER_DG_MV2000 ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+         drive_params->controller == CONTROLLER_ALTOS_586 ||
+         drive_params->controller == CONTROLLER_ATT_3B2 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -532,6 +553,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    last_head = -1;
    last_cyl = -1;
    last_lba_addr = -1;
+   memset(cyl_found, 0, sizeof(cyl_found));
 
    if (write_files && drive_params->emulation_filename != NULL &&
          drive_params->emulation_output == 1) {
@@ -650,6 +672,9 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
                drive_params->first_sector_number, stats->min_sect);
 
       }
+      if (drive_params->ignore_seek_errors) {
+         print_missing_cyl(drive_params);
+      }
 
       msg(MSG_STATS,
             "Expected %d sectors got %d good sectors, %d bad header, %d bad data\n",
@@ -697,8 +722,15 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
    if (drive_params->head_3bit && sector_status->head == (exp_head & 0x7)) {
       sector_status->head = exp_head;
    }
+   if (sector_status->cyl >= 0 && sector_status->cyl < ARRAYSIZE(cyl_found)) {
+      cyl_found[sector_status->cyl] = 1;
+   }
+   // If ignore seek error we will still declare an error if greater than 250
+   // to make analyze work better.
    if (!sector_status->is_lba &&
-       (sector_status->head != exp_head || sector_status->cyl != exp_cyl)) {
+       (sector_status->head != exp_head || 
+        (sector_status->cyl != exp_cyl && !drive_params->ignore_seek_errors) ||
+         abs(sector_status->cyl - exp_cyl) > 250)) {
       msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
             sector_status->cyl, exp_cyl, sector_status->head, exp_head,
             *sector_index);
@@ -1062,10 +1094,13 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DTC ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
+            drive_params->controller == CONTROLLER_DG_MV2000 ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+            drive_params->controller == CONTROLLER_ALTOS_586 ||
+            drive_params->controller == CONTROLLER_ATT_3B2 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
@@ -1452,5 +1487,28 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
          alt_info->bad_offset != drive_params->alt_llist->bad_offset ||
          alt_info->good_offset != drive_params->alt_llist->good_offset) {
       drive_params->alt_llist = alt_info;
+   }
+}
+
+// Print sectors not found during read/decoding
+//
+// drive_params: Drive parameters
+static void print_missing_cyl(DRIVE_PARAMS *drive_params) {
+   int i;
+   int cyl_missing = 0;
+
+   for (i = 0; i < drive_params->num_cyl; i++) {
+      if (cyl_found[i] == 0) {
+         cyl_missing = 1;
+         break;
+      }
+   }
+   if (cyl_missing) {
+      printf("Cylinders not found\n");
+      for (i = 0; i < drive_params->num_cyl; i++) {
+         if (cyl_found[i] == 0) {
+            printf("  %d\n",i);
+         }
+      }
    }
 }

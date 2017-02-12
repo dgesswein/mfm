@@ -502,9 +502,23 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
                    msg(MSG_FORMAT,"Changed controller type to %s\n",
                      mfm_controller_info[drive_params->controller].name);
                 } else {
-                   drive_params->controller = orig_controller;
+                   drive_params->controller = CONTROLLER_DG_MV2000;
                    status = mfm_decode_track(drive_params, cyl, head, deltas, 
                        NULL, sector_status_list);
+                   for (i = 0; i < drive_params->num_sectors; i++) {
+                      if ((sector_status_list[i].status & SECT_HEADER_FOUND) &&
+                          !(sector_status_list[i].status & SECT_BAD_HEADER)) {
+                         good_header = 1;
+                      }
+                   }
+                   if (good_header) {
+                      msg(MSG_FORMAT,"Changed controller type to %s\n",
+                        mfm_controller_info[drive_params->controller].name);
+                   } else {
+                      drive_params->controller = orig_controller;
+                      status = mfm_decode_track(drive_params, cyl, head, deltas, 
+                          NULL, sector_status_list);
+                   }
                 }
              }
           }

@@ -12,6 +12,9 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 02/12/17 DJG Added Data Geneeral MV/2000
+// 02/09/17 DJG Added AT&T 3B2
+// 02/07/17 DJG Added Altos 586
 // 01/06/17 DJG Change bad block message to MSG_INFO since no longer
 //    causes retry
 // 12/11/16 DJG Fixed handling of Adaptec bad blocks
@@ -369,6 +372,22 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
+//   CONTROLLER_DG_MV2000, Data General MV/2000, WD2010 controller chip
+//   No manual
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-2 head number. bits 5-6 sector size, bit 7 bad block flag
+//         sector size is 0 256 bytes, 1 512 bytes, 2 1024 bytes, 3 128 bytes
+//      byte 4 bits 0-4 sector number, bit 7 high bit of head number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
 //   CONTROLLER_SEAGATE_ST11M
 //   No manual
 //   The first two tracks of the first cylinder is used by the controller. The
@@ -430,6 +449,34 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      =0, Track 2 =1, Track 3 =2 and so on.
 //      Bits 9 and 8 of track number are stored in bits 7 and 6 of side byte.
 //
+//   CONTROLLER_ALTOS_586, Altos 586
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 7-4 head number. bits 2-0 upper 4 bits of cylinder
+//         bit 3 back block. If bad block set no data follows header.
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
+//   CONTROLLER_ATT_3B2, AT&T 3B2
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xff xored with upper bits of cylinder
+//      byte 2 low 8 bits of cylinder
+//      byte 3 head number
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
 //
 // state: Current state in the decoding
 // bytes: bytes to process
@@ -628,7 +675,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_MIGHTYFRAME) {
+      } else if (drive_params->controller == CONTROLLER_MIGHTYFRAME ||
+               drive_params->controller == CONTROLLER_DG_MV2000) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
@@ -640,7 +688,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x20) >> 2);
+         if (drive_params->controller == CONTROLLER_MIGHTYFRAME) {
+            sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x20) >> 2);
+         } else { // DG MV/2000
+            sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x80) >> 4);
+         }
          sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
          bad_block = (bytes[3] & 0x80) >> 7;
 
@@ -838,6 +890,36 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_ALTOS_586) {
+         sector_status.cyl = bytes[2] | ((bytes[3] & 0x7) << 8);
+
+         sector_status.head = bytes[3] >> 4;
+         sector_size = drive_params->sector_size;
+         bad_block = (bytes[3] & 0x8) != 0;
+
+         sector_status.sector = bytes[4];
+
+         if (bytes[1]  != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_ATT_3B2) {
+         sector_status.cyl = bytes[2] | ((bytes[1] ^ 0xff) << 8);
+
+         sector_status.head = bytes[3];
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = bytes[4];
+
+         if ((bytes[1] & 0xf0)  != 0xf0) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -863,6 +945,25 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       // The 3640 doesn't have a 0xa1 data header, search for its special sync
       if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          *state = MARK_DATA1;
+      } else if (drive_params->controller == CONTROLLER_ALTOS_586 && bad_block) {
+         // If bad block marked no data area is written
+         *state = MARK_ID;
+         // TODO: Going to MARK_ID avoids the code that updates 
+         //  sector_status_list. Code copies from mfm_write_sector
+         //  so sectors marked bad will be properly handled. Something cleaner
+         //  would be good.
+         int sect_rel0 = sector_status.sector - drive_params->first_sector_number;
+         if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
+            msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d\n",
+               sect_rel0, drive_params->num_sectors-1, sector_status.sector,
+               sector_status.cyl,sector_status.head);
+         } else if (sector_status.head > drive_params->num_head) {
+            msg(MSG_ERR_SERIOUS,"Head out of range %d max %d cyl %d sector %d\n",
+               sector_status.head, drive_params->num_head,
+               sector_status.cyl, sector_status.sector);
+         } else {
+            sector_status_list[sect_rel0].status = sector_status.status;
+         }
       } else {
          *state = MARK_DATA;
       }
