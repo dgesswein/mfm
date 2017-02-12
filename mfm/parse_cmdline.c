@@ -244,6 +244,8 @@ static int parse_controller(char *arg, int ignore_invalid_options,
    } else {
       CONTROLLER *contp = &mfm_controller_info[controller];
       if (contp->analyze_search == CONT_MODEL) {
+// TODO, this can be confusing since it overrides what is specified on the
+// command line. May be better way.
          drive_params->header_crc = contp->write_header_crc;
          drive_params->data_crc = contp->write_data_crc;
          drive_params->num_sectors = contp->write_num_sectors;

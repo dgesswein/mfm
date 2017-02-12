@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 02/12/17 DJG Added support for Data General MV/2000
 // 02/09/17 DJG Added support for AT&T 3B2
 // 02/07/17 DJG Added support for Altos 586
 // 01/17/17 DJG Add flag to ignore seek errors and report missing cylinders
@@ -481,6 +482,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DTC ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
+         drive_params->controller == CONTROLLER_DG_MV2000 ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
@@ -1092,6 +1094,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DTC ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
+            drive_params->controller == CONTROLLER_DG_MV2000 ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||

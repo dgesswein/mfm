@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 02/12/17 DJG Added Data Geneeral MV/2000
 // 02/09/17 DJG Added AT&T 3B2
 // 02/07/17 DJG Added Altos 586
 // 01/06/17 DJG Change bad block message to MSG_INFO since no longer
@@ -371,6 +372,22 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
+//   CONTROLLER_DG_MV2000, Data General MV/2000, WD2010 controller chip
+//   No manual
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-2 head number. bits 5-6 sector size, bit 7 bad block flag
+//         sector size is 0 256 bytes, 1 512 bytes, 2 1024 bytes, 3 128 bytes
+//      byte 4 bits 0-4 sector number, bit 7 high bit of head number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
 //   CONTROLLER_SEAGATE_ST11M
 //   No manual
 //   The first two tracks of the first cylinder is used by the controller. The
@@ -658,7 +675,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_MIGHTYFRAME) {
+      } else if (drive_params->controller == CONTROLLER_MIGHTYFRAME ||
+               drive_params->controller == CONTROLLER_DG_MV2000) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
@@ -670,7 +688,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x20) >> 2);
+         if (drive_params->controller == CONTROLLER_MIGHTYFRAME) {
+            sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x20) >> 2);
+         } else { // DG MV/2000
+            sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x80) >> 4);
+         }
          sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
          bad_block = (bytes[3] & 0x80) >> 7;
 

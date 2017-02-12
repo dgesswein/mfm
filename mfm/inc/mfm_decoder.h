@@ -1,5 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 02/12/17 DJG Added support for Data General MV/2000. Fix mfm_util
+//    for Mightframe
 // 02/09/17 DJG Added support for AT&T 3B2
 // 02/07/17 DJG Added support for Altos 586 and adjusted start time for
 //    Cromemco to prevent trying to read past end of track.
@@ -115,6 +117,7 @@ typedef struct {
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
+      CONTROLLER_DG_MV2000, 
       CONTROLLER_SOLOSYSTEMS, 
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
@@ -951,7 +954,19 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
+// This format is detected by special case code so it doesn't need to
+// be sorted by number. It should not be part of a normal search
+// since it will match wd_1006 for drives less than 8 heads
+// CONT_MODEL is currently doing TODO: when model support
+// added revisit this
+      {"DG_MV2000",          256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL },
 // END of WD type controllers
