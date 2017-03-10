@@ -1,5 +1,6 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 03/08/17 DJG Fixed Intel iSBC 215 and added support for all sector lengths
 // 02/12/17 DJG Added support for Data General MV/2000. Fix mfm_util
 //    for Mightframe
 // 02/09/17 DJG Added support for AT&T 3B2
@@ -113,6 +114,7 @@ typedef struct {
       CONTROLLER_UNKNOWN1,
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
+      CONTROLLER_ISBC_215,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
@@ -122,7 +124,6 @@ typedef struct {
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
-      CONTROLLER_ISBC_215,
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
@@ -256,10 +257,19 @@ DEF_EXTERN struct {
      // TODO: Would be good to find out what. File sun_remarketing/kalok*
      {32, 0x84a36c27},
 
-     // These two are for iSBC_215. The final CRC is inverted but special
+     // These are for iSBC_215. The final CRC is inverted but special
      // init value will also make it match
+     // TODO Add xor to CRC to allow these to be removed
+     // header
      {32, 0xed800493},
+     // 128 byte sector
+     {32, 0xec1f077f},
+     // 256 byte sector
+     {32, 0xde60050c},
+     // 512 byte sector
      {32, 0x03affc1d},
+     // 1024 byte sector
+     {32, 0xbe87fbf4},
      // This is data area for Altos 586. Unknown why this initial value needed.
      {16, 0xe60c}
   }
@@ -268,7 +278,7 @@ DEF_EXTERN struct {
 // Smallest sector size should be first in list
 DEF_EXTERN int mfm_all_sector_size[]
 #ifdef DEF_DATA
- = {256, 512, 524, 532, 1024, 1160, 1164, 2048, 4096, 10240, -1}
+ = {128, 256, 512, 524, 532, 1024, 1160, 1164, 2048, 4096, 10240, -1}
   // -1 marks end of array
 #endif
 ;
@@ -915,6 +925,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
          0, 0,
          {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE },
+      {"Intel_iSBC_215",      128, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -998,13 +1015,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
-         0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
-      {"Intel_iSBC_215",         256, 10000000,      0,
-         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
-         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 1, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },

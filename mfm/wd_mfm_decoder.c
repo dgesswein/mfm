@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 03/08/17 DJG Moved Intel iSBC 215 from xebec_mfm_decoder.c
 // 02/12/17 DJG Added Data Geneeral MV/2000
 // 02/09/17 DJG Added AT&T 3B2
 // 02/07/17 DJG Added Altos 586
@@ -478,6 +479,29 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
+//   CONTROLLER_ISBC_215, Intel 310/MDS-4 with iSBC-215 controller
+//      http://www.bitsavers.org/pdf/intel/iSBC/144780-002_iSBC_215_Generic_Winchester_Disk_Controller_Hardware_Reference_Manual_Dec84.pdf
+//      See pages around 80 and 132.
+//
+//   5 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0x19
+//      byte 2
+//         3-0 high cyl
+//         5-4 sector size 00 = 128, 01 = 256, 10 = 512, 11 = 1024
+//         7-6 flag 00 = data track, 01 = assigned alternate
+//                  10 = defective, 11 = invalid
+//         No example of alternate so not properly handled
+//      byte 3 low 8 bits of cylinder
+//      byte 4 sector number
+//      byte 5 head number
+//      bytes 6-9 32 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xd9
+//      Sector data for sector size
+//      CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -920,6 +944,21 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_ISBC_215) {
+         sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
+
+         sector_status.head = bytes[5];
+         sector_size = 128 << ((bytes[2] & 0x30) >> 4);
+         sector_status.sector = bytes[4];
+         bad_block = (bytes[1] & 0xc0) == 0x80;
+         alt_assigned = (bytes[1] & 0xc0) == 0x40;
+
+         if (bytes[1]  != 0x19) {
+            msg(MSG_INFO, "Invalid header id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -980,6 +1019,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
          id_byte_expected = 0x80;
+      } else if (drive_params->controller == CONTROLLER_ISBC_215 &&
+          bytes[1] == 0x19) {
+         id_byte_expected = 0x19; // Can use either 0x19 or 0xd9
+      } else if (drive_params->controller == CONTROLLER_ISBC_215) {
+         id_byte_expected = 0xd9;
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
          if (bytes[2] != 0xf8) {
             msg(MSG_INFO, "Invalid data id bytes %02x on cyl %d,%d head %d,%d sector %d\n",

@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 03/08/17 DJG Fixed Intel iSBC 215
 // 02/12/17 DJG Added support for Data General MV/2000
 // 02/09/17 DJG Added support for AT&T 3B2
 // 02/07/17 DJG Added support for Altos 586
@@ -489,6 +490,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
          drive_params->controller == CONTROLLER_ALTOS_586 ||
          drive_params->controller == CONTROLLER_ATT_3B2 ||
+         drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -500,7 +502,6 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
          drive_params->controller == CONTROLLER_XEBEC_S1420 ||
          drive_params->controller == CONTROLLER_EC1841 ||
-         drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
       rc = xebec_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
@@ -981,7 +982,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       crc_info = drive_params->header_crc;
       if (msg_get_err_mask() & MSG_DEBUG_DATA) {
-         mfm_dump_bytes(bytes, bytes_crc_len + start, cyl, head, *sector_index,
+         mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
                MSG_DEBUG_DATA);
       }
       name = "header";
@@ -1101,6 +1102,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
             drive_params->controller == CONTROLLER_ALTOS_586 ||
             drive_params->controller == CONTROLLER_ATT_3B2 ||
+            drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
@@ -1116,7 +1118,6 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||
-            drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
          status |= xebec_process_data(state, bytes, total_bytes, crc, cyl, head,
                sector_index, drive_params, seek_difference,
