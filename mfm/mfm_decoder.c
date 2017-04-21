@@ -18,6 +18,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 04/21/17 DJG Added better tracking of information during read. When index
+//   fell in a sector the sector_status_list wasn't properly updated.
 // 03/08/17 DJG Fixed Intel iSBC 215
 // 02/12/17 DJG Added support for Data General MV/2000
 // 02/09/17 DJG Added support for AT&T 3B2
@@ -701,6 +703,9 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
 // we return the difference between the actual and expected cylinder so
 // the caller can try seeking again if needed.
 //
+// It also updates the sector_status_list with the information gotten from
+// the sector header.
+//
 // exp_cyl, exp_head: Track data was from
 // sector_index: Counter for sectors starting at 0. With errors may not match
 //   sector number
@@ -710,7 +715,8 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
 // drive_params: Parameters for drive
 void mfm_check_header_values(int exp_cyl, int exp_head,
       int *sector_index, int sector_size, int *seek_difference,
-      SECTOR_STATUS *sector_status, DRIVE_PARAMS *drive_params) {
+      SECTOR_STATUS *sector_status, DRIVE_PARAMS *drive_params,
+      SECTOR_STATUS sector_status_list[]) {
 
    if (drive_params->ignore_header_mismatch) {
       sector_status->logical_sector = *sector_index;
@@ -779,6 +785,25 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
             drive_params->sector_size, sector_size, sector_status->cyl,
             sector_status->head, sector_status->sector);
    }
+         //  Code copies from mfm_write_sector
+         //  so sectors marked bad will be properly handled. Something cleaner
+         //  would be good.
+         int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
+         if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
+            msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d\n",
+               sect_rel0, drive_params->num_sectors-1, sector_status->sector,
+               sector_status->cyl,sector_status->head);
+         } else if (sector_status->head > drive_params->num_head) {
+            msg(MSG_ERR_SERIOUS,"Head out of range %d max %d cyl %d sector %d\n",
+               sector_status->head, drive_params->num_head,
+               sector_status->cyl, sector_status->sector);
+         } else {
+            sector_status_list[sect_rel0] = *sector_status;
+               // Set to bad data as default. If data found good this will 
+               // be changed
+            sector_status_list[sect_rel0].status |= SECT_BAD_DATA;
+         }
+
 }
 
 // Write the sector data to file. We only write the best data so if the

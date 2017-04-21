@@ -16,6 +16,8 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 04/21/17 DJG Added parameter to mfm_check_header_values and added
+//    determining --begin_time if needed
 // 05/21/16 DJG Parameter change to mfm_mark_*
 // 12/31/15 DJG Parameter change to mfm_mark_*
 // 12/24/15 DJG Comment cleanup
@@ -125,7 +127,7 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.sector, sector_size, bad_block);
 
       mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
-            seek_difference, &sector_status, drive_params);
+            seek_difference, &sector_status, drive_params, sector_status_list);
 
       *state = DATA_SYNC;
    } else if (*state == PROCESS_DATA) {
@@ -222,6 +224,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int all_raw_bits_count = 0;
    // Time to look for next header. This should be in beginning of 0 words
    int next_header_time = 74000;
+   // First address mark time in ns 
+   int first_addr_mark_ns = 0;
 
    // Adjust time for when data capture started
    next_header_time -= drive_params->start_time_ns / CLOCKS_TO_NS;
@@ -298,6 +302,9 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          } else if (state == HEADER_SYNC) {
             if ((raw_word & 0xf) == 0x9) {
 //printf("Sync %d,%d cyl %d head %d sect %d\n",tot_raw_bit_cntr, (track_time * 5 + drive_params->start_time_ns)/100, cyl, head, sector_index);
+               if (first_addr_mark_ns == 0) {
+                  first_addr_mark_ns = track_time * CLOCKS_TO_NS;
+               }
                // Time next header should start at
                raw_bit_cntr = 0;
                decoded_word = 0;
@@ -378,8 +385,12 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       num_deltas = deltas_get_count(i);
    }
    if (state == PROCESS_DATA) {
-      msg(MSG_ERR, "Ran out of data while processing sector index %d bytes %d needed %d\n",
-         sector_index, byte_cntr, bytes_needed);
+      float begin_time =
+         ((bytes_needed - byte_cntr) * 16.0 *
+             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
+             + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
+      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+         sector_index, round(begin_time / 1000.0) * 1000.0);
    }
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count,

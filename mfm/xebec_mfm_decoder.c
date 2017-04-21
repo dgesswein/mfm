@@ -4,6 +4,8 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 04/21/17 DJG Added parameter to mfm_check_header_values and added
+//    determining --begin_time if needed
 // 03/09/17 DJG Moved Intel iSBC_215 to wd_mfm_decoder. It didn't really
 //    need the special resync Xebec uses
 // 12/04/16 DJG Added Intel iSBC_215 format
@@ -282,7 +284,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_size, bad_block);
 
       mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
-            seek_difference, &sector_status, drive_params);
+            seek_difference, &sector_status, drive_params, sector_status_list);
 
       *state = DATA_SYNC;
    } else { // Data
@@ -410,6 +412,8 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int sector_index = 0;
    // Count all the raw bits for emulation file
    int all_raw_bits_count = 0;
+   // First address mark time in ns 
+   int first_addr_mark_ns = 0;
 
    num_deltas = deltas_get_count(0);
 
@@ -472,6 +476,9 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             // We want to see enough zeros to ensure we don't get a false
             // match at the boundaries where data is overwritten
             if ((raw_word & 0xffff) == 0x4489 && sync_count >= MARK_NUM_ZEROS) {
+               if (first_addr_mark_ns == 0) {
+                  first_addr_mark_ns = track_time * CLOCKS_TO_NS;
+               }
                sync_count = 0;
                state = HEADER_SYNC;
                raw_bit_cntr = 0;
@@ -552,6 +559,15 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
+   if (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) {
+      float begin_time =
+         ((bytes_needed - byte_cntr) * 16.0 *
+             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
+             + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
+      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+         sector_index, round(begin_time / 1000.0) * 1000.0);
+   }
+
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count,
       raw_word);

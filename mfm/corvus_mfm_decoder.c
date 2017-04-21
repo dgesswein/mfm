@@ -9,6 +9,8 @@
 //
 // Copyright 2015 David Gesswein.
 //
+// 04/21/17 DJG Added parameter to mfm_check_header_values and added
+//    determining --begin_time if needed
 // 11/20/16 DJG Add Vector4 format and fixes for marking data for
 //   fixing emulator data.
 // 10/28/16 DJG Document extra header Cromemco drives have
@@ -201,15 +203,15 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
             exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
             sector_status.sector, sector_size, bad_block);
 
-      mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
-            seek_difference, &sector_status, drive_params);
-
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
       }
       if (ecc_span != 0) {
          sector_status.status |= SECT_ECC_RECOVERED;
       }
+      mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
+            seek_difference, &sector_status, drive_params, sector_status_list);
+
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
@@ -299,7 +301,8 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // Time to look for next header in 200 MHz clock ticks. This will start 
    // looking at data a little into the beggining 0 words
    int next_header_time;
-
+   // First address mark time in ns 
+   int first_addr_mark_ns = 0;
 
    avg_bit_sep_time = 200e6 /
          mfm_controller_info[drive_params->controller].clk_rate_hz;
@@ -406,6 +409,10 @@ fprintf(out,"#%lld\n1&\n", bit_time);
 printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time, 
    track_time + drive_params->start_time_ns / CLOCKS_TO_NS);
 #endif
+               if (first_addr_mark_ns == 0) {
+                  first_addr_mark_ns = track_time * CLOCKS_TO_NS;
+               }
+
                // Time next header should start at
                if (drive_params->controller == CONTROLLER_CORVUS_H) {
                   next_header_time += 164900;
@@ -493,8 +500,13 @@ fprintf(out,"#%lld\n0&\n", bit_time);
       num_deltas = deltas_get_count(i);
    }
    if (state == PROCESS_HEADER && sector_index < drive_params->num_sectors) {
-      msg(MSG_ERR, "Ran out of data while processing sector index %d track time %d\n",
-         sector_index, track_time);
+      float begin_time =
+         ((bytes_needed - byte_cntr) * 16.0 *
+             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
+             + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
+      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+         sector_index, round(begin_time / 1000.0) * 1000.0);
+
    }
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count,

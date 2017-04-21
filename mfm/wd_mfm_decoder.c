@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 04/21/17 DJG changed mfm_check_header_values to update sector_status_list
+//    and added determining --begin_time if needed
 // 03/08/17 DJG Moved Intel iSBC 215 from xebec_mfm_decoder.c
 // 02/12/17 DJG Added Data Geneeral MV/2000
 // 02/09/17 DJG Added AT&T 3B2
@@ -964,9 +966,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          exit(1);
       }
 
-      mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
-            seek_difference, &sector_status, drive_params);
-
       msg(MSG_DEBUG,
          "Got exp %d,%d cyl %d head %d sector %d,%d size %d bad block %d\n",
             exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
@@ -981,28 +980,16 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          msg(MSG_INFO,"Alternate cylinder set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
+
+      mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
+            seek_difference, &sector_status, drive_params, sector_status_list);
+
       // The 3640 doesn't have a 0xa1 data header, search for its special sync
       if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          *state = MARK_DATA1;
       } else if (drive_params->controller == CONTROLLER_ALTOS_586 && bad_block) {
          // If bad block marked no data area is written
          *state = MARK_ID;
-         // TODO: Going to MARK_ID avoids the code that updates 
-         //  sector_status_list. Code copies from mfm_write_sector
-         //  so sectors marked bad will be properly handled. Something cleaner
-         //  would be good.
-         int sect_rel0 = sector_status.sector - drive_params->first_sector_number;
-         if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
-            msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d\n",
-               sect_rel0, drive_params->num_sectors-1, sector_status.sector,
-               sector_status.cyl,sector_status.head);
-         } else if (sector_status.head > drive_params->num_head) {
-            msg(MSG_ERR_SERIOUS,"Head out of range %d max %d cyl %d sector %d\n",
-               sector_status.head, drive_params->num_head,
-               sector_status.cyl, sector_status.sector);
-         } else {
-            sector_status_list[sect_rel0].status = sector_status.status;
-         }
       } else {
          *state = MARK_DATA;
       }
@@ -1149,6 +1136,8 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int all_raw_bits_count = 0;
    // Bit count of start of header for Symbolics 3640
    int header_raw_bit_count = 0;
+   // First address mark time in ns 
+   int first_addr_mark_ns = 0;
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
@@ -1226,6 +1215,9 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 //printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
             if ((raw_word & 0xffff) == 0x4489
                   && zero_count >= MARK_NUM_ZEROS) {
+               if (first_addr_mark_ns == 0) {
+                  first_addr_mark_ns = track_time * CLOCKS_TO_NS;
+               }
                header_raw_bit_count = tot_raw_bit_cntr;
                zero_count = 0;
                bytes[0] = 0xa1;
@@ -1322,6 +1314,16 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
+   if (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) {
+      float begin_time = 
+         ((bytes_needed - byte_cntr) * 16.0 *
+             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz 
+             + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
+      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+         sector_index, round(begin_time / 1000.0) * 1000.0);
+   }
+
+
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count, 
       raw_word);

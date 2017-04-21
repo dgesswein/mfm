@@ -1,5 +1,6 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+// 04/21/17 DJG Allow --begin_time to override default values from analyze
 // 03/08/17 DJG Fixed Intel iSBC 215 and added support for all sector lengths
 // 02/12/17 DJG Added support for Data General MV/2000. Fix mfm_util
 //    for Mightframe
@@ -179,6 +180,8 @@ typedef struct {
    char *note;
    // Time after index to start read in nanoseconds
    uint32_t start_time_ns;
+   // Non zero if begin_time option set on command line. Don't override
+   int start_time_set_cmd_line;
    // List of sector to mark bad in ext2emu. Sorted ascending
    MARK_BAD_INFO *mark_bad_list;
    // Index for next entry in array above
@@ -1140,7 +1143,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_parms, int cyl,
 
 void mfm_check_header_values(int exp_cyl, int exp_head, int *sector_index, 
    int sector_size, int *seek_difference, SECTOR_STATUS *sector_status, 
-   DRIVE_PARAMS *drive_params);
+   DRIVE_PARAMS *drive_params, SECTOR_STATUS sector_status_list[]);
 void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write);
 void mfm_decode_done(DRIVE_PARAMS *drive_params);
 int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS *drive_params,
