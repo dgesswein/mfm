@@ -901,18 +901,14 @@ waitstephigh2:
    CALL     set_index
    QBBS     select_head, r31, 30        // Select or head line change interrupt?
    QBBC     waitstephigh2, r31, R31_STEP_BIT  
+      // Check we didn't step past end of disk. We shouldn't have stepped
+      // at all here but check just in case the controller does weird things
+   CALL     limit_cyl
+      // Update track zero signal in case it changed
+   CALL     set_track0
       // Restart outputting with data we already have.
    JMP      step_restart
 stephigh:
-      // One common behavior when trying to step past the last track is for
-      // the drive to recalibrate back to track 0. The other behavior is
-      // to continue stepping until it hits the mechanical stop. This
-      // implements going to track 0 which Vaxstation 2000 needs.
-      // Limit cylinder value to number of cyl-1
-   LBBO     r0, DRIVE_DATA, PRU0_DRIVE0_NUM_CYL, 4
-   QBLT     cyl_ok, r0, r3            
-   LDI      r3, 0          // At limit, go back to track 0
-cyl_ok:
       // Good seek, update cylinder
    SBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
       // Reset timer for step pulse timeout
@@ -934,6 +930,8 @@ seek_lp:
    QBLT     seek_lp, r1, r0
 
 seek_wait_done:
+      // Check we didn't step past end of disk
+   CALL     limit_cyl
       // Update track zero signal in case it changed
    CALL     set_track0
       // If we were waiting for a command don't send interrupt, go back
@@ -943,6 +941,20 @@ seek_wait_done:
       // Update data and send interrupt to ARM
    CALL     send_arm_cyl
    JMP      wait_cmd
+
+limit_cyl:
+      // One common behavior when trying to step past the last track is for
+      // the drive to recalibrate back to track 0. The other behavior is
+      // to continue stepping until it hits the mechanical stop. This
+      // implements going to track 0 which Vaxstation 2000 needs.
+      // Limit cylinder value to number of cyl-1
+   LBBO     r24, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+   LBBO     r25, DRIVE_DATA, PRU0_DRIVE0_NUM_CYL, 4
+   QBLT     cyl_ok, r25, r24            
+   LDI      r24, 0          // At limit, go back to track 0
+   SBBO     r24, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+cyl_ok:
+   RET
 
 send_arm_cyl:
       // Save cylinder we sent to ARN so we can detect if more seeks done
