@@ -17,6 +17,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 05/19/17 DJG Dummped more memory on error.
 // 02/20/16 DJG Reduced amount of delay when writing multiple tracks with
 //    some track buffers full. Delays seemed longer than needed.
 // 01/06/16 DJG Detect reversed J2 cable, don't allow different track lenght
@@ -883,11 +884,18 @@ int main(int argc, char *argv[])
 #endif
       if (pru_get_halt(0) || pru_get_halt(1)) {
          for (i = 0; i < 2; i++) {
+            MEM_TYPE mem_type;
+            if (i == 0) {
+               mem_type = MEM_PRU0_DATA;
+            } else {
+               mem_type = MEM_PRU1_DATA;
+            } 
             printf("PRU %d pc %04x\n",i, pru_get_pc(i));
             pru_print_registers(i);
-            pru_print_memory(i, 0, 256);
-            pru_print_memory(i, 0x400, 128);
+            pru_print_memory(mem_type, 0, 256);
+            pru_print_memory(mem_type, 0x400, 128);
          }
+         pru_print_memory(MEM_PRU_SHARED, 0x0, 128);
          // With halted PRU we can't cleanly exit
          fclose(log_file);
          _exit(1);

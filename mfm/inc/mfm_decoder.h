@@ -1,5 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+//
+// 05/19/17 DJG New sector state to indicate it hasn't been written.
 // 04/21/17 DJG Allow --begin_time to override default values from analyze
 // 03/08/17 DJG Fixed Intel iSBC 215 and added support for all sector lengths
 // 02/12/17 DJG Added support for Data General MV/2000. Fix mfm_util
@@ -1087,13 +1089,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // This is used to mark sectors that are spare sectors or are marked
 // bad and don't contain user data. 
 // It suppresses counting as errors other errors seen.
-#define SECT_SPARE_BAD      0x80
-#define SECT_ZERO_HEADER_CRC 0x40
-#define SECT_ZERO_DATA_CRC  0x20
-#define SECT_HEADER_FOUND   0x10
-#define SECT_ECC_RECOVERED  0x08
-#define SECT_WRONG_CYL      0x04
-// Only one of two will be set
+#define SECT_SPARE_BAD      0x100
+#define SECT_ZERO_HEADER_CRC 0x80
+#define SECT_ZERO_DATA_CRC  0x40
+#define SECT_HEADER_FOUND   0x20
+#define SECT_ECC_RECOVERED  0x10
+#define SECT_WRONG_CYL      0x08
+// Sector hasn't been written yet
+#define SECT_NOT_WRITTEN    0x04
+// Only one of these three will be set. BAD_HEADER is initially set
+// until we find a good header, then BAD_DATA is set until we find good data
 #define SECT_BAD_HEADER     0x02
 #define SECT_BAD_DATA       0x01
 #define SECT_NO_STATUS      0x00

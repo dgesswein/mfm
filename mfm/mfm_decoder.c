@@ -18,6 +18,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 05/19/17 DJG Previous fix prevented writing sectors with data error. Back
+//   to writing the best data we have for sector in extracted data file.
 // 04/21/17 DJG Added better tracking of information during read. When index
 //   fell in a sector the sector_status_list wasn't properly updated.
 // 03/08/17 DJG Fixed Intel iSBC 215
@@ -377,7 +379,7 @@ void mfm_init_sector_status_list(SECTOR_STATUS sector_status_list[],
 
    memset(sector_status_list, 0, sizeof(*sector_status_list) * num_sectors);
    for (i = 0; i < num_sectors; i++) {
-      sector_status_list[i].status = SECT_BAD_HEADER;
+      sector_status_list[i].status = SECT_BAD_HEADER | SECT_NOT_WRITTEN;
    }
 }
 
@@ -798,10 +800,11 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
                sector_status->head, drive_params->num_head,
                sector_status->cyl, sector_status->sector);
          } else {
+            int written = sector_status_list[sect_rel0].status & SECT_NOT_WRITTEN;
             sector_status_list[sect_rel0] = *sector_status;
                // Set to bad data as default. If data found good this will 
-               // be changed
-            sector_status_list[sect_rel0].status |= SECT_BAD_DATA;
+               // be changed. Keep not written flag if it was set.
+            sector_status_list[sect_rel0].status |= SECT_BAD_DATA | written;
          }
 
 }
@@ -865,6 +868,11 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    update = 0;
    // If the previous header was bad update
    if (sector_status_list[sect_rel0].status & SECT_BAD_HEADER) {
+      update = 1;
+   }
+   // If we haven't written the sector yet write it even if bad
+   if (sector_status_list[sect_rel0].status & SECT_NOT_WRITTEN) {
+      sector_status_list[sect_rel0].status &= ~SECT_NOT_WRITTEN;
       update = 1;
    }
    // If the previous data had an error then check if we should update
