@@ -6,6 +6,8 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 04/21/17 DJG Added parameter to mfm_check_header_values and added
+//    determining --begin_time if needed
 // 11/14/16 DJG Added Telenex Autoscope. Same as Xerox but without tags
 //    so naming problems again
 // 11/02/16 DJG Write out tag/metadata also if extract file speccified
@@ -162,7 +164,7 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
 
       mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
-            seek_difference, &sector_status, drive_params);
+            seek_difference, &sector_status, drive_params, sector_status_list);
 
       msg(MSG_DEBUG,
          "Got exp %d,%d cyl %d head %d sector %d,%d size %d\n",
@@ -297,6 +299,8 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // Used for analyze to distinguish formats with and without extra
    // header
    SECTOR_DECODE_STATUS init_status = 0;
+   // First address mark time in ns 
+   int first_addr_mark_ns = 0;
 
 
    num_deltas = deltas_get_count(0);
@@ -374,6 +378,10 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 #endif
             if (((raw_word & 0xffff) == 0x4489)
                   && zero_count >= MARK_NUM_ZEROS) {
+               if (first_addr_mark_ns == 0) {
+                  first_addr_mark_ns = track_time * CLOCKS_TO_NS;
+               }
+
                zero_count = 0;
                bytes[0] = 0xa1;
                byte_cntr = 1;
@@ -491,6 +499,15 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
+   if (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) {
+      float begin_time =
+         ((bytes_needed - byte_cntr) * 16.0 *
+             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
+             + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
+      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+         sector_index, round(begin_time / 1000.0) * 1000.0);
+   }
+
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count, 
       raw_word);

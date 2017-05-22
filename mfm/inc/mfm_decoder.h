@@ -1,5 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
+//
+// 05/19/17 DJG New sector state to indicate it hasn't been written.
+// 04/21/17 DJG Allow --begin_time to override default values from analyze
+// 03/08/17 DJG Fixed Intel iSBC 215 and added support for all sector lengths
 // 02/12/17 DJG Added support for Data General MV/2000. Fix mfm_util
 //    for Mightframe
 // 02/09/17 DJG Added support for AT&T 3B2
@@ -113,6 +117,7 @@ typedef struct {
       CONTROLLER_UNKNOWN1,
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
+      CONTROLLER_ISBC_215,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
@@ -122,7 +127,6 @@ typedef struct {
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
-      CONTROLLER_ISBC_215,
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
@@ -178,6 +182,8 @@ typedef struct {
    char *note;
    // Time after index to start read in nanoseconds
    uint32_t start_time_ns;
+   // Non zero if begin_time option set on command line. Don't override
+   int start_time_set_cmd_line;
    // List of sector to mark bad in ext2emu. Sorted ascending
    MARK_BAD_INFO *mark_bad_list;
    // Index for next entry in array above
@@ -256,10 +262,19 @@ DEF_EXTERN struct {
      // TODO: Would be good to find out what. File sun_remarketing/kalok*
      {32, 0x84a36c27},
 
-     // These two are for iSBC_215. The final CRC is inverted but special
+     // These are for iSBC_215. The final CRC is inverted but special
      // init value will also make it match
+     // TODO Add xor to CRC to allow these to be removed
+     // header
      {32, 0xed800493},
+     // 128 byte sector
+     {32, 0xec1f077f},
+     // 256 byte sector
+     {32, 0xde60050c},
+     // 512 byte sector
      {32, 0x03affc1d},
+     // 1024 byte sector
+     {32, 0xbe87fbf4},
      // This is data area for Altos 586. Unknown why this initial value needed.
      {16, 0xe60c}
   }
@@ -268,7 +283,7 @@ DEF_EXTERN struct {
 // Smallest sector size should be first in list
 DEF_EXTERN int mfm_all_sector_size[]
 #ifdef DEF_DATA
- = {256, 512, 524, 532, 1024, 1160, 1164, 2048, 4096, 10240, -1}
+ = {128, 256, 512, 524, 532, 1024, 1160, 1164, 2048, 4096, 10240, -1}
   // -1 marks end of array
 #endif
 ;
@@ -915,6 +930,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
          0, 0,
          {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE },
+      {"Intel_iSBC_215",      128, 10000000,      0,
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
@@ -1001,13 +1023,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
-      {"Intel_iSBC_215",         256, 10000000,      0,
-         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
-         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 1, 1, 1, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
-         0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Corvus_H",             512, 11000000,  312000,
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1074,13 +1089,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // This is used to mark sectors that are spare sectors or are marked
 // bad and don't contain user data. 
 // It suppresses counting as errors other errors seen.
-#define SECT_SPARE_BAD      0x80
-#define SECT_ZERO_HEADER_CRC 0x40
-#define SECT_ZERO_DATA_CRC  0x20
-#define SECT_HEADER_FOUND   0x10
-#define SECT_ECC_RECOVERED  0x08
-#define SECT_WRONG_CYL      0x04
-// Only one of two will be set
+#define SECT_SPARE_BAD      0x100
+#define SECT_ZERO_HEADER_CRC 0x80
+#define SECT_ZERO_DATA_CRC  0x40
+#define SECT_HEADER_FOUND   0x20
+#define SECT_ECC_RECOVERED  0x10
+#define SECT_WRONG_CYL      0x08
+// Sector hasn't been written yet
+#define SECT_NOT_WRITTEN    0x04
+// Only one of these three will be set. BAD_HEADER is initially set
+// until we find a good header, then BAD_DATA is set until we find good data
 #define SECT_BAD_HEADER     0x02
 #define SECT_BAD_DATA       0x01
 #define SECT_NO_STATUS      0x00
@@ -1130,7 +1148,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_parms, int cyl,
 
 void mfm_check_header_values(int exp_cyl, int exp_head, int *sector_index, 
    int sector_size, int *seek_difference, SECTOR_STATUS *sector_status, 
-   DRIVE_PARAMS *drive_params);
+   DRIVE_PARAMS *drive_params, SECTOR_STATUS sector_status_list[]);
 void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write);
 void mfm_decode_done(DRIVE_PARAMS *drive_params);
 int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS *drive_params,

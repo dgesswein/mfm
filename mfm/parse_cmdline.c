@@ -611,6 +611,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'b':
             drive_params->start_time_ns = atoi(optarg);
+            drive_params->start_time_set_cmd_line = 1;
             break;
          case 't':
             drive_params->transitions_filename = optarg;

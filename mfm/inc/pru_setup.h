@@ -24,7 +24,7 @@ void pru_restart(int pru_num);
 uint32_t pru_get_pc(int pru_num);
 uint32_t pru_get_halt(int pru_num);
 void pru_print_registers(int pru_num);
-void pru_print_memory(int pru_num, int start, int len);
+void pru_print_memory(MEM_TYPE mem_type, int start, int len);
 int pru_write_mem(MEM_TYPE mem_type, void *data, int len, int offset);
 int pru_read_mem(MEM_TYPE mem_type, void *data, int len, int offset);
 uint32_t pru_read_word(MEM_TYPE mem_type, int loc);

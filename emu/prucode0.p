@@ -147,6 +147,9 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 05/19/17 DJG Changed seek so it will set cylinder to zero if greater than
+//     limit at end of seek. Previous code did it on each step so would go
+//     n n+1 0 1 if step pulses kept coming in the same seek. 
 // 09/02/16 DJG Put in Rob Jarratt code change so when stepped past last
 //     track it will go back to track 0
 // 01/22/16 DJG Make sure write going inactive is checked when all
@@ -856,18 +859,9 @@ step:
       // Get current cylinder for selected drive
    LBBO     r1, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    QBBS     step_out, R31, R31_SEEK_DIR_BIT   // Which direction
-      // Direction is in, higher cyl, Limit cylinder value to number of cyl-1
-   LBBO     r0, DRIVE_DATA, PRU0_DRIVE0_NUM_CYL, 4
-   SUB      r0, r0, 1  
-   QBEQ     step_recal, r1, r0              // At limit, go back to track 0
+      // Direction is in increment cyl. Over limit will be handled
+      // when seek done.
    ADD      r1, r1, 1
-   JMP      step_done
-      // One common behavior when trying to step past the last track is for
-      // the drive to recalibrate back to track 0. The other behavior is
-      // to continue stepping until it hits the mechanical stop. This
-      // implements going to track 0 which Vaxstation 2000 needs.
-step_recal:
-   LDI      r1, 0
    JMP      step_done
 step_out:
    QBEQ     step_done, r1, 0                // At limit, ignore
@@ -907,6 +901,11 @@ waitstephigh2:
    CALL     set_index
    QBBS     select_head, r31, 30        // Select or head line change interrupt?
    QBBC     waitstephigh2, r31, R31_STEP_BIT  
+      // Check we didn't step past end of disk. We shouldn't have stepped
+      // at all here but check just in case the controller does weird things
+   CALL     limit_cyl
+      // Update track zero signal in case it changed
+   CALL     set_track0
       // Restart outputting with data we already have.
    JMP      step_restart
 stephigh:
@@ -931,6 +930,8 @@ seek_lp:
    QBLT     seek_lp, r1, r0
 
 seek_wait_done:
+      // Check we didn't step past end of disk
+   CALL     limit_cyl
       // Update track zero signal in case it changed
    CALL     set_track0
       // If we were waiting for a command don't send interrupt, go back
@@ -940,6 +941,20 @@ seek_wait_done:
       // Update data and send interrupt to ARM
    CALL     send_arm_cyl
    JMP      wait_cmd
+
+limit_cyl:
+      // One common behavior when trying to step past the last track is for
+      // the drive to recalibrate back to track 0. The other behavior is
+      // to continue stepping until it hits the mechanical stop. This
+      // implements going to track 0 which Vaxstation 2000 needs.
+      // Limit cylinder value to number of cyl-1
+   LBBO     r24, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+   LBBO     r25, DRIVE_DATA, PRU0_DRIVE0_NUM_CYL, 4
+   QBLT     cyl_ok, r25, r24            
+   LDI      r24, 0          // At limit, go back to track 0
+   SBBO     r24, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+cyl_ok:
+   RET
 
 send_arm_cyl:
       // Save cylinder we sent to ARN so we can detect if more seeks done

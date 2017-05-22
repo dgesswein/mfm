@@ -217,8 +217,10 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
       drive_params->controller = cont;
       drive_params->sector_size = 
          mfm_controller_info[cont].analyze_sector_size;
-      drive_params->start_time_ns = 
-         mfm_controller_info[cont].start_time_ns;
+      if (!drive_params->start_time_set_cmd_line) {
+         drive_params->start_time_ns = 
+            mfm_controller_info[cont].start_time_ns;
+      }
       // TODO: This would be faster if we just searched in mfm_process_bytes
       // where we check the CRC instead of decoding the MFM transitions
       // each time.

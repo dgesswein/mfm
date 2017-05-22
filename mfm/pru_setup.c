@@ -17,6 +17,7 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 05/19/17 DJG Add ability to dump PRU shared memory.
 // 12/24/15 DJG Comment cleanup
 // 11/22/15 DJG Add 15 MHz data rate support.
 // 05/17/15 DJG Added routines to allow dumping of state if PRU halts
@@ -66,7 +67,7 @@ static void *ddr_mem, *pru_dataram0, *pru_dataram1, *pru_sharedram;
 static uint32_t ddr_phys_addr;
 static int ddr_mem_size;
 static int num_pru;
-static int data_mem_type[2] = {MEM_PRU0_DATA, MEM_PRU1_DATA};
+static int data_mem_type[] = {MEM_PRU0_DATA, MEM_PRU1_DATA};
 
 // Map DDR shared memory segment into our address space and return addresses
 // and size.
@@ -293,9 +294,10 @@ void pru_print_registers(int pru_num)
 // Call this routine to print memory
 // The status register is actually outside PRU data memory but the
 // mapped region is large enough to get to it.
+// type: type of memory to dump
 // start: start offset in bytes
 // len : length in bytes
-void pru_print_memory(int pru_num, int start, int len)
+void pru_print_memory(MEM_TYPE mem_type, int start, int len)
 {
    int i, reg;
 
@@ -304,7 +306,7 @@ void pru_print_memory(int pru_num, int start, int len)
          msg(MSG_FATAL, "%04x: ",i);
       }
       // Set the starting address to STOP_ADDR and restart the PRU.
-      reg = pru_read_word(data_mem_type[pru_num], i);
+      reg = pru_read_word(mem_type, i);
       msg(MSG_FATAL, "%08x ",reg);
       if (i % 32 == 28) {
          msg(MSG_FATAL,"\n");
