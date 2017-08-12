@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 08/11/17 DJG Added COnvergent AWS
 // 04/21/17 DJG changed mfm_check_header_values to update sector_status_list
 //    and added determining --begin_time if needed
 // 03/08/17 DJG Moved Intel iSBC 215 from xebec_mfm_decoder.c
@@ -504,6 +505,24 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
+//   CONTROLLER_CONVERGENT_AWS
+//   http://mightyframe.blogspot.com/2017/03/convergent-technologies-workstation.html
+//
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2
+//         7-4 head number
+//         3-0 High 4 bits of cylinder
+//      byte 3 low 8 bits of cylinder
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      256 bytes sector data
+//      2 byte CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -957,6 +976,20 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 
          if (bytes[1]  != 0x19) {
             msg(MSG_INFO, "Invalid header id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_CONVERGENT_AWS) {
+         sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
+         sector_status.head = bytes[2] >> 4;
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = bytes[4];
+
+         if ((bytes[1])  != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;

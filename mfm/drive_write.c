@@ -18,6 +18,9 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
+//
+// 06/30/17 DJG Use emulator file number of heads, not command line.
+//
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -81,7 +84,7 @@ void drive_write_disk(DRIVE_PARAMS *drive_params)
 //TODO need to handle this better either in emulator or here. Also
 //need to handle truncating when index seen or filling until index
 { int n;
-for (n = 0; n < drive_params->num_head; n++) {
+for (n = 0; n < drive_params->emu_file_info->num_head; n++) {
    int *d = (int *) data;
    // No transitions at end of write will cause emulator to fail
    d[track_size/4 - 1 + n * track_size/4] = 0x55555555;
