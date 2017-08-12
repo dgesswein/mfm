@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 08/11/17 DJG Added support for Convergent AWS
 // 05/19/17 DJG New sector state to indicate it hasn't been written.
 // 04/21/17 DJG Allow --begin_time to override default values from analyze
 // 03/08/17 DJG Fixed Intel iSBC 215 and added support for all sector lengths
@@ -110,6 +111,7 @@ typedef struct {
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_ALTOS_586,
       CONTROLLER_ATT_3B2,
+      CONTROLLER_CONVERGENT_AWS,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -874,6 +876,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"ATT_3B2",              256, 10000000,      0, 
+         3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"CONVERGENT_AWS",       256, 10000000, 460000, 
          3, ARRAYSIZE(mfm_all_poly), 3, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,

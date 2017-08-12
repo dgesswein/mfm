@@ -17,6 +17,10 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
+//
+// 06/30/17 DJG Set drive parameters to number of cylinder and heads in
+//          emulation file. Get rid of hard coded values.
+//
 #include <stdio.h>
 #include <sys/mman.h>
 #include <errno.h>
@@ -152,8 +156,6 @@ int main(int argc, char *argv[])
    drive_params.write_precomp_cyl = 512;
    drive_params.early_precomp_ns = 10;
    drive_params.late_precomp_ns = 10;
-   drive_params.num_cyl = 1024;
-   drive_params.num_head = 8;
    drive_params.drive = 1;
 
    if (drive_params.emulation_filename == NULL) {
@@ -165,6 +167,8 @@ int main(int argc, char *argv[])
       drive_params.emulation_filename, &emu_file_info, 0);
    drive_params.start_time_ns = emu_file_info.start_time_ns;
    drive_params.emu_file_info = &emu_file_info;
+   drive_params.num_cyl = emu_file_info.num_cyl;
+   drive_params.num_head = emu_file_info.num_head;
 
 
    // Initialize PRU

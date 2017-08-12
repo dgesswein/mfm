@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 08/11/17 DJG Added support for Convergent AWS
 // 05/19/17 DJG Previous fix prevented writing sectors with data error. Back
 //   to writing the best data we have for sector in extracted data file.
 // 04/21/17 DJG Added better tracking of information during read. When index
@@ -494,6 +495,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
          drive_params->controller == CONTROLLER_ALTOS_586 ||
          drive_params->controller == CONTROLLER_ATT_3B2 ||
+         drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
@@ -1135,6 +1137,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
             drive_params->controller == CONTROLLER_ALTOS_586 ||
             drive_params->controller == CONTROLLER_ATT_3B2 ||
+            drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
