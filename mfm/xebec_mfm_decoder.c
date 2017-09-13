@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 09/11/17 DJG Added support for 32 256 byte sectors to EC1841
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
 // 03/09/17 DJG Moved Intel iSBC_215 to wd_mfm_decoder. It didn't really
@@ -175,8 +176,20 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[4];
          sector_status.head = bytes[5] & 0xf;
          if (drive_params->controller == CONTROLLER_EC1841) {
+            // Controller shifts the sectors by 3 from what is recored
+            // in the header. We only handle 17 512 byte and 32 256 byte
+            // sectors per track. Using num_sectors doesn't work with analyze
             if (bytes[6]<3) {
-                sector_status.sector = bytes[6]+14;
+                if (drive_params->sector_size == 256) {
+                   sector_status.sector = bytes[6] + 32 - 3;
+                } else if (drive_params->sector_size == 512) {
+                   sector_status.sector = bytes[6] + 17 - 3;
+                } else {
+                   msg(MSG_ERR, "Unsupported sector size %d on cyl %d head %d sector %d\n",
+                     drive_params->sector_size,
+                     sector_status.cyl, sector_status.head, sector_status.sector);
+                   sector_status.status |= SECT_BAD_HEADER;
+                }
             } else {
                 sector_status.sector = bytes[6]-3;
             }

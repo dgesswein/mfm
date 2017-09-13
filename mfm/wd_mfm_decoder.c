@@ -12,7 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
-// 08/11/17 DJG Added COnvergent AWS
+// 08/11/17 DJG Added Convergent AWS
 // 04/21/17 DJG changed mfm_check_header_values to update sector_status_list
 //    and added determining --begin_time if needed
 // 03/08/17 DJG Moved Intel iSBC 215 from xebec_mfm_decoder.c
