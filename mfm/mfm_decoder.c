@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 09/30/17 DJG Added Wang 2275
 // 08/11/17 DJG Added support for Convergent AWS
 // 05/19/17 DJG Previous fix prevented writing sectors with data error. Back
 //   to writing the best data we have for sector in extracted data file.
@@ -495,6 +496,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
          drive_params->controller == CONTROLLER_ALTOS_586 ||
          drive_params->controller == CONTROLLER_ATT_3B2 ||
+         drive_params->controller == CONTROLLER_WANG_2275 ||
+         drive_params->controller == CONTROLLER_WANG_2275_B ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
@@ -1022,14 +1025,14 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
       name = "header";
    } else {
+      start = mfm_controller_info[drive_params->controller].data_crc_ignore;
 #if 0
       static int dump_fd = 0;
       if  (dump_fd == 0) {
          dump_fd = open("dumpfile",O_WRONLY | O_CREAT | O_TRUNC, 0666);
       }
-      write(dump_fd, &bytes[3], bytes_crc_len - 3);
+      write(dump_fd, &bytes[start], bytes_crc_len - start);
 #endif
-      start = mfm_controller_info[drive_params->controller].data_crc_ignore;
 
       crc_info = drive_params->data_crc;
       if (msg_get_err_mask() & MSG_DEBUG_DATA) {
@@ -1038,10 +1041,16 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
       name = "data";
    }
-   if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
-      // This doesn't use start. Possibly should for consistency
-      crc = checksum64(bytes, bytes_crc_len-crc_info.length/8, &crc_info);
-      if (crc_info.length == 16) {
+   if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
+       (drive_params->controller == CONTROLLER_WANG_2275 &&
+         *state == PROCESS_HEADER)) {
+      crc = checksum64(&bytes[start], bytes_crc_len-crc_info.length/8-start, &crc_info);
+      if (crc_info.length == 8) {
+        crc = crc & 0xff;
+        if (crc == bytes[bytes_crc_len-1]) {
+           crc = 0;
+        }
+      } else if (crc_info.length == 16) {
          crc = crc & 0xff;
          if (crc == bytes[bytes_crc_len-2] && 
                crc == (bytes[bytes_crc_len-1] ^ 0xff)) {
@@ -1137,6 +1146,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
             drive_params->controller == CONTROLLER_ALTOS_586 ||
             drive_params->controller == CONTROLLER_ATT_3B2 ||
+            drive_params->controller == CONTROLLER_WANG_2275 ||
+            drive_params->controller == CONTROLLER_WANG_2275_B ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||

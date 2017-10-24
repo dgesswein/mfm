@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 09/30/17 DJG Added Wang 2275
 // 08/11/17 DJG Added Convergent AWS
 // 04/21/17 DJG changed mfm_check_header_values to update sector_status_list
 //    and added determining --begin_time if needed
@@ -223,7 +224,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 0 0xa1
 //      byte 1 0xfe 
 //      byte 2 low 8 bits of cylinder
-//      byte 3 bits 0-3 head number. bits 5-7 upper 3 bits cyl, 
+//      byte 3 bits 0-3 head number. bits 4-6 upper 3 bits cyl, 
 //         bit 7 bad block flag
 //      byte 4 sector number
 //      bytes 5-7 24 bit CRC
@@ -523,6 +524,40 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      256 bytes sector data
 //      2 byte CRC/ECC code
 //
+//   CONTROLLER_WANG_2275
+//      http://www.wang2200.org/docs.html
+//      2275 Internal Memos documents have some information on spare
+//      sector handling. Didn't find low level format. Seems to say uses
+//      a WD2010 but format found doesn't match chip. Bad sector handling
+//      is data table stored on disk. Not handled by this code.
+//   5 byte header + 1 byte checksum
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-3 head number. Bits 4-7 upper bits of cylinder
+//      byte 4 sector number
+//      bytes 5 8 bit checksum
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xfb
+//      Sector data for sector size
+//      24 bit CRC/ECC code
+//
+//   CONTROLLER_WANG_2275_B
+//      Found on last 3 cylinders of WANG_2275 disk
+//   5 byte header + 1 byte checksum
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-4 head number. Bits 5-7 upper bits of cylinder
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      16 bit CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -744,6 +779,34 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.sector = bytes[4] & 0x1f;
 
          if (cyl_high == -1) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_WANG_2275) {
+         sector_status.cyl = bytes[2] | ((bytes[3] & 0xf0) << 4);
+
+         sector_status.head = bytes[3] & 0xf;
+         sector_size = 256;
+
+         sector_status.sector = bytes[4];
+
+         if (bytes[1] !=  0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
+         sector_status.cyl = bytes[2] | ((bytes[3] & 0xe0) << 3);
+
+         sector_status.head = bytes[3] & 0x1f;
+         sector_size = 256;
+
+         sector_status.sector = bytes[4];
+
+         if (bytes[1] !=  0xfe) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
@@ -1056,6 +1119,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_index = 1;
       } else if (drive_params->controller == CONTROLLER_UNKNOWN1) {
          id_byte_expected = sector_status.sector;
+      } else if (drive_params->controller == CONTROLLER_WANG_2275) {
+         id_byte_expected = 0xfb;
+      } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
+         id_byte_expected = 0xf8;
       }
       if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 

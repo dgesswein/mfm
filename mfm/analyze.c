@@ -6,6 +6,7 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 10/20/17 DJG Fixed error print wording in analyze_seek
 // 12/10/16 DJG Added logic to ignore Ambiguous CRC polynomial match on all
 //    zero data.
 // 11/14/16 DJG Make Data CRC max span reasonable for formats not using
@@ -616,22 +617,29 @@ static int analyze_seek(DRIVE_PARAMS *drive_params) {
    // track 0.
    drive_step(drive_params->step_speed, seek, 
            DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
-   for (i = 1; i <= seek && rc == 0; i++) {
-      drive_step(DRIVE_STEP_SLOW, -1, 
-           DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
-      if (i == seek) {
-         if (!drive_at_track0()) {
-            msg(MSG_INFO, "Found track 0 after %d steps\n", i);
-            rc = 1;
-         }
-      } else {
-         if (drive_at_track0()) {
-            msg(MSG_INFO, "Didn't reach track 0\n");
-            rc = 1;
+   if (drive_at_track0()) {
+      msg(MSG_INFO, "Drive still at track 0 after seek\n");
+      rc = 1;
+   } else {
+      for (i = 1; i <= seek && rc == 0; i++) {
+         drive_step(DRIVE_STEP_SLOW, -1, 
+            DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+         if (i == seek) {
+            if (!drive_at_track0()) {
+               msg(MSG_INFO, "Drive didn't reach track 0 testing %s seek\n",
+                  step_speed_text(drive_params->step_speed));
+               rc = 1;
+            }
+         } else {
+            if (drive_at_track0()) {
+               msg(MSG_INFO, "Drive prematurely at track 0 after %d of %d steps testing %s seek\n", 
+                  i, seek, step_speed_text(drive_params->step_speed));
+               rc = 1;
+            }
          }
       }
+      drive_seek_track0();
    }
-   drive_seek_track0();
 
    return rc;
 }
