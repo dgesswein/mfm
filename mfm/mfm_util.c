@@ -1,5 +1,6 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
+// 12/17/17 DJG Added process indicator
 // 10/16/16 DJG Fixed spelling error
 // 01/24/16 DJG Fix for ext2emu when sectors start at 1
 // 01/06/16 DJG Rename structure
@@ -202,6 +203,8 @@ int main (int argc, char *argv[])
    }
    // Read and process a track at a time until all read
    while (num_deltas >= 0) {
+      if (cyl % 10 == 0)
+         msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       // Only clear status if we are moving to the next track. If retries
       // were done we may have multiple reads of the same track.
       if (last_cyl != cyl || last_head != head) {
@@ -875,8 +878,7 @@ void ext2emu(int argc, char *argv[])
       // the parameters specified
    if (calc_size != finfo.st_size) {
       msg(MSG_INFO, "Calculated extract file size %d bytes, actual size %d\n",
-        calc_size, finfo.st_size);
-   }
+        calc_size, finfo.st_size); }
 
       // If interleave values specified set them
    if (drive_params.sector_numbers != NULL) {
@@ -894,6 +896,8 @@ void ext2emu(int argc, char *argv[])
 
    // Step through each cylinder and track and process the data
    for (cyl = 0; cyl < drive_params.num_cyl; cyl++) {
+      if (cyl % 10 == 0)
+         msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       set_cyl(cyl);
       start_new_cyl(&drive_params);
       for (head = 0; head < drive_params.num_head; head++) {

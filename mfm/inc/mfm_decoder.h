@@ -1,6 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 12/17/17 DJG Aded EDAX_PV9900
+// 11/23/17 DJG Changed Wang 2275_B to CONT_MODEL so it won't get confused
+//    with WD_1006
 // 09/30/17 DJG Added support for Wang 2275
 // 08/11/17 DJG Added support for Convergent AWS
 // 05/19/17 DJG New sector state to indicate it hasn't been written.
@@ -115,6 +118,7 @@ typedef struct {
       CONTROLLER_CONVERGENT_AWS,
       CONTROLLER_WANG_2275,
       CONTROLLER_WANG_2275_B,
+      CONTROLLER_EDAX_PV9900,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -908,6 +912,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
+      {"EDAX_PV9900",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 1, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },

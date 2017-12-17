@@ -557,6 +557,26 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      16 bit CRC/ECC code
+//      
+//   CONTROLLER_EDAX_PV9900
+//      Quantum Q540 drive that appears to be from EDAX PV9900 EDS X-ray 
+//      microanalysis system. From online informat disk controller is likely
+//      from either AED Advanced Electronics Design or QBDC Q bus disk 
+//      controller.
+//
+//   5 byte header + 2 byte crc
+//      byte 0 0xa1. It looks like the upper two bits of the low 8 bits of
+//         the cylinder is encoded in the sync byte so its not always the
+//         normal 0xa1.
+//      byte 1 cylinder low
+//      byte 2 cylinder high
+//      byte 3 sector number
+//      byte 4 head
+//      bytes 5-6 16 bit CRC 0xffff,0x1021,16
+//   Data
+//      byte 0 0xa1
+//      Sector data for sector size
+//      16 bit CRC/ECC code 0xffff,0x1021,16
 //
 // state: Current state in the decoding
 // bytes: bytes to process
@@ -812,6 +832,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_EDAX_PV9900) {
+         sector_status.cyl = bytes[1] | (bytes[2] << 8);
+
+         sector_status.head = bytes[4];
+         sector_size = 256;
+
+         sector_status.sector = bytes[3];
+
       } else if (drive_params->controller == CONTROLLER_DTC) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x70) << 4);
 
@@ -1123,8 +1151,12 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
          id_byte_expected = 0xf8;
+      } else if (drive_params->controller == CONTROLLER_EDAX_PV9900) {
+         id_byte_expected = 0;
+         id_byte_index = -1;
       }
-      if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
+      if (id_byte_index != -1 &&
+            bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
                bytes[id_byte_index], id_byte_expected,
                sector_status.cyl, sector_status.head, sector_status.sector);
@@ -1313,8 +1345,11 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 }
 #endif
 //printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
-            if ((raw_word & 0xffff) == 0x4489
-                  && zero_count >= MARK_NUM_ZEROS) {
+            if ((drive_params->controller == CONTROLLER_EDAX_PV9900 &&
+                    (((raw_word & 0xffff) == 0x4489 && state != MARK_ID) || 
+                     ((raw_word & 0xfffff) == 0xa4891 && state == MARK_ID)) )  ||
+               (drive_params->controller != CONTROLLER_EDAX_PV9900 && (raw_word & 0xffff) == 0x4489 && 
+                 zero_count >= MARK_NUM_ZEROS) ) {
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }

@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/17/17 DJG Aded EDAX_PV9900
 // 09/30/17 DJG Added Wang 2275
 // 08/11/17 DJG Added support for Convergent AWS
 // 05/19/17 DJG Previous fix prevented writing sectors with data error. Back
@@ -498,6 +499,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ATT_3B2 ||
          drive_params->controller == CONTROLLER_WANG_2275 ||
          drive_params->controller == CONTROLLER_WANG_2275_B ||
+         drive_params->controller == CONTROLLER_EDAX_PV9900 ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
@@ -1018,6 +1020,18 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    if (*state == PROCESS_HEADER) {
       start = mfm_controller_info[drive_params->controller].header_crc_ignore;
 
+#if 0
+      static int dump_fd = 0;
+      static int first = 1;
+      if (first) {
+         printf("Dumping starting at byte %d for %d bytes\n",start, bytes_crc_len - start);
+         first = 0;
+      }
+      if  (dump_fd == 0) {
+         dump_fd = open("dumpheader",O_WRONLY | O_CREAT | O_TRUNC, 0666);
+      }
+      write(dump_fd, &bytes[start], bytes_crc_len - start);
+#endif
       crc_info = drive_params->header_crc;
       if (msg_get_err_mask() & MSG_DEBUG_DATA) {
          mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
@@ -1028,8 +1042,13 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       start = mfm_controller_info[drive_params->controller].data_crc_ignore;
 #if 0
       static int dump_fd = 0;
+      static int first = 1;
+      if (first) {
+         printf("Dumping starting at byte %d for %d bytes\n",start, bytes_crc_len - start);
+         first = 0;
+      }
       if  (dump_fd == 0) {
-         dump_fd = open("dumpfile",O_WRONLY | O_CREAT | O_TRUNC, 0666);
+         dump_fd = open("dumpdata",O_WRONLY | O_CREAT | O_TRUNC, 0666);
       }
       write(dump_fd, &bytes[start], bytes_crc_len - start);
 #endif
@@ -1148,6 +1167,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ATT_3B2 ||
             drive_params->controller == CONTROLLER_WANG_2275 ||
             drive_params->controller == CONTROLLER_WANG_2275_B ||
+            drive_params->controller == CONTROLLER_EDAX_PV9900 ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
