@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
-// 12/17/17 DJG Added process indicator
+// 12/25/17 DJG Made progress indicator only print same value once
+// 12/17/17 DJG Added progress indicator
 // 10/16/16 DJG Fixed spelling error
 // 01/24/16 DJG Fix for ext2emu when sectors start at 1
 // 01/06/16 DJG Rename structure
@@ -203,7 +204,7 @@ int main (int argc, char *argv[])
    }
    // Read and process a track at a time until all read
    while (num_deltas >= 0) {
-      if (cyl % 10 == 0)
+      if (cyl % 10 == 0 && head == 0)
          msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       // Only clear status if we are moving to the next track. If retries
       // were done we may have multiple reads of the same track.
