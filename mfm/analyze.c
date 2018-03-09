@@ -6,6 +6,7 @@
 
 // Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
+// 03/09/18 DJG Added error message
 // 10/20/17 DJG Fixed error print wording in analyze_seek
 // 12/10/16 DJG Added logic to ignore Ambiguous CRC polynomial match on all
 //    zero data.
@@ -925,6 +926,7 @@ void analyze_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
    mfm_decode_setup(drive_params, 0);
 
    if (analyze_format(drive_params, deltas, max_deltas, cyl, head) == 0) {
+      msg(MSG_ERR, "Unable to determine drive format\n");
       exit(1);
    }
    if (!use_file) {

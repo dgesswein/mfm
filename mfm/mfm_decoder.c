@@ -18,6 +18,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 03/07/18 DJG Added CONTROLLER_DILOG_DQ614
+// 02/04/18 DJG Fixed error message and freed alternate track memory.
 // 12/17/17 DJG Aded EDAX_PV9900
 // 09/30/17 DJG Added Wang 2275
 // 08/11/17 DJG Added support for Convergent AWS
@@ -502,6 +504,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
+         drive_params->controller == CONTROLLER_DILOG_DQ614 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -617,6 +620,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
 
 static void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
    ALT_INFO *alt_info = drive_params->alt_llist;
+   void *ptr_hold;
 
    while (alt_info != NULL) { 
       uint8_t bad_data[alt_info->length];
@@ -643,7 +647,9 @@ static void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
          msg(MSG_FATAL, "bad alt pwrite failed\n");
          exit(1);
       }
+      ptr_hold = alt_info;
       alt_info = alt_info->next; 
+      free(ptr_hold);
    }
 }
 
@@ -1001,6 +1007,9 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // seek_difference: Return of difference between expected cyl and header
 // sector_status_list: Return of status of decoded sector
 // return: Status of sector decoded
+// TODO: Would be good if data doesn't decode as data to try as header
+// If data mark missed will process next sector header as data so one
+// sector of data that should be recoverable will be lost.
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, 
    uint8_t bytes[], int bytes_crc_len, int total_bytes,
    STATE_TYPE *state, int cyl, int head,
@@ -1170,6 +1179,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
+            drive_params->controller == CONTROLLER_DILOG_DQ614 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
@@ -1535,7 +1545,7 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
       return;
    }
    if (good_head >= drive_params->num_head) {
-      msg(MSG_ERR, "Bad alternate head %d out of valid range %d to %d\n",
+      msg(MSG_ERR, "Good alternate head %d out of valid range %d to %d\n",
          good_head, 0, drive_params->num_head - 1);
       return;
    }
@@ -1555,6 +1565,8 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
          alt_info->bad_offset != drive_params->alt_llist->bad_offset ||
          alt_info->good_offset != drive_params->alt_llist->good_offset) {
       drive_params->alt_llist = alt_info;
+   } else {
+      free(alt_info);
    }
 }
 

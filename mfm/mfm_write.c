@@ -18,6 +18,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 03/09/18 DJG Use drive specified on command line
 // 06/30/17 DJG Set drive parameters to number of cylinder and heads in
 //          emulation file. Get rid of hard coded values.
 //
@@ -156,10 +157,14 @@ int main(int argc, char *argv[])
    drive_params.write_precomp_cyl = 512;
    drive_params.early_precomp_ns = 10;
    drive_params.late_precomp_ns = 10;
-   drive_params.drive = 1;
 
    if (drive_params.emulation_filename == NULL) {
       msg(MSG_FATAL, "Emulation filenames must be specified\n");
+      exit(1);
+   }
+
+   if (drive_params.drive == 0) {
+      msg(MSG_FATAL, "Drive must be specified\n");
       exit(1);
    }
 

@@ -17,6 +17,8 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/09/2018 DJG Make sure correct setup script run so pins are in correct
+//    direction.
 // 05/19/17 DJG Dummped more memory on error.
 // 02/20/16 DJG Reduced amount of delay when writing multiple tracks with
 //    some track buffers full. Delays seemed longer than needed.
@@ -579,6 +581,43 @@ static void *emu_proc_write(void *arg)
    return NULL;
 }
 
+// Verify first drive select pin is set to input
+void check_select_input()
+{
+   char *drive_pins[] = {
+         "/sys/class/gpio/gpio22/direction",
+         "/sys/class/gpio/gpio23/direction",
+         "/sys/class/gpio/gpio26/direction",
+         "/sys/class/gpio/gpio27/direction"
+   };
+   static int fd[4];
+   int i;
+   char buf[100];
+   int rc;
+
+   i = 0;
+   fd[i] = open(drive_pins[i], O_RDONLY);
+   if (fd[i] < 0) {
+      msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pins[i]);
+      exit(1);
+   }
+   // Make sure correct setup run
+   rc = read(fd[i], buf, sizeof(buf));
+   if (rc != 3) {
+      if (rc < 0) {
+         msg(MSG_FATAL, "Error reading pin %s, did you run the setup script?\n", drive_pins[i]);
+         exit(1);
+      }
+      // Remove newline
+      if (rc > 1) {
+         buf[rc-1] = 0;
+      }
+      msg(MSG_FATAL, "Wrong pin setting pin %s - %s, must reboot between reading and emulation.\n", drive_pins[i], buf);
+      exit(1);
+   }
+   close(fd[i]);
+} 
+
 // Main routine. 
 int main(int argc, char *argv[])
 {
@@ -607,6 +646,8 @@ int main(int argc, char *argv[])
    uint32_t *data;
 
    board_initialize();
+
+   check_select_input();
 
    // Find out what we should do
    parse_cmdline(argc, argv, &drive_params);

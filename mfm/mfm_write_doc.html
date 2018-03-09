@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2017-06-30T11:47:07.495020819"/>
+	<meta name="changed" content="2018-02-17T11:47:40.529322467"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -18,9 +18,11 @@
 <p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
 mfm_write can write an emulator file to a disk drive. I got it to the
 state I could write the disk I needed but it is not a finished
-program. Currently it can only write an entire disk at once. You need
-to edit mfm_write.c main routine to set the parameters for your
-drive. I have not fixed command line parsing.</p>
+program. Currently it can only write an entire disk at once. It will
+pick up number of cylinders and heads to write from emulator file. 
+To change other  parameters  such as write precomensation cylinder
+you need to edit mfm_write.c main routine to set the parameters for
+your drive. I have not fixed command line parsing.</p>
 <p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
  
 </p>
@@ -79,5 +81,13 @@ Use mfm_read to verify the disk is properly written. The first
 attempt had a couple tracks that seem to be written to the wrong
 head. The next run worked ok. This program does not do anything to
 avoid using bad locations on the disk,</p>
+<p style="margin-bottom: 0in; font-style: normal; font-weight: normal">
+<br/>
+
+</p>
+<p style="margin-bottom: 0in; font-style: normal; font-weight: normal">
+I have also seen the first attempt to write hang. You need to ctrl-z
+the process and then use kill %1 to kill it. All further executing of
+the command seem to work ok.</p>
 </body>
 </html>

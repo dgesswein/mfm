@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2017-01-18T20:21:45.982957992"/>
+	<meta name="changed" content="2018-03-09T15:11:58.487631165"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -34,7 +34,9 @@ parameters. --analyze=10,4</p>
 nanoseconds to delay from index to start reading track</p>
 <p style="margin-bottom: 0in">--cylinders  -c #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
-cylinders.</p>
+cylinders. This may be specified with --analyze to force more
+cylinders to be read if analyze determines the wrong number. Retries
+will not be performed on the extra cylinders.</p>
 <p style="margin-bottom: 0in">--data_crc  -j #h,#h,#h[,#h]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The CRC/ECC
 parameters for the sector data area.  Initial value, polynomial,
@@ -70,7 +72,9 @@ parameters for the sector header. Initial value, polynomial,
 polynomial length, maximum ECC span.</p>
 <p style="margin-bottom: 0in">--heads  -h #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
-heads.</p>
+heads.T his may be specified with --analyze to force more heads to be
+read if analyze determines the wrong number. Retries will not be
+performed on the extra heads.</p>
 <p style="margin-bottom: 0in">--ignore_seek_errors -I</p>
 <p style="margin-left: 0.49in; margin-bottom: 0in">Ignore mismatch
 between expected cylinders and actual cylinder. The primary use is to

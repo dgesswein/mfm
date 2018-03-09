@@ -6,6 +6,8 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 03/09/2018 DJG Added logic to not retry when requested to read more
+//   cylinders or heads than analyze determined
 // 11/05/2016 DJG Made retry seek progression more like it was before change below
 // 10/16/2016 DJG Added control over seek on retry
 // 10/02/2016 DJG Rob Jarratt change to clean up confusing code.
@@ -97,6 +99,7 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
          msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       for (head = 0; head < drive_params->num_head; head++) {
          int recovered = 0;
+         int retries;
 
          err_cnt = 0;
          no_seek_count = drive_params->no_seek_retries;
@@ -104,6 +107,12 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
          // Clear sector status here so we can see if different sectors
          // successfully read on different reads.
          mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
+         if (cyl >= drive_params->noretry_cyl || 
+             head >= drive_params->noretry_head) {
+            retries = 0;
+         } else {
+            retries = drive_params->retries;
+         }
          do {
             // First error retry without seek, second with third without etc
             // Hopefully by moving head it will settle slightly differently
@@ -172,7 +181,7 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
             // expected cylinder such as when tracks are spared can trigger
             // this also
             if (sector_status & SECT_WRONG_CYL) {
-               if (err_cnt < drive_params->retries) {
+               if (err_cnt < retries) {
                   msg(MSG_ERR, "Retrying seek cyl %d, cyl off by %d\n", cyl,
                         seek_difference);
                   drive_step(drive_params->step_speed, seek_difference, 
@@ -184,9 +193,9 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
                recovered = 1;
             }
          // repeat until we get all the data or run out of retries
-         } while (sect_err && err_cnt++ < drive_params->retries);
+         } while (sect_err && err_cnt++ < retries);
          if (err_cnt > 0) {
-            if (err_cnt == drive_params->retries + 1) {
+            if (err_cnt == retries + 1) {
                msg(MSG_ERR, "Retries failed cyl %d head %d\n", cyl, head);
             } else {
                msg(MSG_INFO, "All sectors recovered %safter %d retries cyl %d head %d\n",

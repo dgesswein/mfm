@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 03/09/18 DJG Added CONTROLLER_DILOG_DQ614 and fields for reading more
+//    cylinders and heads than analyze determines.
 // 12/17/17 DJG Aded EDAX_PV9900
 // 11/23/17 DJG Changed Wang 2275_B to CONT_MODEL so it won't get confused
 //    with WD_1006
@@ -97,6 +99,11 @@ typedef struct {
    int num_cyl;
    int num_head;
    int num_sectors;
+   // Don't do retry when >= than specified head or cylinder. This is used
+   // when drive mixes formats. Code currently can only decode one so
+   // retries don't help
+   int noretry_cyl;
+   int noretry_head;
    // The number of the first sector. Some disks start at 0 others 1
    int first_sector_number;
    // Size of data area of sector in bytes
@@ -133,6 +140,7 @@ typedef struct {
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_DG_MV2000, 
       CONTROLLER_SOLOSYSTEMS, 
+      CONTROLLER_DILOG_DQ614,
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
@@ -290,7 +298,10 @@ DEF_EXTERN struct {
      // This is data area for Altos 586. Unknown why this initial value needed.
      {16, 0xe60c},
      // WANG 2275 with all header bytes in CRC
-     {24, 0x223808}
+     {24, 0x223808},
+     // This is for DILOG_DQ614, header and data
+     {32, 0x58e07342},
+     {32, 0xcf2105e0}
   }
 #endif
 ;
@@ -1041,6 +1052,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"DILOG_DQ614",         256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         8, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },

@@ -12,6 +12,9 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 03/07/18 DJG Added CONTROLLER_DILOG_DQ614
+// 02/04/18 DJG Made iSBC 215 alternate track handling match documentation
+//    better. No example to verify with.
 // 09/30/17 DJG Added Wang 2275
 // 08/11/17 DJG Added Convergent AWS
 // 04/21/17 DJG changed mfm_check_header_values to update sector_status_list
@@ -485,7 +488,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //   CONTROLLER_ISBC_215, Intel 310/MDS-4 with iSBC-215 controller
 //      http://www.bitsavers.org/pdf/intel/iSBC/144780-002_iSBC_215_Generic_Winchester_Disk_Controller_Hardware_Reference_Manual_Dec84.pdf
-//      See pages around 80 and 132.
+//      See pages around 80 and 132. It appears unused alternate tracks aren't
+//      formatted till use.
 //
 //   5 byte header + 4 byte CRC
 //      byte 0 0xa1
@@ -495,7 +499,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //         5-4 sector size 00 = 128, 01 = 256, 10 = 512, 11 = 1024
 //         7-6 flag 00 = data track, 01 = assigned alternate
 //                  10 = defective, 11 = invalid
-//         No example of alternate so not properly handled
+//         No example of alternate so not tested
 //      byte 3 low 8 bits of cylinder
 //      byte 4 sector number
 //      byte 5 head number
@@ -577,6 +581,35 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 0 0xa1
 //      Sector data for sector size
 //      16 bit CRC/ECC code 0xffff,0x1021,16
+//
+//   CONTROLLER_DILOG_DQ614 (Distributed Logic)
+//   Has label 570B1 A.
+//   User manual without format info http://www.bitsavers.org/pdf/dilog/
+//   ST-225-1.zip
+//
+//   8 byte header + 4 byte crc
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 Partition in low 5 bits? Bit 5 set on last logical sector
+//          of track. Bit 6 set on last logical sector of cylinder. Bit 7
+//          set on last locical sector of disk.
+//      byte 3 0x33
+//      byte 4 high cylinder 
+//      byte 5 low cylinder
+//      byte 6 head
+//      byte 7 sector number. MSB set on last physcial sector of track.
+//      bytes 8-11 32 bit CRC 0xffff,0x1021,16
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      32 bit CRC/ECC code 0xffff,0x1021,16
+//   The controller supported partitioning the drive into multiple disks.
+//   example has 0 and 2 in the partition field. Drive was labeled as drive 0
+//   and 1. Second partition started at cyl 300. Cyl 301 head 0 had some
+//   good sectors then rest of cylinder had sector headers but no data headers.
+//   Unknow what this represents. Same on cyl 603. Cyl 604 on are a different
+//   format and likely weren't used by the controller.
 //
 // state: Current state in the decoding
 // bytes: bytes to process
@@ -1058,12 +1091,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_ISBC_215) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
-
          sector_status.head = bytes[5];
          sector_size = 128 << ((bytes[2] & 0x30) >> 4);
          sector_status.sector = bytes[4];
-         bad_block = (bytes[1] & 0xc0) == 0x80;
-         alt_assigned = (bytes[1] & 0xc0) == 0x40;
+         is_alternate = (bytes[1] & 0xc0) == 0x40;
+         alt_assigned = (bytes[1] & 0xc0) == 0x80;
 
          if (bytes[1]  != 0x19) {
             msg(MSG_INFO, "Invalid header id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
@@ -1079,6 +1111,33 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 
          sector_status.sector = bytes[4];
 
+         if ((bytes[1])  != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_DILOG_DQ614) {
+         sector_status.cyl = bytes[5] | (bytes[4] << 8);
+         sector_status.head = bytes[6];
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = bytes[7] & 0x7f;
+       
+         static int last_byte2 = 0;
+         if ((bytes[2] & 0x1f) != last_byte2) {
+            last_byte2 = bytes[2];
+            msg(MSG_INFO, "Possible start of partition %d at cyl %d head %d sector %d\n",
+                  bytes[2], sector_status.cyl,
+                  sector_status.head, sector_status.sector);
+         }
+         if ((bytes[3])  != 0x33) {
+            msg(MSG_INFO, "Byte 3 %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[3], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
          if ((bytes[1])  != 0xfe) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
@@ -1161,6 +1220,17 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                bytes[id_byte_index], id_byte_expected,
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_DATA;
+      }
+      if (drive_params->controller == CONTROLLER_ISBC_215 && alt_assigned) {
+         // For defective tracks each sectors has repeating 4 byte sequence
+         // Alt cyl low, alt cyl high, alt head, 0x00. Entire track is always
+         // reassigned. TODO: This code should check the redundant data
+         // since the first 4 bytes could be bad. Since I don't have an
+         // example to test anyway this is good enough for now.
+         msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
+            (bytes[3] << 8) + bytes[2], bytes[4]);
+          mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+            sector_status.head, (bytes[3] << 8) + bytes[2], bytes[4]);
       }
       if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
          msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",

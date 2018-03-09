@@ -6,6 +6,8 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 03/09/18 DJG Added ability to request reading more heads or cylinders
+//   than analyze detects
 // 09/07/16 DJG Report possible reversal of 20 pin cable
 // 12/31/15 DJG Parameter change to parse_print_cmdline
 // 08/02/15 DJG Added support for rev B board
@@ -217,11 +219,23 @@ int main(int argc, char *argv[])
       msg(MSG_ERR,"** Drive selected without select, is J3 20 pin cable reversed? **\n");
    }
 
+   drive_params.noretry_head = drive_params.num_head;
+   drive_params.noretry_cyl = drive_params.num_cyl;
    if (drive_params.analyze) {
+      int head_cmdline = drive_params.num_head;
+      int cyl_cmdline = drive_params.num_cyl;
       analyze_disk(&drive_params, deltas, max_deltas, 0);
       msg(MSG_INFO,"\n");
       // Print analysis results
       parse_print_cmdline(&drive_params, 1, 0);
+      if (head_cmdline > drive_params.num_head) {
+         drive_params.noretry_head = drive_params.num_head;
+         drive_params.num_head = head_cmdline;
+      }
+      if (cyl_cmdline > drive_params.num_cyl) {
+         drive_params.noretry_cyl = drive_params.num_cyl;
+         drive_params.num_cyl = cyl_cmdline;
+      }
    }
    cmdline = parse_print_cmdline(&drive_params, 0, 0);
    drive_params.cmdline = msg_malloc(strlen(cmdline)+1,"main cmdline");

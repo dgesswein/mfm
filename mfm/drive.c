@@ -13,6 +13,8 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 03/09/2018 DJG Make sure correct setup script run so pins are in correct
+//    direction.
 // 10/02/2016 DJG Rob Jarratt change for DEC RD drives to detect when
 //    it recalibrates back to track 0 when stepping past end
 // 02/20/2016 DJG Split for drive reading and writing
@@ -86,14 +88,32 @@ void drive_select(int drive)
    }
    // Open the files once
    if (first_time) {
+      int rc;
+      char buf[100];
+
+      first_time = 0;
       for (i = 0; i < 4; i++) {
-         fd[i] = open(drive_pins[i], O_WRONLY);
+         fd[i] = open(drive_pins[i], O_RDWR);
          if (fd[i] < 0) {
             msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pins[i]);
             exit(1);
          }
       }
-      first_time = 0;
+      i = 0;
+      // Make sure correct setup run
+      rc = read(fd[i], buf, sizeof(buf));
+      if (rc != 4) {
+         if (rc < 0) {
+            msg(MSG_FATAL, "Error reading pin %s, did you run the setup script?\n", drive_pins[i]);
+            exit(1);
+         }
+         // Remove newline
+         if (rc > 1) {
+            buf[rc-1] = 0;
+         }
+         msg(MSG_FATAL, "Wrong pin setting pin %s - %s, must reboot between reading and emulation.\n", drive_pins[i], buf);
+         exit(1);
+      }
    }
    // Set the signals to the correct state
    for (i = 0; i < 4; i++) {
