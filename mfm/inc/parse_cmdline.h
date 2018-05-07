@@ -16,4 +16,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
      int allow_invalid_options);
 void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read);
 void parse_validate_options_listed(DRIVE_PARAMS *drive_params, char *opt);
+void parse_set_drive_params_from_controller(DRIVE_PARAMS *drive_params,
+   int controller);
 #endif /* PARSE_CMDLINE_H_ */

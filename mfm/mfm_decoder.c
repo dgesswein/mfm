@@ -18,6 +18,11 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 05/06/18 DJG Added format Xerox 8010 and Altos. Fixes for error
+//    recovery where sectors that were read correctly weren't always used
+//    to replace previous bad read and don't declare seek error on header
+//    with error.
+// 03/31/18 DJG Split DTC into three versions for ext2emu
 // 03/07/18 DJG Added CONTROLLER_DILOG_DQ614
 // 02/04/18 DJG Fixed error message and freed alternate track memory.
 // 12/17/17 DJG Aded EDAX_PV9900
@@ -65,7 +70,7 @@
 // 10/06/14 DJG Added new CONTROLLER_MACBOTTOM format
 // 09/10/14 DJG Added new CONTROLLER_OLIVETTI format
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // 09/06/14 DJG Made sector number printed for sectors with errors
@@ -490,6 +495,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
+         drive_params->controller == CONTROLLER_DTC_520_512B ||
+         drive_params->controller == CONTROLLER_DTC_520_256B ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_DG_MV2000 ||
@@ -502,6 +509,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_WANG_2275 ||
          drive_params->controller == CONTROLLER_WANG_2275_B ||
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
+         drive_params->controller == CONTROLLER_ALTOS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_DILOG_DQ614 ||
@@ -510,6 +518,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEROX_6085 ||
+         drive_params->controller == CONTROLLER_XEROX_8010 ||
            drive_params->controller == CONTROLLER_TELENEX_AUTOSCOPE) {
       rc = tagged_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
@@ -756,14 +765,18 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
       msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
             sector_status->cyl, exp_cyl, sector_status->head, exp_head,
             *sector_index);
-      sector_status->status |= SECT_BAD_HEADER;
-      // Possibly a seek error, mark it
-      if (sector_status->cyl != exp_cyl) {
+      // Possibly a seek error, mark it if header isn't declared bad. If
+      // drive uses bad CRC with initial value 0 non header data can pass 
+      // CRC hopefully will have BAD_HEADER set.
+      // TODO: Should we not do any of these checks with bad header?
+      if (sector_status->cyl != exp_cyl && !
+          (sector_status->status & SECT_BAD_HEADER)) {
          sector_status->status |= SECT_WRONG_CYL;
          if (seek_difference != NULL) {
             *seek_difference = exp_cyl - sector_status->cyl;
          }
       }
+      sector_status->status |= SECT_BAD_HEADER;
    }
    // If we have expected sector ordering information check the sector numbers
    // TODO: make this handle more complex sector numbering where they vary
@@ -813,13 +826,16 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
                sector_status->head, drive_params->num_head,
                sector_status->cyl, sector_status->sector);
          } else {
-            int written = sector_status_list[sect_rel0].status & SECT_NOT_WRITTEN;
+      // If we haven't written the sector update the sector status info. If
+      // we have written we don't need to update here. Updating could change
+      // sector data indicating good sector written to bad
+      if (sector_status_list[sect_rel0].status & SECT_NOT_WRITTEN) {
             sector_status_list[sect_rel0] = *sector_status;
                // Set to bad data as default. If data found good this will 
                // be changed. Keep not written flag if it was set.
-            sector_status_list[sect_rel0].status |= SECT_BAD_DATA | written;
+         sector_status_list[sect_rel0].status |= SECT_BAD_DATA | SECT_NOT_WRITTEN;
          }
-
+   }
 }
 
 // Write the sector data to file. We only write the best data so if the
@@ -1126,7 +1142,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
    }
    // Zero CRC is no error
-   if (crc == 0) {
+   if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC)) {
       if (*state == PROCESS_HEADER) {
          status |= SECT_ZERO_HEADER_CRC;
       } else {
@@ -1165,6 +1181,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||
+            drive_params->controller == CONTROLLER_DTC_520_512B ||
+            drive_params->controller == CONTROLLER_DTC_520_256B ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_DG_MV2000 ||
@@ -1177,6 +1195,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_WANG_2275 ||
             drive_params->controller == CONTROLLER_WANG_2275_B ||
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||
+            drive_params->controller == CONTROLLER_ALTOS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_DILOG_DQ614 ||
@@ -1187,6 +1206,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
                drive_params, seek_difference, sector_status_list, ecc_span,
                init_status);
       } else if (drive_params->controller == CONTROLLER_XEROX_6085 ||
+            drive_params->controller == CONTROLLER_XEROX_8010 ||
              drive_params->controller == CONTROLLER_TELENEX_AUTOSCOPE) {
          status |= tagged_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index,

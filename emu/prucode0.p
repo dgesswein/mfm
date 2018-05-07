@@ -682,7 +682,7 @@ clrok:
 
       // Handle GPIO interrupt from head or select lines changing
       // This routine needs to be under 1us from head change to
-      // reatching next_mfm where we check for step pulses to prevent
+      // reaching next_mfm where we check for step pulses to prevent
       // loosing pulses. We currently are around .7 us
       // Must set valid head and select before leaving routine
 select_head:

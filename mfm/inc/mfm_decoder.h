@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 04/25/18 DJG Added Xerox 8010 and Altos support
+// 03/31/18 DJG Added ext2emu support for DTC.
 // 03/09/18 DJG Added CONTROLLER_DILOG_DQ614 and fields for reading more
 //    cylinders and heads than analyze determines.
 // 12/17/17 DJG Aded EDAX_PV9900
@@ -114,11 +116,16 @@ typedef struct {
    // Update mfm_controller_info list below if enum changed.
    // ORDER IN THE TWO LISTS MUST MATCH
    // TODO, replace this with pointer to CONTROLLER entry
-   enum {CONTROLLER_NONE, CONTROLLER_NEWBURYDATA,
+   enum {CONTROLLER_NONE,
+      CONTROLLER_NEWBURYDATA,
+      CONTROLLER_ALTOS,
       CONTROLLER_WD_1006, 
       CONTROLLER_WD_3B1,
       CONTROLLER_MOTOROLA_VME10, 
-      CONTROLLER_DTC, CONTROLLER_MACBOTTOM, 
+      CONTROLLER_DTC, 
+      CONTROLLER_DTC_520_256B, 
+      CONTROLLER_DTC_520_512B, 
+      CONTROLLER_MACBOTTOM, 
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_ALTOS_586,
       CONTROLLER_ATT_3B2,
@@ -134,6 +141,7 @@ typedef struct {
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ISBC_215,
+      CONTROLLER_XEROX_8010,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
@@ -301,7 +309,8 @@ DEF_EXTERN struct {
      {24, 0x223808},
      // This is for DILOG_DQ614, header and data
      {32, 0x58e07342},
-     {32, 0xcf2105e0}
+     {32, 0xcf2105e0},
+     {16, 0x551a} // Altos
   }
 #endif
 ;
@@ -770,6 +779,166 @@ DEF_EXTERN TRK_L trk_cromemco_stdc[]
 }
 #endif
 ;
+
+// 512B 17 sectors per track from unknown DTC controller
+DEF_EXTERN TRK_L trk_dtc_pc_512b[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {8, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // This adds upper 3 bits of cylinder to bits 4-6 of
+              // byte 3 and the rest in byte 2. 
+              {0, FIELD_CYL, 0x00, OP_SET, 11, 
+                 (BIT_L []) {
+                    { 25, 3}, // Byte 3 bits 6-4 gets upper 3 bits
+                    { 16, 8}, // byte 2 gets lower 8 bits
+                    { -1, -1},
+                 }
+              },
+              // Add head to lower bits, Need XOR since SET clears all bits
+              // in byte.
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {3, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {17, TRK_FILL, 0x00, NULL},
+        {517, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {3, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {37, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {304, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// 512B 18 sectors per track from DTC 520 controller manual
+DEF_EXTERN TRK_L trk_dtc_520_512b[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 18, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {8, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // This adds upper 3 bits of cylinder to bits 4-6 of
+              // byte 3 and the rest in byte 2. 
+              {0, FIELD_CYL, 0x00, OP_SET, 11, 
+                 (BIT_L []) {
+                    { 25, 3}, // Byte 3 bits 6-4 gets upper 3 bits
+                    { 16, 8}, // byte 2 gets lower 8 bits
+                    { -1, -1},
+                 }
+              },
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {3, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {517, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {3, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {14, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {158, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_dtc_520_256b[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 33, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {8, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // This adds upper 3 bits of cylinder to bits 4-6 of
+              // byte 3 and the rest in byte 2. 
+              {0, FIELD_CYL, 0x00, OP_SET, 11, 
+                 (BIT_L []) {
+                    { 25, 3}, // Byte 3 bits 6-4 gets upper 3 bits
+                    { 16, 8}, // byte 2 gets lower 8 bits
+                    { -1, -1},
+                 }
+              },
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {3, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {261, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {3, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {10, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {205, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY} CHECK_TYPE;
 
 typedef struct {
@@ -807,7 +976,7 @@ typedef struct {
    int write_sector_size;
       // And number of sectors per track
    int write_num_sectors;
-      // And number of sectors per track
+      // And first sector number
    int write_first_sector_number;
       // Number of 32 bit words in track MFM data
    int track_words;
@@ -849,6 +1018,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE},
+      {"Altos",              256, 8680000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0x551a,0x1021,16,0}, CONT_MODEL },
       {"WD_1006",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -874,9 +1050,23 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, trk_dtc_pc_512b, 512, 17, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
+      {"DTC_520_256B",             256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_dtc_520_256b, 256, 33, 0, 5209,
+         0, 0,
+         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
+      {"DTC_520_512B",             512, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_dtc_520_512b, 512, 18, 0, 5209,
+         0, 0,
+         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
       {"MacBottom",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -990,6 +1180,14 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+// SA1004 8" drive
+      {"Xerox_8010",      128, 8680000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 16, 0, 5209,
+         24, 0,
+         {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 

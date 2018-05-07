@@ -34,6 +34,7 @@ for pin in $pins; do
 done
 
 
+sleep .2
 REV=`cat /sys/class/gpio/gpio46/value`
 if [ $REV == '0' ]; then
    echo Rev B Board

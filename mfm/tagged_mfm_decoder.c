@@ -6,6 +6,8 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 04/22/18 DJG Added support for non 10 MHz bit rate and 
+//    format Xerox 8010
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
 // 11/14/16 DJG Added Telenex Autoscope. Same as Xerox but without tags
@@ -15,7 +17,7 @@
 // 10/07/16 DJG Add support for disks with tag header in addition to the
 //    normal header. Xerox 6085
 //   
-// Copyright 2016 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -102,6 +104,27 @@ static inline float filter(float v, float *delay)
 //   CONTROLLER_TELENEX_AUTOSCOPE
 //      Same as XEROX_6085 except no tag
 //      
+//   CONTROLLER_XEROX_8010. Found on 8" SA1004 drive. Best guess at what
+//      used with
+//   6 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0x41
+//      byte 2 cylinder high? Sample only has 256 cylinders.
+//      byte 3 cylinder low
+//      byte 4 head
+//      byte 5 sector number
+//      bytes 6-7 16 bit CRC 0xffff,0x8005,16
+//   Tag
+//      byte 0 0xa1
+//      byte 1 0x43
+//      24 bytes of data
+//      16 bit CRC 0xffff,0x8005,16
+//   Data
+//      byte 0 0xa1
+//      byte 1 0x43
+//      Sector data for sector size 
+//      16 bit CRC 0xffff,0x8005,16
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -158,6 +181,19 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_XEROX_8010) {
+         sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
+         sector_status.head = bytes[4];
+         sector_size = drive_params->sector_size;
+
+         sector_status.sector = bytes[5];
+
+         if ((bytes[1])  != 0x41) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -170,18 +206,28 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
          "Got exp %d,%d cyl %d head %d sector %d,%d size %d\n",
             exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
             sector_status.sector, *sector_index, sector_size);
-      if (drive_params->controller == CONTROLLER_XEROX_6085) {
+      if ((drive_params->controller == CONTROLLER_XEROX_6085) ||
+       (drive_params->controller == CONTROLLER_XEROX_8010)) {
          *state = MARK_DATA1;
       } else {
          *state = MARK_DATA;
       }
    } else if (*state == PROCESS_HEADER2) {
       sector_status.status |= init_status;
+      if (drive_params->controller == CONTROLLER_XEROX_8010) {
+         if (bytes[1] != 0x43) {
+            msg(MSG_INFO, "Invalid tag id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+               bytes[1], exp_cyl, sector_status.cyl,
+               exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else {
       if (bytes[1] != 0xfc) {
          msg(MSG_INFO, "Invalid tag id byte %02x on cyl %d,%d head %d,%d sector %d\n",
                bytes[1], exp_cyl, sector_status.cyl,
                exp_head, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_HEADER;
+      }
       }
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
@@ -197,6 +243,9 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
    } else { // Data
       // Value and where to look for header mark byte
       int id_byte_expected = 0xfb;
+      if (drive_params->controller == CONTROLLER_XEROX_8010) {
+         id_byte_expected = 0x43;
+      }
       int id_byte_index = 1;
       if (bytes[id_byte_index] != id_byte_expected && crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
@@ -213,6 +262,7 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.ecc_span_corrected_data = ecc_span;
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
+
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
                sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
@@ -255,7 +305,8 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int i;
    // These are variables for the PLL filter. avg_bit_sep_time is the
    // "VCO" frequency
-   float avg_bit_sep_time = 20; // 200 MHz clocks
+   float avg_bit_sep_time;     // 200 MHz clocks
+   float nominal_bit_sep_time; // 200 MHz clocks
    // Clock time is the clock edge time from the VCO.
    float clock_time = 0;
    // How many bits the last delta corresponded to
@@ -305,6 +356,9 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
+   nominal_bit_sep_time = 200e6 /
+       mfm_controller_info[drive_params->controller].clk_rate_hz;
+   avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
@@ -320,7 +374,7 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          }
          // And then filter based on the time difference between the delta and
          // the clock
-         avg_bit_sep_time = 20.0 + filter(clock_time, &filter_state);
+         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
 #if 0
          if (cyl == 819 && head == 0) {
          printf

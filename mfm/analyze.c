@@ -4,8 +4,10 @@
 // We perform the analysis by trying the various formats we know of until we
 // find one that matches and other tests. See the routines for details.
 
-// Copyright 2016 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
+// 03/31/18 DJG Added code to analyze drive formats marked as MODEL/
+//     have track_layout defined.
 // 03/09/18 DJG Added error message
 // 10/20/17 DJG Fixed error print wording in analyze_seek
 // 12/10/16 DJG Added logic to ignore Ambiguous CRC polynomial match on all
@@ -72,6 +74,7 @@
 #include "deltas_read.h"
 #include "drive.h"
 #include "analyze.h"
+#include "parse_cmdline.h"
 
 // Prints CRC information
 static void print_crc_info(CRC_INFO *crc_info, int msg_type) {
@@ -159,6 +162,96 @@ static void analyze_rate(DRIVE_PARAMS *drive_params, int cyl, int head,
     }
     msg(MSG_DEBUG, "First two transition periods %.0f, %.0f ns\n",
          rate1, rate2);
+}
+
+// Try to find match for existing fully defined format. Some of the formats
+// have all data defined such as CRC and other are just defining the header
+// format.
+//
+// drive_params: Drive parameters determined so far and return what we have determined
+// Cyl and head: What track the data was from.
+// deltas: MFM delta time transition data to analyze. (filled after read)
+// max_deltas: Size of deltas array
+// match_count: Number of headers that matched for each format found
+// return: Number of matching formats found
+static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head, 
+   void *deltas, int max_deltas)
+{
+   int i;
+   int cont;
+   //int controller_type = -1;
+   // Variable to restore global error print mask
+   int msg_mask_hold;
+   // The status of each sector decoded.
+   SECTOR_STATUS sector_status_list[MAX_SECTORS];
+   // Set if format doesn't match
+   int not_match;
+   // Number of matching formats and what formats matched
+   int matches = 0;
+   int match_list[50];
+
+   drive_read_track(drive_params, cyl, head, deltas, max_deltas);
+
+   analyze_rate(drive_params, cyl, head, deltas, max_deltas);
+
+   drive_params->num_head = MAX_HEAD;
+
+   // Search all the fully defined formats we know about.
+   // If LBA format don't try to analyze if cyl and head are zero since CHS
+   // headers will match
+   for (cont = 0; mfm_controller_info[cont].name != NULL; cont++) {
+      if ((mfm_controller_info[cont].analyze_type == CINFO_LBA &&
+           cyl == 0 && head == 0) ||
+           mfm_controller_info[cont].write_data_crc.length == 0) {
+         continue; // ****
+      }
+//TST printf("Checking %s\n", mfm_controller_info[cont].name);
+      parse_set_drive_params_from_controller(drive_params, cont);
+
+      mfm_init_sector_status_list(sector_status_list, MAX_SECTORS);
+      msg_mask_hold = msg_set_err_mask(decode_errors);
+      // Decode track
+      mfm_decode_track(drive_params, cyl, head, deltas, NULL, 
+                  sector_status_list);
+      msg_set_err_mask(msg_mask_hold);
+      not_match = 0;
+      for (i = 0; i < MAX_SECTORS; i++) {
+         // If we find a good sector outside the range we expect or are
+         // missing a sector then don't consider it a match. Read errors
+         // can cause format match to fail.
+         if (sector_status_list[i].status & SECT_BAD_HEADER) {
+            if (i >= drive_params->first_sector_number && i <
+                  (drive_params->first_sector_number + drive_params->num_sectors)) {
+               not_match = 1;
+            }
+         } else {
+            if (i < drive_params->first_sector_number || i >=
+                  (drive_params->first_sector_number + drive_params->num_sectors)) {
+               not_match = 1;
+            }
+         }
+      }
+      int good_data_count = 0;
+      for (i = drive_params->first_sector_number; 
+            i < drive_params->first_sector_number + drive_params->num_sectors; i++) {
+         if (!(sector_status_list[i].status & (SECT_BAD_DATA | SECT_BAD_HEADER))) {
+            good_data_count++;
+         }
+      }
+//TST printf("not match %d good %d\n", not_match, good_data_count);
+      if (!not_match && good_data_count >= ceil(drive_params->num_sectors * 2 / 3.0) &&
+             matches < ARRAYSIZE(match_list)) {
+         match_list[matches++] = cont;
+         msg(MSG_INFO, "Found matching format %s:\n", 
+            mfm_controller_info[cont].name);
+      }
+   }
+
+   // If we found at least one match set drive parameters to first match
+   if (matches >= 1) {
+      parse_set_drive_params_from_controller(drive_params, match_list[0]);
+   }
+   return matches;
 }
 
 // Try to find the controller type (header format) and CRC parameters for the
@@ -817,6 +910,32 @@ int analyze_format(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
    int cyl, int head)
 {
    int rc;
+
+
+   rc = analyze_model(drive_params, cyl, head, deltas, max_deltas);
+   // More than one format found, try different track
+   // TODO: This should be != 0 after model is primary method to detect.
+   if (rc > 1) {
+      // If non zero cylinder retry on zero. If drive has stuck heads this
+      // may allow format to be detected
+      if (cyl > 0) {
+         cyl = 0;
+      } else {
+         cyl = cyl + 1;
+      }
+      head = 1;
+      msg(MSG_INFO,"Retrying on cylinder %d head %d\n", cyl, head);
+      rc = analyze_model(drive_params, cyl, head, deltas, max_deltas);
+   }
+   if (rc > 1) {
+      msg(MSG_ERR, "Multiple matching formats found, using first");
+   }
+   if (rc >= 1) {
+      // FIXME: This may do more than we want
+      analyze_sectors(drive_params, cyl, deltas, max_deltas);
+      parse_set_drive_params_from_controller(drive_params, drive_params->controller);
+      return rc;
+   }
 
    rc = analyze_headers(drive_params, deltas, max_deltas, cyl, head);
      // For the ST11M only the first two heads are used on the first

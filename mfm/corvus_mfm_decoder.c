@@ -7,8 +7,9 @@
 // sectors where it does not write anything when formatting the track so
 // whatever existing data (possibly at the normal MFM 10 MHz will be seen.
 //
-// Copyright 2015 David Gesswein.
+// Copyright 2018 David Gesswein.
 //
+// 04/22/18 DJG Made code for setting bit rate match other routines
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
 // 11/20/16 DJG Add Vector4 format and fixes for marking data for
@@ -254,11 +255,10 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int decoded_bit_cntr = 0;
    // loop counter
    int i;
-   // This is the expected bit separation in delta counts
-   float bit_rate_bit_sep_time;
    // These are variables for the PLL filter. avg_bit_sep_time is the
    // "VCO" frequency in delta counts
-   float avg_bit_sep_time;
+   float avg_bit_sep_time;     // 200 MHz clocks
+   float nominal_bit_sep_time; // 200 MHz clocks
    // Clock time is the clock edge time from the VCO.
    float clock_time = 0;
    // How many bits the last delta corresponded to
@@ -304,9 +304,9 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // First address mark time in ns 
    int first_addr_mark_ns = 0;
 
-   avg_bit_sep_time = 200e6 /
+   nominal_bit_sep_time = 200e6 /
          mfm_controller_info[drive_params->controller].clk_rate_hz;
-   bit_rate_bit_sep_time = avg_bit_sep_time;
+   avg_bit_sep_time = nominal_bit_sep_time;
 
    if (drive_params->controller == CONTROLLER_CORVUS_H) {
       next_header_time = 71500;
@@ -348,7 +348,7 @@ fprintf(out,"$var wire 1 & sector $end\n");
          }
          // And then filter based on the time difference between the delta and
          // the clock
-         avg_bit_sep_time = bit_rate_bit_sep_time + filter(clock_time, &filter_state);
+         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          //if (cyl == 70 & head == 5 && track_time > next_header_time)

@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 04/20/18 DJG Fixed previous change to work properly with analyze
 // 03/09/18 DJG Added ability to request reading more heads or cylinders
 //   than analyze detects
 // 09/07/16 DJG Report possible reversal of 20 pin cable
@@ -20,7 +21,7 @@
 //    Fixed off by 1 allocating command line storage
 // 11/09/14 DJG Changes for note option
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -228,12 +229,12 @@ int main(int argc, char *argv[])
       msg(MSG_INFO,"\n");
       // Print analysis results
       parse_print_cmdline(&drive_params, 1, 0);
+      drive_params.noretry_head = drive_params.num_head;
       if (head_cmdline > drive_params.num_head) {
-         drive_params.noretry_head = drive_params.num_head;
          drive_params.num_head = head_cmdline;
       }
+      drive_params.noretry_cyl = drive_params.num_cyl;
       if (cyl_cmdline > drive_params.num_cyl) {
-         drive_params.noretry_cyl = drive_params.num_cyl;
          drive_params.num_cyl = cyl_cmdline;
       }
    }

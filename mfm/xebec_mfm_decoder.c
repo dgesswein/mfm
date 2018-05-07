@@ -4,6 +4,9 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 04/22/18 DJG Added support for non 10 MHz bit rate
+// 04/20/18 DJG Figured proper sector number decoding and which added
+//    32 sector support to SOLOSYSTEMS/Syquest SQ306R.
 // 09/11/17 DJG Added support for 32 256 byte sectors to EC1841
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
@@ -23,7 +26,7 @@
 // 11/01/15 DJG Use new drive_params field and comment changes
 // 05/17/15 DJG Code cleanup
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -124,15 +127,15 @@ static inline float filter(float v, float *delay)
 //      number of sectors.
 //      Needs --begin_time 220000
 //
-//   CONTROLLER_SOLOSYSTEMS.
+//   CONTROLLER_SOLOSYSTEMS. (Syquest removable drive)
 //   7 byte header + 4 byte CRC
 //      byte 0-1 0x00
-//      byte 2 sector number. Seems to be encoded as
-//         1, 2, 4, 7, 8, 0xb, 0xd, 0xe, 0x50, 
-//         0x53, 0x55, 0x56, 0x59, 0x5a, 0x5c, 0x5f, 0xa0
+//      byte 2 sector number. Sector number is bits 5-1.
+//         LSB is odd parity of bits 5-1. Bits 7-6 seem to be repeat of
+//         5-4.
 //      byte 3 high bits of cylinder
 //      byte 4 low 8 bits of cylinder
-//      byte 5 head number
+//      byte 5 head number. One one disk MSB is set for cyl >= 128
 //      byte 6 flag bits. MSB is always set and bit 4 set on last sector
 //         bit 0 is set if alternate track assigned and bit 2 on alternate
 //         track. Alt/alternate not seen on disk to verify if used in this
@@ -245,26 +248,12 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
-         uint8_t sector_map[] = {1, 2, 4, 7, 8, 0xb, 0xd, 0xe, 0x50, 
-           0x53, 0x55, 0x56, 0x59, 0x5a, 0x5c, 0x5f, 0xa0};
-         int i;
-
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
-         sector_status.head = bytes[5];
+         sector_status.head = bytes[5] & 0x7f;
          sector_size = drive_params->sector_size;
          bad_block = 0;
-         for (i = 0; i < sizeof(sector_map); i++) {
-            if (bytes[2] == sector_map[i]) {
-               sector_status.sector = i;
-               break;
-            }
-         }
-         if (i >= sizeof(sector_map)) {
-            msg(MSG_ERR, "Bad sector number: %02x on cyl %d head %d sector index %d\n",
-              sector_status.cyl, sector_status.head, *sector_index);
-            sector_status.status |= SECT_BAD_HEADER;
-         }
+         sector_status.sector = (bytes[2] >> 1) & 0x1f;
          if (bytes[0] != 0 || bytes[1] != 0) {
             msg(MSG_INFO, "Header gap bytes not zero: %02x, %02x on cyl %d head %d sector %d\n",
                bytes[0], bytes[1],
@@ -385,7 +374,8 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int i;
    // These are variables for the PLL filter. avg_bit_sep_time is the
    // "VCO" frequency
-   float avg_bit_sep_time = 20; // 200 MHz clocks
+   float avg_bit_sep_time;     // 200 MHz clocks
+   float nominal_bit_sep_time; // 200 MHz clocks
    // Clock time is the clock edge time from the VCO.
    float clock_time = 0;
    // How many bits the last delta corresponded to
@@ -431,6 +421,9 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    num_deltas = deltas_get_count(0);
 
    raw_word = 0;
+   nominal_bit_sep_time = 200e6 /
+       mfm_controller_info[drive_params->controller].clk_rate_hz;
+   avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
@@ -445,7 +438,7 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          }
          // And then filter based on the time difference between the delta and
          // the clock
-         avg_bit_sep_time = 20.0 + filter(clock_time, &filter_state);
+         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          printf
@@ -488,6 +481,7 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             // This sync is used to mark the header and data fields
             // We want to see enough zeros to ensure we don't get a false
             // match at the boundaries where data is overwritten
+
             if ((raw_word & 0xffff) == 0x4489 && sync_count >= MARK_NUM_ZEROS) {
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
@@ -527,7 +521,15 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
                         drive_params->sector_size +
                         drive_params->data_crc.length / 8;
-                  bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+                  // 256 byte sectors have less gap so can't discard as many
+                  // bytes at end of sector. For 512 byte sectors discarding
+                  // more helps syncing at the right location
+                  if (drive_params->controller == CONTROLLER_SOLOSYSTEMS &&
+                        drive_params->sector_size == 256) {
+                     bytes_needed = 1 + bytes_crc_len;
+                  } else {
+                     bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+                  }
                   if (bytes_needed >= sizeof(bytes)) {
                      printf("Too many bytes needed %d\n",bytes_needed);
                      exit(1);

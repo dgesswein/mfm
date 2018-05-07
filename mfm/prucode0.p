@@ -22,6 +22,9 @@
 // PRU0_CMD_DATA
 //
 // Time is in 200 MHz clocks
+// 05/04/18 DJG Syquest SQ312RD take long time to report seek complete
+//   after being selected.
+// 04/21/18 DJG Handle drives that go not ready during seek to track 0
 // 02/20/16 DJG Changes for mfm_write
 // 05/17/15 DJG Fix times for slow seeks
 // 01/04/15 DJG Added logic to delay start and end read by the set number
@@ -120,7 +123,8 @@ wait_cmd:
 
    // This reads a track worth of MFM delta transitions times
 read_track:
-   MOV      r3, 10                  // Make sure we are ready
+   MOV      r3, 800000000             // Make sure we are ready. Give
+                                      // long time for Syquest
    CALL     wait_ready
    QBNE     wait_cmd, r3, 0
 

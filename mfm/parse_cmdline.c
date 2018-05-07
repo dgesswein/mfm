@@ -6,9 +6,10 @@
 // Call parse_validate_options to perform some validation on options that
 //   both mfm_util and mfm_read need
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 04/01/18 DJG Fixed handling of unknown format in stored command line
 // 01/18/17 DJG Added --ignore_seek_errors and fixed missing track_words when
 //     printing command line options
 // 11/17/16 DJG Added emulator file track length option
@@ -215,6 +216,28 @@ static CRC_INFO parse_crc(char *arg) {
    return info;
 }
 
+
+// Set the drive parameter data by controller number
+//
+// drive_params: Drive parameters structure 
+// cont: Controller number
+//
+void parse_set_drive_params_from_controller(DRIVE_PARAMS *drive_params, 
+   int controller) {
+
+   CONTROLLER *contp = &mfm_controller_info[controller];
+
+   drive_params->num_sectors = contp->write_num_sectors;
+   drive_params->first_sector_number = contp->write_first_sector_number;
+   drive_params->controller = controller;
+   drive_params->sector_size = contp->write_sector_size;
+   if (!drive_params->start_time_set_cmd_line) {
+      drive_params->start_time_ns = contp->start_time_ns;
+   }
+   drive_params->header_crc = contp->write_header_crc;
+   drive_params->data_crc = contp->write_data_crc;
+}
+
 // Parse controller value (track/sector header format). The formats are named
 // after the controller that wrote the format. Multiple controllers may use
 // the same format.
@@ -234,7 +257,9 @@ static int parse_controller(char *arg, int ignore_invalid_options,
       }
    }
    if (controller == -1) {
-      if (!ignore_invalid_options) {
+      if (ignore_invalid_options) {
+         msg(MSG_INFO, "Unknown controller %s.\n",arg);
+      } else {
          msg(MSG_FATAL, "Unknown controller %s. Choices are\n",arg);
          for (i = 0; mfm_controller_info[i].name != NULL; i++) {
             msg(MSG_FATAL,"%s\n",mfm_controller_info[i].name);
@@ -242,15 +267,10 @@ static int parse_controller(char *arg, int ignore_invalid_options,
          exit(1);
       }
    } else {
-      CONTROLLER *contp = &mfm_controller_info[controller];
-      if (contp->analyze_search == CONT_MODEL) {
+      if (mfm_controller_info[controller].analyze_search == CONT_MODEL) {
 // TODO, this can be confusing since it overrides what is specified on the
 // command line. May be better way.
-         drive_params->header_crc = contp->write_header_crc;
-         drive_params->data_crc = contp->write_data_crc;
-         drive_params->num_sectors = contp->write_num_sectors;
-         drive_params->first_sector_number = contp->write_first_sector_number;
-         drive_params->sector_size = contp->write_sector_size;
+          parse_set_drive_params_from_controller(drive_params, controller);
          *params_set = 1;
       }
    }
@@ -584,6 +604,10 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
          case 'f':
             drive_params->controller = parse_controller(optarg, 
                ignore_invalid_options, drive_params, &params_set);
+            // If not valid don't clear option set bit
+            if (drive_params->controller == -1) {
+               drive_params->opt_mask &= ~(1 << options_index);
+            }
             if (params_set) {
                drive_params->opt_mask |= controller_model_params;
             }

@@ -16,6 +16,7 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 04/22/18 DJG Added support for non 10 MHz bit rate
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
 // 05/21/16 DJG Parameter change to mfm_mark_*
@@ -23,7 +24,7 @@
 // 12/24/15 DJG Comment cleanup
 // 11/01/15 DJG Use new drive_params field and comment changes
 //
-// Copyright 2015 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -181,7 +182,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int i;
    // These are variables for the PLL filter. avg_bit_sep_time is the
    // "VCO" frequency
-   float avg_bit_sep_time = 20; // 200 MHz clocks
+   float avg_bit_sep_time;     // 200 MHz clocks
+   float nominal_bit_sep_time; // 200 MHz clocks
    // Clock time is the clock edge time from the VCO.
    float clock_time = 0;
    // How many bits the last delta corresponded to
@@ -233,6 +235,9 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    num_deltas = deltas_get_count(0);
 
    raw_word = 0;
+   nominal_bit_sep_time = 200e6 /
+       mfm_controller_info[drive_params->controller].clk_rate_hz;
+   avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
@@ -247,7 +252,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          }
          // And then filter based on the time difference between the delta and
          // the clock
-         avg_bit_sep_time = 20.0 + filter(clock_time, &filter_state);
+         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          //if (cyl == 70 & head == 5 && track_time > next_header_time)

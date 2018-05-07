@@ -1,3 +1,24 @@
+// Common code for talking to drives. Included by other .p files
+//
+// 04/21/18 DJG Handle drives that go not ready during seek to track 0
+//
+// Copyright 2014 David Gesswein.
+// This file is part of MFM disk utilities.
+//
+// MFM disk utilities is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// MFM disk utilities is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
+
+
 // 4 seconds, guess at slowest time to complete a seek including possible
 // recalibrate.
 #define SEEK_COMPLETE_TIMEOUT 800000000
@@ -39,16 +60,12 @@ seek0_w:
    QBLT     seek0_w, r3, r0
    CLR      r30, R30_STEP_BIT       
 
-   // Wait for seek complete
    MOV      r3, SEEK_COMPLETE_TIMEOUT
-   SBBO     r2, CYCLE_CNTR, 0, 4           // Clear timer
-seek0_complete_lp:
-   QBBC     seek0_lp, r31, R31_SEEK_COMPLETE_BIT  // Complete, check again
-   LBBO     r0, CYCLE_CNTR, 0, 4
-   QBLT     seek0_complete_lp, r3, r0
-   MOV      r0, CMD_STATUS_SEEK_COMPLETE_ERR
-   SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
-   JMP      wait_cmd   
+   CALL     wait_ready
+      // Didn't go ready, return to cmd loop. Error set in wait_ready
+   QBNE     wait_cmd, r3, 0    
+   JMP      seek0_lp
+
 seek0_done:
    MOV      r0, CMD_STATUS_OK
    SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
@@ -122,6 +139,18 @@ wait_ready:
 ready_loop:
    SBCO     r31, CONST_PRURAM, PRU0_STATUS, 4
    // Ready when seek complete, ready, and drive selected are low
+   QBBS     ready_timeout, r31, R31_SEEK_COMPLETE_BIT
+   QBBS     ready_timeout, r31, R31_READY_BIT
+   QBBS     ready_timeout, r31, R31_DRIVE_SEL
+   // Kill time, NOP
+   MOV      r0, r0
+   MOV      r0, r0
+   MOV      r0, r0
+   MOV      r0, r0
+   MOV      r0, r0
+   MOV      r0, r0
+   MOV      r0, r0
+   // Verify still good. Signals don't all transition at the same time
    QBBS     ready_timeout, r31, R31_SEEK_COMPLETE_BIT
    QBBS     ready_timeout, r31, R31_READY_BIT
    QBBS     ready_timeout, r31, R31_DRIVE_SEL

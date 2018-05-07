@@ -12,6 +12,9 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 04/22/18 DJG Added support for non 10 MHz bit rate and Altos format
+// 03/31/18 DJG Allowed DTC to work with multiple sector sizes. Split DTC
+//    into three versions for ext2emu
 // 03/07/18 DJG Added CONTROLLER_DILOG_DQ614
 // 02/04/18 DJG Made iSBC 215 alternate track handling match documentation
 //    better. No example to verify with.
@@ -56,7 +59,7 @@
 //    based on one XM5220/2 drive sample. Unknown what controller wrote it.
 //    Controller likely DTC so renamed.
 //   
-// Copyright 2014 David Gesswein.
+// Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -222,7 +225,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      ECC code (4 byte)
 //
-//   CONTROLLER_DTC, From Olivetti drive.
+//   CONTROLLER_DTC, From Olivetti drive. Also matches 520 series with
+//      manual on bitsavers. Olivetti was 17 512 byte sectors per track. 
+//      520 manual format was shown as 33 256 byte or 18 512 byte sectors.
 //   5 byte header + 3 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe 
@@ -611,6 +616,20 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   Unknow what this represents. Same on cyl 603. Cyl 604 on are a different
 //   format and likely weren't used by the controller.
 //
+//   CONTROLLER_ALTOS
+//      Found on Quantum Q2040 8" drive
+//   4 byte header + 2 byte crc
+//      byte 0 0xa1
+//      byte 1 0xe0 upper 4 bits, low 4 bit upper 4 bits of cylinder
+//      byte 2 low 5 bits of cylinder 7-3, 3 bit head  2-0
+//      byte 3 sector number
+//      bytes 4-5 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xb0 upper 4 bits, low 4 bits lower 4 bits of cylinder
+//      Sector data for sector size
+//      16 bit CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -841,7 +860,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[2] | ((bytes[3] & 0xf0) << 4);
 
          sector_status.head = bytes[3] & 0xf;
-         sector_size = 256;
+         sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[4];
 
@@ -855,7 +874,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[2] | ((bytes[3] & 0xe0) << 3);
 
          sector_status.head = bytes[3] & 0x1f;
-         sector_size = 256;
+         sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[4];
 
@@ -869,20 +888,36 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[1] | (bytes[2] << 8);
 
          sector_status.head = bytes[4];
-         sector_size = 256;
+         sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[3];
 
-      } else if (drive_params->controller == CONTROLLER_DTC) {
+      } else if (drive_params->controller == CONTROLLER_DTC_520_256B ||
+              drive_params->controller == CONTROLLER_DTC_520_512B ||
+              drive_params->controller == CONTROLLER_DTC) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x70) << 4);
 
          sector_status.head = bytes[3] & 0xf;
-         sector_size = 512;
+         sector_size = drive_params->sector_size;
          bad_block = (bytes[3] & 0x80) >> 7;
 
          sector_status.sector = bytes[4];
 
          if (bytes[1] !=  0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_ALTOS) {
+         sector_status.cyl = ((bytes[1] & 0xf) << 5) | (bytes[2] >> 3);
+
+         sector_status.head = bytes[2] & 0x7;
+         sector_size = drive_params->sector_size;
+
+         sector_status.sector = bytes[3];
+
+         if ((bytes[1] & 0xf0) !=  0xe0) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
@@ -1180,6 +1215,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       // Value and where to look for header mark byte
       int id_byte_expected = 0xf8;
       int id_byte_index = 1;
+      int id_byte_mask = 0xff;
 
       sector_status.status |= init_status;
 
@@ -1210,12 +1246,16 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
          id_byte_expected = 0xf8;
+      } else if (drive_params->controller == CONTROLLER_ALTOS) {
+         id_byte_expected = 0xb0;
+         id_byte_mask = 0xf0;
       } else if (drive_params->controller == CONTROLLER_EDAX_PV9900) {
          id_byte_expected = 0;
          id_byte_index = -1;
       }
       if (id_byte_index != -1 &&
-            bytes[id_byte_index] != id_byte_expected && crc == 0) {
+            (bytes[id_byte_index] & id_byte_mask) != id_byte_expected && 
+            crc == 0) {
          msg(MSG_INFO,"Invalid data id byte %02x expected %02x on cyl %d head %d sector %d\n", 
                bytes[id_byte_index], id_byte_expected,
                sector_status.cyl, sector_status.head, sector_status.sector);
@@ -1295,7 +1335,8 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int i;
    // These are variables for the PLL filter. avg_bit_sep_time is the
    // "VCO" frequency
-   float avg_bit_sep_time = 20; // 200 MHz clocks
+   float avg_bit_sep_time;     // 200 MHz clocks
+   float nominal_bit_sep_time; // 200 MHz clocks
    // Clock time is the clock edge time from the VCO.
    float clock_time = 0;
    // How many bits the last delta corresponded to
@@ -1343,6 +1384,9 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
+   nominal_bit_sep_time = 200e6 / 
+       mfm_controller_info[drive_params->controller].clk_rate_hz;
+   avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
@@ -1358,7 +1402,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          }
          // And then filter based on the time difference between the delta and
          // the clock
-         avg_bit_sep_time = 20.0 + filter(clock_time, &filter_state);
+         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
 #if 0
          if (cyl == 819 && head == 0) {
          printf

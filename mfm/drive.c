@@ -13,6 +13,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 05/06/2018 DJG Adjustement to try to make Syquest disks work better
 // 03/09/2018 DJG Make sure correct setup script run so pins are in correct
 //    direction.
 // 10/02/2016 DJG Rob Jarratt change for DEC RD drives to detect when
@@ -23,7 +24,7 @@
 // 07/30/2015 DJG Added support for revision B board.
 // 05/16/2015 DJG Changes for drive_file.c
 //
-// Copyright 2014-2016 David Gesswein.
+// Copyright 2014-2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -193,6 +194,12 @@ int drive_at_track0(void)
          exit(1);
       }
    }
+   // Make sure drive ready and seek complete before checking track0
+   if (pru_exec_cmd(CMD_CHECK_READY, 0)) {
+      drive_print_drive_status(MSG_FATAL, drive_get_drive_status());
+      exit(1);
+   }
+
    pread(fd, str, sizeof(str), 0);
    // 0 is at track 0
    return str[0] == '0';
@@ -242,9 +249,9 @@ int drive_step(int step_speed, int steps, int update_cyl, int err_fatal) {
          drive_print_drive_status(MSG_FATAL, drive_get_drive_status());
          exit(1);
       } else {
-         // Wait for seek complete for 5 seconds. This prevents errors if we
+         // Wait for seek complete for 10 seconds. This prevents errors if we
          // next read the disk
-         while (wait_count++ < 50 && !ready) {
+         while (wait_count++ < 100 && !ready) {
             // Bit is active low
             ready = !(drive_get_drive_status() & BIT_MASK(R31_SEEK_COMPLETE_BIT));
             usleep(100000);
