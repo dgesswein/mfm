@@ -18,6 +18,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 06/17/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX.Changes to support 
+// adapting to header type found.
 // 05/06/18 DJG Added format Xerox 8010 and Altos. Fixes for error
 //    recovery where sectors that were read correctly weren't always used
 //    to replace previous bad read and don't declare seek error on header
@@ -124,7 +126,7 @@ static int last_lba_addr;
 
 static void update_emu_track_sector(DRIVE_PARAMS *drive_params,
        SECTOR_STATUS *sector_status, int sect_rel0,
-      uint8_t bytes[], int num_bytes);
+      uint8_t bytes[], int num_bytes, int update);
 void update_emu_track_words(DRIVE_PARAMS * drive_params,
       SECTOR_STATUS sector_status_list[], int write_track, int new_track,
       int cyl, int head);
@@ -487,6 +489,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    }
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
+         drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
@@ -495,6 +498,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
+         drive_params->controller == CONTROLLER_DTC_256B ||
          drive_params->controller == CONTROLLER_DTC_520_512B ||
          drive_params->controller == CONTROLLER_DTC_520_256B ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
@@ -513,6 +517,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_DILOG_DQ614 ||
+         drive_params->controller == CONTROLLER_ROHM_PBX ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -762,15 +767,16 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
        (sector_status->head != exp_head || 
         (sector_status->cyl != exp_cyl && !drive_params->ignore_seek_errors) ||
          abs(sector_status->cyl - exp_cyl) > 250)) {
-      msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
-            sector_status->cyl, exp_cyl, sector_status->head, exp_head,
-            *sector_index);
       // Possibly a seek error, mark it if header isn't declared bad. If
       // drive uses bad CRC with initial value 0 non header data can pass 
       // CRC hopefully will have BAD_HEADER set.
       // TODO: Should we not do any of these checks with bad header?
       if (sector_status->cyl != exp_cyl && !
           (sector_status->status & SECT_BAD_HEADER)) {
+
+         msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
+            sector_status->cyl, exp_cyl, sector_status->head, exp_head,
+            *sector_index);
          sector_status->status |= SECT_WRONG_CYL;
          if (seek_difference != NULL) {
             *seek_difference = exp_cyl - sector_status->cyl;
@@ -834,7 +840,7 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
                // Set to bad data as default. If data found good this will 
                // be changed. Keep not written flag if it was set.
          sector_status_list[sect_rel0].status |= SECT_BAD_DATA | SECT_NOT_WRITTEN;
-         }
+      }
    }
 }
 
@@ -925,7 +931,7 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    // Always update errors in emu data in case it ends up being used as
    // the best data to write
    update_emu_track_sector(drive_params, sector_status, sect_rel0, 
-      all_bytes, all_bytes_len);
+      all_bytes, all_bytes_len, update);
    if (update) {
       if (drive_params->ext_fd >= 0) {
          if (sector_status->is_lba) {
@@ -1009,85 +1015,37 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
    msg(msg_level, "\n");
 }
 
-
-// After we have found a valid header/data mark this routine is
-// used to process the bytes. It checks the CRC and does ECC if needed then
-// calls wd_process_data to finish the processing.
-//
+// Perform CRC check of data bytes.
 // drive_params: Drive parameters
 // bytes: bytes to process
 // bytes_crc_len: Length of bytes including CRC
 // state: Where we are in the decoding process
-// cyl,head: Physical Track data from
-// sector_index: Sequential sector counter
-// seek_difference: Return of difference between expected cyl and header
-// sector_status_list: Return of status of decoded sector
-// return: Status of sector decoded
-// TODO: Would be good if data doesn't decode as data to try as header
-// If data mark missed will process next sector header as data so one
-// sector of data that should be recoverable will be lost.
-SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, 
-   uint8_t bytes[], int bytes_crc_len, int total_bytes,
-   STATE_TYPE *state, int cyl, int head,
-   int *sector_index, int *seek_difference, 
-   SECTOR_STATUS sector_status_list[], SECTOR_DECODE_STATUS init_status) {
-
+// *crc: Zero if no CRC error
+// *ecc_span: Number of bits corrected with ECC to fix CRC error
+// *init_status: Set to SECT_AMBIGUOUS_CRC if zero CRC may be due to zero data
+// perform_ecc: Non zero if ECC corrections should be performed
+//
+SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params, 
+   uint8_t bytes[], int bytes_crc_len, int state, uint64_t *crc_ret, 
+   int *ecc_span, SECTOR_DECODE_STATUS *init_status, int perform_ecc) 
+{
    uint64_t crc;
    // CRC to use to process these bytes
    CRC_INFO crc_info;
-   char *name;
-   // Length of ECC correction. 0 is no correction.
-   int ecc_span = 0;
-   SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
    // Start byte for CRC decoding
    int start;
+   SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
 
-   if (*state == PROCESS_HEADER) {
+   if (state == PROCESS_HEADER) {
       start = mfm_controller_info[drive_params->controller].header_crc_ignore;
-
-#if 0
-      static int dump_fd = 0;
-      static int first = 1;
-      if (first) {
-         printf("Dumping starting at byte %d for %d bytes\n",start, bytes_crc_len - start);
-         first = 0;
-      }
-      if  (dump_fd == 0) {
-         dump_fd = open("dumpheader",O_WRONLY | O_CREAT | O_TRUNC, 0666);
-      }
-      write(dump_fd, &bytes[start], bytes_crc_len - start);
-#endif
       crc_info = drive_params->header_crc;
-      if (msg_get_err_mask() & MSG_DEBUG_DATA) {
-         mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
-               MSG_DEBUG_DATA);
-      }
-      name = "header";
    } else {
       start = mfm_controller_info[drive_params->controller].data_crc_ignore;
-#if 0
-      static int dump_fd = 0;
-      static int first = 1;
-      if (first) {
-         printf("Dumping starting at byte %d for %d bytes\n",start, bytes_crc_len - start);
-         first = 0;
-      }
-      if  (dump_fd == 0) {
-         dump_fd = open("dumpdata",O_WRONLY | O_CREAT | O_TRUNC, 0666);
-      }
-      write(dump_fd, &bytes[start], bytes_crc_len - start);
-#endif
-
       crc_info = drive_params->data_crc;
-      if (msg_get_err_mask() & MSG_DEBUG_DATA) {
-         mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
-               MSG_DEBUG_DATA);
-      }
-      name = "data";
    }
    if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
        (drive_params->controller == CONTROLLER_WANG_2275 &&
-         *state == PROCESS_HEADER)) {
+         state == PROCESS_HEADER)) {
       crc = checksum64(&bytes[start], bytes_crc_len-crc_info.length/8-start, &crc_info);
       if (crc_info.length == 8) {
         crc = crc & 0xff;
@@ -1120,7 +1078,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          exit(1);
       }
    } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
-      if (*state == PROCESS_HEADER) {
+      if (state == PROCESS_HEADER) {
          crc = 0;
       } else {
          crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
@@ -1130,20 +1088,20 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
       // If all the data and CRC is zero and CRC returns zero
       // mark it as ambiguous crc since any polynomial will match 
-      if (crc == 0 && drive_params->analyze_in_progress) {
+      if (crc == 0) {
          for (i = start; i < bytes_crc_len; i++) {
             if (bytes[i] != 0) {
                break;
             }
          }
          if (i == bytes_crc_len) {
-            init_status |= SECT_AMBIGUOUS_CRC;
+            *init_status |= SECT_AMBIGUOUS_CRC;
          }
       }
    }
    // Zero CRC is no error
-   if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC)) {
-      if (*state == PROCESS_HEADER) {
+   if (crc == 0 && !(*init_status & SECT_AMBIGUOUS_CRC)) {
+      if (state == PROCESS_HEADER) {
          status |= SECT_ZERO_HEADER_CRC;
       } else {
          status |= SECT_ZERO_DATA_CRC;
@@ -1151,20 +1109,93 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    }
 
    if (crc != 0) {
-      msg(MSG_DEBUG,"Bad CRC %s cyl %d head %d sector index %d\n",
-            name, cyl, head, *sector_index);
       // If ECC correction enabled then perform correction up to length
       // specified
-      if (crc_info.ecc_max_span != 0) {
-         ecc_span = ecc64(bytes, bytes_crc_len, crc, &crc_info);
+      if (crc_info.ecc_max_span != 0 && perform_ecc) {
+         *ecc_span = ecc64(bytes, bytes_crc_len, crc, &crc_info);
          // TODO: This includes SECT_SPARE_BAD ECC corrections in the
          // final value printed. We don't have the info to fix here
-         if (ecc_span != 0) {
-            drive_params->stats.max_ecc_span = MAX(ecc_span,
+         if (*ecc_span != 0) {
+            drive_params->stats.max_ecc_span = MAX(*ecc_span,
                   drive_params->stats.max_ecc_span);
             crc = 0; // No longer have CRC error
          }
       }
+   }
+
+   *crc_ret = crc;
+   return status;
+}
+
+// After we have found a valid header/data mark this routine is
+// used to process the bytes. It checks the CRC and does ECC if needed then
+// calls wd_process_data to finish the processing.
+//
+// drive_params: Drive parameters
+// bytes: bytes to process
+// bytes_crc_len: Length of bytes including CRC
+// state: Where we are in the decoding process
+// cyl,head: Physical Track data from
+// sector_index: Sequential sector counter
+// seek_difference: Return of difference between expected cyl and header
+// sector_status_list: Return of status of decoded sector
+// return: Status of sector decoded
+// TODO: Would be good if data doesn't decode as data to try as header
+// If data mark missed will process next sector header as data so one
+// sector of data that should be recoverable will be lost.
+SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, 
+   uint8_t bytes[], int bytes_crc_len, int total_bytes,
+   STATE_TYPE *state, int cyl, int head,
+   int *sector_index, int *seek_difference, 
+   SECTOR_STATUS sector_status_list[], SECTOR_DECODE_STATUS init_status) {
+
+   uint64_t crc;
+   int ecc_span = 0;
+   SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
+   char *name;
+
+   if (*state == PROCESS_HEADER) {
+#if 0
+      static int dump_fd = 0;
+      static int first = 1;
+      if (first) {
+         printf("Dumping for %d bytes\n",bytes_crc_len);
+         first = 0;
+      }
+      if  (dump_fd == 0) {
+         dump_fd = open("dumpheader",O_WRONLY | O_CREAT | O_TRUNC, 0666);
+      }
+      write(dump_fd, bytes, bytes_crc_len);
+#endif
+      if (msg_get_err_mask() & MSG_DEBUG_DATA) {
+         mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
+               MSG_DEBUG_DATA);
+      }
+      name = "header";
+   } else {
+#if 0
+      static int dump_fd = 0;
+      static int first = 1;
+      if (first) {
+         printf("Dumping for %d bytes\n", bytes_crc_len);
+         first = 0;
+      }
+      if  (dump_fd == 0) {
+         dump_fd = open("dumpdata",O_WRONLY | O_CREAT | O_TRUNC, 0666);
+      }
+      write(dump_fd, bytes, bytes_crc_len);
+#endif
+      if (msg_get_err_mask() & MSG_DEBUG_DATA) {
+         mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
+               MSG_DEBUG_DATA);
+      }
+      name = "data";
+   }
+   status = mfm_crc_bytes(drive_params, bytes, bytes_crc_len, *state, &crc,
+      &ecc_span, &init_status, 1);
+   if (crc != 0 || ecc_span != 0) {
+      msg(MSG_DEBUG,"Bad CRC %s cyl %d head %d sector index %d\n",
+            name, cyl, head, *sector_index);
    }
 
    // If no error process. Only process with errors if data. Without
@@ -1173,6 +1204,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
@@ -1181,6 +1213,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||
+            drive_params->controller == CONTROLLER_DTC_256B ||
             drive_params->controller == CONTROLLER_DTC_520_512B ||
             drive_params->controller == CONTROLLER_DTC_520_256B ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
@@ -1199,6 +1232,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_DILOG_DQ614 ||
+            drive_params->controller == CONTROLLER_ROHM_PBX ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
@@ -1346,6 +1380,14 @@ void update_emu_track_words(DRIVE_PARAMS * drive_params,
    current_track_words_ndx = 0;
 }
 
+// Temporary storage for last header found. Only one stored at a time
+static struct {
+   int bit_count;
+   int bit_offset;
+   int tot_bit_count;
+   int word_ndx;
+} mark_data;
+
 
 // Mark start of header in track data we are building
 // Bit count is bit location in word
@@ -1353,6 +1395,14 @@ void update_emu_track_words(DRIVE_PARAMS * drive_params,
 //    count when routine called
 // tot_bit_count is for finding header separation
 void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count) {
+   if (bit_count == MARK_STORED) {
+      bit_count = mark_data.bit_count;
+      bit_offset = mark_data.bit_offset;
+      tot_bit_count = mark_data.tot_bit_count;
+      header_track_word_ndx = MAX(mark_data.word_ndx - 1, 0);
+   } else {
+      header_track_word_ndx = MAX(current_track_words_ndx - 1, 0);
+   }
 #if PRINT_SPACING
    if (header_track_tot_bit_count != 0 && (tot_bit_count) > 
         header_track_tot_bit_count) {
@@ -1368,7 +1418,6 @@ void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count) 
    // Back up 1 word to ensure we copy the header mark pattern
    // We don't have to be accurate since we can change some of
    // the gap words.
-   header_track_word_ndx = MAX(current_track_words_ndx - 1, 0);
    header_track_tot_bit_count = tot_bit_count - bit_offset;
 }
 
@@ -1378,8 +1427,16 @@ void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count) 
 //    count when routine called
 // tot_bit_count is for finding header separation
 void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count) {
-   // Here we have to be accurate since we need to just replace the data
-   data_word_ndx = current_track_words_ndx;
+   if (bit_count == MARK_STORED) {
+      bit_count = mark_data.bit_count;
+      bit_offset = mark_data.bit_offset;
+      tot_bit_count = mark_data.tot_bit_count;
+      data_word_ndx = mark_data.word_ndx;
+   } else {
+      // Here we have to be accurate since we need to just replace the data
+      data_word_ndx = current_track_words_ndx;
+   }
+
    // Shift to correct bit and word index based on bit_offset
    data_bit = bit_count - bit_offset;
    if (data_bit >= 32) {
@@ -1393,6 +1450,18 @@ void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count) {
    data_tot_bit_count = tot_bit_count - bit_offset;
 }
 
+// Mark start of header type to be determined later
+// Bit count is bit location in word
+// bit_offset is difference between proper header location and bit
+//    count when routine called
+// tot_bit_count is for finding header separation
+void mfm_mark_location(int bit_count, int bit_offset, int tot_bit_count) {
+
+   mark_data.word_ndx = current_track_words_ndx;
+   mark_data.bit_count = bit_count;
+   mark_data.bit_offset = bit_offset;
+   mark_data.tot_bit_count = tot_bit_count;
+}
 
 // Mark end of data in track data we are building
 // Bit count is bit location in work
@@ -1415,7 +1484,8 @@ void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params) {
 // sector. Header is not fixed if it has an ECC correction. We copy the
 // track words into the best track in the area for that sector.
 static void update_emu_track_sector(DRIVE_PARAMS *drive_params, SECTOR_STATUS 
-      *sector_status, int sect_rel0, uint8_t bytes[], int num_bytes) {
+      *sector_status, int sect_rel0, uint8_t bytes[], int num_bytes, 
+     int update) {
    int i, bit;
    int word_ndx;
    int last_bit;
@@ -1469,8 +1539,10 @@ static void update_emu_track_sector(DRIVE_PARAMS *drive_params, SECTOR_STATUS
       }
    }
    // If cyl or head changed we are starting a new track so don't copy it
-   // here. update_emu_track_words will copy the entire track.
-   if (sector_status->cyl == last_cyl && sector_status->head == last_head) {
+   // here. update_emu_track_words will copy the entire track. If update
+   // isn't set this data isn't better so don't copy it.
+   if (sector_status->cyl == last_cyl && sector_status->head == last_head &&
+        update) {
       int start = MAX(0, header_track_word_ndx -  
          mfm_controller_info[drive_params->controller].copy_extra);
       for (i = start; i < current_track_words_ndx; i++) {

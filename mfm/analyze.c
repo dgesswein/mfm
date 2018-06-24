@@ -6,6 +6,8 @@
 
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
+// 06/22/18 DJG Fix checking of sector numbers for analyze_model. Detect
+//    SA1000 bit rate.
 // 03/31/18 DJG Added code to analyze drive formats marked as MODEL/
 //     have track_layout defined.
 // 03/09/18 DJG Added error message
@@ -150,7 +152,10 @@ static void analyze_rate(DRIVE_PARAMS *drive_params, int cyl, int head,
     rate1 = avg_peak(histogram, ARRAYSIZE(histogram)) * CLOCKS_TO_NS;
     rate2 = avg_peak(histogram, ARRAYSIZE(histogram)) * CLOCKS_TO_NS;
   
-    if (fabs(rate1 - 200) > 8.0) {
+    if (fabs(rate1 - 230.4) <= 8.0) {
+       msg(MSG_ERR, "Primary transition period %.0f ns, hopefully this is a SA1000 type disk\n",
+         rate1);
+    } else if (fabs(rate1 - 200) > 8.0) {
        msg(MSG_ERR, "Primary transition period %.0f ns, should be around 200\n",
          rate1);
     } else {
@@ -200,12 +205,14 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
    // If LBA format don't try to analyze if cyl and head are zero since CHS
    // headers will match
    for (cont = 0; mfm_controller_info[cont].name != NULL; cont++) {
+      int missing_count = 0;
+
       if ((mfm_controller_info[cont].analyze_type == CINFO_LBA &&
            cyl == 0 && head == 0) ||
            mfm_controller_info[cont].write_data_crc.length == 0) {
          continue; // ****
       }
-//TST printf("Checking %s\n", mfm_controller_info[cont].name);
+//printf("Checking %s\n", mfm_controller_info[cont].name);
       parse_set_drive_params_from_controller(drive_params, cont);
 
       mfm_init_sector_status_list(sector_status_list, MAX_SECTORS);
@@ -220,13 +227,14 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
          // missing a sector then don't consider it a match. Read errors
          // can cause format match to fail.
          if (sector_status_list[i].status & SECT_BAD_HEADER) {
-            if (i >= drive_params->first_sector_number && i <
-                  (drive_params->first_sector_number + drive_params->num_sectors)) {
-               not_match = 1;
+            if (i < drive_params->num_sectors) {
+               // Allow one missed sector
+               if (missing_count++ >= 1) {
+                  not_match = 1;
+               }
             }
          } else {
-            if (i < drive_params->first_sector_number || i >=
-                  (drive_params->first_sector_number + drive_params->num_sectors)) {
+            if (i >= drive_params->num_sectors) {
                not_match = 1;
             }
          }
@@ -238,7 +246,7 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
             good_data_count++;
          }
       }
-//TST printf("not match %d good %d\n", not_match, good_data_count);
+//printf("not match %d good %d\n", not_match, good_data_count);
       if (!not_match && good_data_count >= ceil(drive_params->num_sectors * 2 / 3.0) &&
              matches < ARRAYSIZE(match_list)) {
          match_list[matches++] = cont;

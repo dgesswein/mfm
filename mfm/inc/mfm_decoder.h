@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/03/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX
 // 04/25/18 DJG Added Xerox 8010 and Altos support
 // 03/31/18 DJG Added ext2emu support for DTC.
 // 03/09/18 DJG Added CONTROLLER_DILOG_DQ614 and fields for reading more
@@ -120,9 +121,11 @@ typedef struct {
       CONTROLLER_NEWBURYDATA,
       CONTROLLER_ALTOS,
       CONTROLLER_WD_1006, 
+      CONTROLLER_TANDY_8MEG, 
       CONTROLLER_WD_3B1,
       CONTROLLER_MOTOROLA_VME10, 
       CONTROLLER_DTC, 
+      CONTROLLER_DTC_256B, 
       CONTROLLER_DTC_520_256B, 
       CONTROLLER_DTC_520_512B, 
       CONTROLLER_MACBOTTOM, 
@@ -142,6 +145,7 @@ typedef struct {
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ISBC_215,
       CONTROLLER_XEROX_8010,
+      CONTROLLER_ROHM_PBX,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
@@ -263,6 +267,7 @@ DEF_EXTERN struct {
   {0x0104c981, 32, 5},
   {0x24409, 24, 0},
   {0x3e4012, 24, 0}, // WANG 2275
+  {0x88211, 24, 0}, // ROHM_PBX
   // Adaptec bad block on Maxtor XT-2190
   {0x41044185, 32, 5},
   // MVME320 controller
@@ -1032,6 +1037,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+      {"TANDY_8MEG",              512, 8680000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 1, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL },
       {"WD_3B1",          512, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1053,6 +1065,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_dtc_pc_512b, 512, 17, 0, 5209,
          0, 0,
          {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
+      {"DTC_256B",             256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_dtc_pc_512b, 256, 33, 0, 5209,
+         0, 0,
+         {0,0x24409,24,5},{0,0x24409,24,5}, CONT_MODEL },
       {"DTC_520_256B",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1188,6 +1207,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 16, 0, 5209,
          24, 0,
          {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL },
+      {"ROHM_PBX",      256, 8680000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 1, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 1, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0}, {0, 0x88211, 24, 0}, CONT_MODEL },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -1279,7 +1305,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
-         0, 0,
+         0, 10,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
       {"Corvus_H",             512, 11000000,  312000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -1424,8 +1450,12 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // PROCESS_HEADER is processing the header bytes and PROCESS_DATA processing
 // the data bytes. HEADER_SYNC and DATA_SYNC are looking for the one bit to sync to
 // in CONTROLLER_XEBEC_104786. Not all decoders use all states.
-typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
+typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, MARK_DATA2, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
 } STATE_TYPE;
+
+SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],
+    int bytes_crc_len, int state, uint64_t *crc_ret, int *ecc_span, 
+    SECTOR_DECODE_STATUS *init_status, int perform_ecc);
 
 SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],
       int bytes_crc_len, int total_bytes, STATE_TYPE *state, int cyl, 
@@ -1466,8 +1496,12 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 
 int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count, 
    int int_bit_pos, int raw_word);
+// Use data stored by mfm_mark_location instead of data passed in to
+//   mfm_mark_header_location or mfm_mark_data_location
+#define MARK_STORED -999
 void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count);
+void mfm_mark_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params);
 void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);

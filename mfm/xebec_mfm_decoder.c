@@ -467,6 +467,12 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
          // Are we looking for a mark code?
          if ((state == MARK_ID)) {
+#if 0
+printf("Raw %x %d\n",raw_word, tot_raw_bit_cntr);
+if ((raw_word & 0xffff) == 0x4489) {
+   printf("Mark %d %d\n",tot_raw_bit_cntr, sync_count);
+}
+#endif
             // These patterns are MFM encoded all zeros or all ones.
             // We are looking for zeros so we assume they are zeros.
             if (raw_word == 0x55555555 || raw_word == 0xaaaaaaaa) {
@@ -482,6 +488,9 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             // We want to see enough zeros to ensure we don't get a false
             // match at the boundaries where data is overwritten
 
+            // TODO: The MARK_NUM_ZERO makes my st506 image decode worse
+            // than not checking. Using track format to know when at proper
+            // header bit location may work better.
             if ((raw_word & 0xffff) == 0x4489 && sync_count >= MARK_NUM_ZEROS) {
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;

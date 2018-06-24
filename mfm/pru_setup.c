@@ -17,6 +17,7 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 06/23/18 DJG Add 8.68 MHz data rate support.
 // 05/19/17 DJG Add ability to dump PRU shared memory.
 // 12/24/15 DJG Comment cleanup
 // 11/22/15 DJG Add 15 MHz data rate support.
@@ -472,6 +473,9 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
       // This gives 195 MHz, divided by 13 gives 15 MHz rate. Pre divide
       // by 2, multiply by 64 and divide by 4.
       { 15000000, 2, 65, 4},
+      // This gives 199.68 MHz, divided by 23 gives 8.6817 MHz rate vs
+      // desires 8.68. Pre divide by 5, multiply by 208 and divide by 5.
+      { 8680000, 5, 208, 5}
    };
    int ndx;
 
@@ -519,7 +523,7 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
       wait_bits(ptr + CM_IDLEST_DPLL_DISP/4, 0x101, 0x1,"Locked and not bypass");
       // Select display clock for PRU
       *(ptr + CLKSEL_PRU_ICSS_OCP_CLK/4) = 1;
-      rc = 24000000 * rates[ndx].mult / rates[ndx].pre_divide / 
+      rc = 24000000 / rates[ndx].pre_divide * rates[ndx].mult / 
          rates[ndx].post_divide;
    }
    // Restore PRU state

@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 06/10/18 DJG Added fourth DTC type. Modified header processing to allow
+//    processing valid sector header found when expected data header.
 // 04/22/18 DJG Added support for non 10 MHz bit rate and Altos format
 // 03/31/18 DJG Allowed DTC to work with multiple sector sizes. Split DTC
 //    into three versions for ext2emu
@@ -142,6 +144,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_TANDY_8MEG, Tandy 8 meg 8" drive. Same as WD_1006
 //
 //   CONTROLLER_MOTOROLA_VME10
 //   5 byte header + 4 byte CRC
@@ -630,6 +634,21 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      16 bit CRC/ECC code
 //
+//   CONTROLLER_ROHM_PBX
+//      Found on Quantum Q2040 8" drive
+//   6 byte header + 2 byte crc
+//      byte 0 0xa1
+//      byte 1 0xa1
+//      byte 2 0xa1
+//      byte 3 Low 4 bits Head, bit 4 is a one.
+//      byte 4 bits 0-5 Sector number. Bit 6-7 upper 2 bits of cylinder
+//      byte 5 Low 8 bits of cylinder
+//      bytes 6-7 16 bit CRC
+//   Data (No 0xa1, marked by transitions from zeros to a one.)
+//      byte 0 0xff
+//      Sector data for sector size
+//      24 bit CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -779,6 +798,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_TANDY_8MEG || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
                IsOutermostCylinder(drive_params, exp_cyl)) ||
               drive_params->controller == CONTROLLER_WD_3B1) {
@@ -894,6 +914,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 
       } else if (drive_params->controller == CONTROLLER_DTC_520_256B ||
               drive_params->controller == CONTROLLER_DTC_520_512B ||
+              drive_params->controller == CONTROLLER_DTC_256B ||
               drive_params->controller == CONTROLLER_DTC) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x70) << 4);
 
@@ -1138,6 +1159,18 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_ROHM_PBX) {
+         sector_status.cyl = bytes[5] | ((bytes[4] & 0xc0) << 2);
+         sector_status.head = bytes[3] & 0xf;
+         sector_size = drive_params->sector_size;
+         sector_status.sector = bytes[4] & 0x3f;
+
+         if (bytes[1]  != 0xa1 || bytes[2] != 0xa1) {
+            msg(MSG_INFO, "Invalid header id bytes %02x, %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], bytes[2], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else if (drive_params->controller == CONTROLLER_CONVERGENT_AWS) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
          sector_status.head = bytes[2] >> 4;
@@ -1205,6 +1238,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       // The 3640 doesn't have a 0xa1 data header, search for its special sync
       if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          *state = MARK_DATA1;
+      } else if (drive_params->controller == CONTROLLER_ROHM_PBX) {
+         *state = MARK_DATA2;
       } else if (drive_params->controller == CONTROLLER_ALTOS_586 && bad_block) {
          // If bad block marked no data area is written
          *state = MARK_ID;
@@ -1225,6 +1260,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
          id_byte_expected = 0x80;
+      } else if (drive_params->controller == CONTROLLER_ROHM_PBX) {
+         id_byte_expected = 0xff;
+         id_byte_index = 0;
       } else if (drive_params->controller == CONTROLLER_ISBC_215 &&
           bytes[1] == 0x19) {
          id_byte_expected = 0x19; // Can use either 0x19 or 0xd9
@@ -1369,16 +1407,20 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    uint8_t bytes[MAX_SECTOR_SIZE + 50];
    // How many we need before passing them to the next routine
    int bytes_needed = 0;
+   int header_bytes_needed = 0;
    // Length to perform CRC over
    int bytes_crc_len = 0;
+   int header_bytes_crc_len = 0;
    // how many we have so far
    int byte_cntr = 0;
    // Sequential counter for counting sectors
    int sector_index = 0;
    // Count all the raw bits for emulation file
    int all_raw_bits_count = 0;
-   // Bit count of start of header for Symbolics 3640
+   // Bit count of last of header found
    int header_raw_bit_count = 0;
+   // Bit delta between last header and previous header
+   int header_raw_bit_delta = 0;
    // First address mark time in ns 
    int first_addr_mark_ns = 0;
 
@@ -1467,20 +1509,26 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
+               if (header_raw_bit_count != 0) {
+                  header_raw_bit_delta = tot_raw_bit_cntr - header_raw_bit_count;
+               }
                header_raw_bit_count = tot_raw_bit_cntr;
                zero_count = 0;
                bytes[0] = 0xa1;
                byte_cntr = 1;
+              
+               header_bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
+                        drive_params->header_crc.length / 8;
+               header_bytes_needed = header_bytes_crc_len + HEADER_IGNORE_BYTES;
                if (state == MARK_ID) {
                   state = PROCESS_HEADER;
                   mfm_mark_header_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
-                  bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
-                        drive_params->header_crc.length / 8;
-                  bytes_needed = bytes_crc_len + HEADER_IGNORE_BYTES;
+                  bytes_crc_len = header_bytes_crc_len;
+                  bytes_needed = header_bytes_needed;
                } else {
                   state = PROCESS_DATA;
-                  mfm_mark_data_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
+                  mfm_mark_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
                         mfm_controller_info[drive_params->controller].data_trailer_bytes + 
@@ -1501,7 +1549,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             if ((tot_raw_bit_cntr - header_raw_bit_count) > 530 && 
                   ((raw_word & 0xf) == 0x9)) {
                state = PROCESS_DATA;
-               mfm_mark_data_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
+               mfm_mark_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
                // Write sector assumes one sync byte at the start of the data
                // so we store the 0x01 sync byte.
                bytes[0] = 0x01;
@@ -1520,6 +1568,35 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                raw_bit_cntr = 0;
                decoded_word = 0;
                decoded_bit_cntr = 0;
+               if (header_raw_bit_count != 0) {
+                  header_raw_bit_delta = tot_raw_bit_cntr - header_raw_bit_count;
+               }
+               header_raw_bit_count = tot_raw_bit_cntr;
+            }
+         } else if (state == MARK_DATA2) {
+//printf("DATA2 %x\n", raw_word);
+            if ((raw_word & 0xf) == 0x9) {
+               state = PROCESS_DATA;
+               mfm_mark_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
+               // Figure out the length of data we should look for
+               bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes + 
+                     mfm_controller_info[drive_params->controller].data_trailer_bytes + 
+                     drive_params->sector_size +
+                     drive_params->data_crc.length / 8;
+               bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+               if (bytes_needed >= sizeof(bytes)) {
+                  msg(MSG_FATAL,"Too many bytes needed %d\n", bytes_needed);
+                  exit(1);
+               }
+               // Resync decoding to the mark
+               byte_cntr = 0;
+               raw_bit_cntr = 2;
+               decoded_word = 0;
+               decoded_bit_cntr = 0;
+               if (header_raw_bit_count != 0) {
+                  header_raw_bit_delta = tot_raw_bit_cntr - header_raw_bit_count;
+               }
+               header_raw_bit_count = tot_raw_bit_cntr;
             }
          } else {
             int entry_state = state;
@@ -1542,7 +1619,42 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                if (decoded_bit_cntr >= 8) {
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
+                     // 5 is 2 MFM encoded bits and extra for fill fields.
+                     // 8 is byte to bits
+                     if (byte_cntr == header_bytes_needed &&
+                           header_raw_bit_delta > header_bytes_needed * 5 * 8) {
+                        uint64_t crc;
+                        int ecc_span;
+                        SECTOR_DECODE_STATUS init_status = 0;
+
+                        // Don't perform ECC corrections. They can be
+                        // false corrections when not sector actually header.
+                        mfm_crc_bytes(drive_params, bytes, 
+                           header_bytes_crc_len, PROCESS_HEADER, &crc, 
+                           &ecc_span, &init_status, 0);
+
+                        // We will only get here if processing as data. If
+                        // we found a header with good CRC switch to processing
+                        // it as a header.
+                        if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC)) {
+//printf("Switched header %x\n", init_status);
+                           mfm_mark_header_location(MARK_STORED, 0, 0);
+                           mfm_mark_end_data(all_raw_bits_count, drive_params);
+                           state = PROCESS_HEADER;
+                           bytes_crc_len = header_bytes_crc_len;
+                           bytes_needed = header_bytes_needed;
+                           all_sector_status |= mfm_process_bytes(drive_params, bytes,
+                              bytes_crc_len, bytes_needed, &state, cyl, head, 
+                              &sector_index, seek_difference, sector_status_list, 0);
+                        }
+                     }
                      bytes[byte_cntr++] = decoded_word;
+                     if (byte_cntr == header_bytes_needed && 
+                           state == PROCESS_DATA) {
+                        // Didn't find header so mark location previously found
+                        // as data
+                        mfm_mark_data_location(MARK_STORED, 0, 0);
+                     }
                   } else {
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
@@ -1563,6 +1675,12 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
+   int bits = tot_raw_bit_cntr - 
+           mfm_controller_info[drive_params->controller].track_words * 32;
+   if (bits < -2000) { 
+      msg(MSG_ERR, "Ran out of data on sector index %d.\n Track short %d bits from expected length.\n Either deltas lost or index pulse early\n",
+         sector_index, bits);
+   } else
    if (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) {
       float begin_time = 
          ((bytes_needed - byte_cntr) * 16.0 *

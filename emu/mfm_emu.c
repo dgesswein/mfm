@@ -653,15 +653,25 @@ int main(int argc, char *argv[])
    parse_cmdline(argc, argv, &drive_params);
 
    if (drive_params.initialize) {
+      float rps;
+
       if (drive_params.num_drives != 1) {
          msg(MSG_FATAL, "Only one filename may be specified when initializing\n");
          exit(1);
       }
       drive_params.cmdline = parse_print_cmdline(&drive_params, 0);
-      // Assume 3600 RPM, 60 RPS. Make round number of words
-      track_size = ceil(1/60.0 * drive_params.sample_rate_hz / 8 / 4)*4;
+      // If data rate about 8.68 MHz assume it is a SA1000 drive rotating
+      // at 3125 RPM otherwise 3600 RPM
+      if (abs(drive_params.sample_rate_hz - 8680000) <= 10000) {
+        rps = 52.0833;
+      } else {
+        rps = 60.0;
+      }
+      // Calculate round number of words for track based on rotation rate
+      // and bit rate
+      track_size = ceil(1/rps * drive_params.sample_rate_hz / 8 / 4)*4;
       data = calloc(1,track_size);
-      for (i = 0; i < ARRAYSIZE(data); i++) {
+      for (i = 0; i < track_size / sizeof(data[0]); i++) {
          data[i] = 0xaaaaaaaa;
       }
       drive_params.fd[0] = emu_file_write_header(drive_params.filename[0],
@@ -931,7 +941,7 @@ int main(int argc, char *argv[])
             } else {
                mem_type = MEM_PRU1_DATA;
             } 
-            printf("PRU %d pc %04x\n",i, pru_get_pc(i));
+            msg(MSG_FATAL, "PRU %d pc %04x\n",i, pru_get_pc(i));
             pru_print_registers(i);
             pru_print_memory(mem_type, 0, 256);
             pru_print_memory(mem_type, 0x400, 128);
