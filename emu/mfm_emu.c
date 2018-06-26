@@ -662,11 +662,7 @@ int main(int argc, char *argv[])
       drive_params.cmdline = parse_print_cmdline(&drive_params, 0);
       // If data rate about 8.68 MHz assume it is a SA1000 drive rotating
       // at 3125 RPM otherwise 3600 RPM
-      if (abs(drive_params.sample_rate_hz - 8680000) <= 10000) {
-        rps = 52.0833;
-      } else {
-        rps = 60.0;
-      }
+      rps = emu_rps(drive_params.sample_rate_hz);
       // Calculate round number of words for track based on rotation rate
       // and bit rate
       track_size = ceil(1/rps * drive_params.sample_rate_hz / 8 / 4)*4;

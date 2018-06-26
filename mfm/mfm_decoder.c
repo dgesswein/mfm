@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 06/25/18 DJG Fixed calculating emulation file track data size for SA1000 drives
 // 06/17/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX.Changes to support 
 // adapting to header type found.
 // 05/06/18 DJG Added format Xerox 8010 and Altos. Fixes for error
@@ -589,7 +590,8 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
          // Assume 3600 RPM, 60 RPS. Make round number of words
          // Set if not set on command line
       if (drive_params->emu_track_data_bytes == 0) {
-         drive_params->emu_track_data_bytes = ceil(1/60.0 * 
+         drive_params->emu_track_data_bytes = ceil(1/
+            emu_rps(mfm_controller_info[drive_params->controller].clk_rate_hz) * 
             mfm_controller_info[drive_params->controller].clk_rate_hz / 8 / 4)*4;
       }
       drive_params->emu_fd = emu_file_write_header(drive_params->emulation_filename,

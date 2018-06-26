@@ -1500,7 +1500,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    printf("mark at %d zero %d\n", tot_raw_bit_cntr, zero_count);
 }
 #endif
-//printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
+printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
             if ((drive_params->controller == CONTROLLER_EDAX_PV9900 &&
                     (((raw_word & 0xffff) == 0x4489 && state != MARK_ID) || 
                      ((raw_word & 0xfffff) == 0xa4891 && state == MARK_ID)) )  ||

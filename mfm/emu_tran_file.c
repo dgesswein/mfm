@@ -999,3 +999,17 @@ if (deltas[i] == 0) {
    // but worse with internal flash
    // posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
 }
+
+// Return rotations per second for emulatored drive.
+//
+// sample_rate_hz: Samples per second for MFM bits
+//
+float emu_rps(int sample_rate_hz) {
+   // If data rate about 8.68 MHz assume it is a SA1000 drive rotating
+   // at 3125 RPM otherwise 3600 RPM
+   if (abs(sample_rate_hz - 8680000) <= 10000) {
+     return 52.0833;
+   } else {
+     return 60.0;
+   }
+}

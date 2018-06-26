@@ -80,4 +80,7 @@ int tran_file_read_track_deltas(int fd,uint16_t deltas[], int max_deltas, int *c
       int *head);
 void tran_file_write_track_deltas(int fd,uint16_t *deltas, int num_words, int cyl, int head);
 void tran_file_close(int fd, int write_eof);
+
+float emu_rps(int sample_rate_hz);
+
 #endif /* EMU_TRAN_FILE_H_ */

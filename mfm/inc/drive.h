@@ -40,4 +40,5 @@ void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
 void drive_initialize(void);
 int drive_get_board_revision(void);
 void drive_write_disk(DRIVE_PARAMS *drive_params);
+
 #endif /* DRIVE_H_ */
