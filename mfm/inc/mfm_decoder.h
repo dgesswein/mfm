@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
+//   correct location to look for headers
 // 06/03/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX
 // 04/25/18 DJG Added Xerox 8010 and Altos support
 // 03/31/18 DJG Added ext2emu support for DTC.
@@ -133,6 +135,7 @@ typedef struct {
       CONTROLLER_ALTOS_586,
       CONTROLLER_ATT_3B2,
       CONTROLLER_CONVERGENT_AWS,
+      CONTROLLER_CONVERGENT_AWS_SA1000,
       CONTROLLER_WANG_2275,
       CONTROLLER_WANG_2275_B,
       CONTROLLER_EDAX_PV9900,
@@ -315,6 +318,9 @@ DEF_EXTERN struct {
      // This is for DILOG_DQ614, header and data
      {32, 0x58e07342},
      {32, 0xcf2105e0},
+     // This is for Convergent AWS on Quantum Q2040 header and data
+     {32, 0x920d65c0},
+     {32, 0xef26129d},
      {16, 0x551a} // Altos
   }
 #endif
@@ -1003,6 +1009,12 @@ typedef struct {
       // some we will use as specific model then try search with different
       // polynomials.
    enum {CONT_ANALIZE, CONT_MODEL} analyze_search;
+
+      // Minimum number of bits from last good header. Zero if not used
+      // Both must be zero or non zero
+   int header_min_delta_bits, data_min_delta_bits;
+     // Minimum number of bits from index for first header
+   int first_header_min_bits;
 } CONTROLLER;
 
 DEF_EXTERN CONTROLLER mfm_controller_info[]
@@ -1015,168 +1027,225 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, 0 },
+         {0,0,0,0},{0,0,0,0}, 0,
+         0, 0, 0
+      },
       {"NewburyData",          256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE},
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Altos",              256, 8680000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0x551a,0x1021,16,0}, CONT_MODEL },
+         {0xffff,0x1021,16,0},{0x551a,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"WD_1006",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"TANDY_8MEG",              512, 8680000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 1, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL },
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"WD_3B1",          512, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_3B1, 512, 17, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL },
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"Motorola_VME10",  256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
-         {0,0xa00805,32,0},{0,0xa00805,32,0}, CONT_ANALIZE },
+         {0,0xa00805,32,0},{0,0xa00805,32,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"DTC",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_pc_512b, 512, 17, 0, 5209,
          0, 0,
-         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
+         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"DTC_256B",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_pc_512b, 256, 33, 0, 5209,
          0, 0,
-         {0,0x24409,24,5},{0,0x24409,24,5}, CONT_MODEL },
+         {0,0x24409,24,5},{0,0x24409,24,5}, CONT_MODEL,
+         0, 0, 0
+      },
       {"DTC_520_256B",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_520_256b, 256, 33, 0, 5209,
          0, 0,
-         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
+         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"DTC_520_512B",             512, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_520_512b, 512, 18, 0, 5209,
          0, 0,
-         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL },
+         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"MacBottom",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Elektronika_85",      256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          16, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Altos_586",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"ATT_3B2",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"CONVERGENT_AWS",       256, 10000000, 460000, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"CONVERGENT_AWS_SA1000",       512, 8640000, 0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 16, 0, 5209,
+         0, 0,
+         {0x920d65c0,0x140a0445,32,5},{0xef26129d,0x140a0445,32,5}, CONT_MODEL,
+         8700, 785, 530
+      },
       {"WANG_2275",              256, 10000000,      0, 
          3, 4, 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 0, CHECK_CHKSUM, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"WANG_2275_B",            256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"EDAX_PV9900",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 1, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"OMTI_5510",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Xerox_6085",           256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          20, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Telenex_Autoscope",           256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Morrow_MD11",            1024, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 1024, 9, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Unknown1",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE },
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
 // OMTI_5200 uses initial value 0x409e10aa for data
       {"DEC_RQDX3",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -1184,21 +1253,27 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Seagate_ST11M",        256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
          0, 0,
-         {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE },
+         {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Intel_iSBC_215",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
 // SA1004 8" drive
       {"Xerox_8010",      128, 8680000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -1206,14 +1281,18 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 16, 0, 5209,
          24, 0,
-         {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL },
+         {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"ROHM_PBX",      256, 8680000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 1, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 1, 5209,
          0, 0,
-         {0xffff,0x1021,16,0}, {0, 0x88211, 24, 0}, CONT_MODEL },
+         {0xffff,0x1021,16,0}, {0, 0x88211, 24, 0}, CONT_MODEL,
+         0, 0, 0
+      },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -1221,14 +1300,18 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"MVME320",        256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_mvme320, 256, 32, 1, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,5}, CONT_ANALIZE },
+         {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Symbolics_3620",       256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1236,14 +1319,18 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
 // Should be model after data filled in
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 4, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
          11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
          0, 0,
-         {0x0,0x0,1,0},{0x0,0xa00805,32,5}, CONT_MODEL },
+         {0x0,0x0,1,0},{0x0,0xa00805,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number. It should not be part of a normal search
 // since it will match wd_1006 for drives less than 8 heads
@@ -1255,7 +1342,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+         0, 0, 0
+      },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number. It should not be part of a normal search
 // since it will match wd_1006 for drives less than 8 heads
@@ -1267,7 +1356,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_MODEL },
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+         0, 0, 0
+      },
 // END of WD type controllers
 //    Changed begin time from 0 to 100500 to work with 1410A. The sample
 //    I have of the 104786 says it should work with it also so changing default.
@@ -1278,35 +1369,45 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"DILOG_DQ614",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          8, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Xebec_104786",         256, 10000000,      100500,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Xebec_S1420",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"EC1841",         256, 10000000,      220000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 0, 0, 0, 5209,
          0, 10,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Corvus_H",             512, 11000000,  312000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1314,7 +1415,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 0, 0, 0, 5209,
 // Should be model after data filled in
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE },
+         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2, 3,
          0, 1, CINFO_CHS,
@@ -1322,7 +1425,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_northstar, 512, 16, 0, 5209,
 // Should be model after data filled in
          0, 33,
-         {0,0,16,0},{0,0,32,0}, CONT_ANALIZE },
+         {0,0,16,0},{0,0,32,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Cromemco",             10240, 10000000,  6000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1330,7 +1435,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          7, 0, trk_cromemco_stdc, 10240, 1, 0, 5209,
 // Should be model after data filled in
          0, 0,
-         {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALIZE },
+         {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Vector4",             256, 10000000,  300000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1338,7 +1445,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 256, 32, 0, 5209,
 // Should be model after data filled in
          0, 20,
-         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE },
+         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {"Vector4_ST506",             256, 10000000,  300000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1346,14 +1455,18 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 256, 32, 0, 5209,
 // Should be model after data filled in
          0, 20,
-         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE },
+         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
          0, 0, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 0, NULL, 0, 0, 0, 0,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, 0 }
+         {0,0,0,0},{0,0,0,0}, 0,
+         0, 0, 0
+      }
    }
 #endif
 ;

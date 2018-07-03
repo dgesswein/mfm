@@ -12,6 +12,8 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
+//   correct location to look for headers. Remove debug print.
 // 06/10/18 DJG Added fourth DTC type. Modified header processing to allow
 //    processing valid sector header found when expected data header.
 // 04/22/18 DJG Added support for non 10 MHz bit rate and Altos format
@@ -519,7 +521,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
-//   CONTROLLER_CONVERGENT_AWS
+//   CONTROLLER_CONVERGENT_AWS, CONVERGENT_AWS_SA1000
 //   http://mightyframe.blogspot.com/2017/03/convergent-technologies-workstation.html
 //
 //   5 byte header + 2 byte CRC
@@ -1171,7 +1173,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_CONVERGENT_AWS) {
+      } else if (drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
+          drive_params->controller == CONTROLLER_CONVERGENT_AWS_SA1000) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
          sector_status.head = bytes[2] >> 4;
          sector_size = drive_params->sector_size;
@@ -1500,12 +1503,42 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    printf("mark at %d zero %d\n", tot_raw_bit_cntr, zero_count);
 }
 #endif
-printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
+//printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
+            int use_new_count = 0;  // Use new method
+            int good_mark = 0;      // Non zero if proper location to look
+            int delta = tot_raw_bit_cntr - header_raw_bit_count;
+
+            // Only look at headers at the expected location from start of
+            // track or from last header.
+            if ((raw_word & 0xffff) == 0x4489) {
+               CONTROLLER *cont = &mfm_controller_info[drive_params->controller];
+               if (header_raw_bit_count == 0 && cont->first_header_min_bits != 0) {
+                  use_new_count = 1;
+                  if (tot_raw_bit_cntr >= cont->first_header_min_bits) {
+                     good_mark = 1;
+                  }
+               }
+               if (header_raw_bit_count != 0 && cont->header_min_delta_bits != 0) {
+                  use_new_count = 1;
+                  if (state == MARK_ID && delta >= cont->header_min_delta_bits) {
+                     good_mark = 1; 
+                  }
+                  if (state == MARK_DATA && delta >= cont->data_min_delta_bits) {
+                     good_mark = 1; 
+                  }
+               }
+               // If not using new bit count method use number of zeros to 
+               // determine if good mark
+               if (!use_new_count && zero_count >= MARK_NUM_ZEROS) {
+                  good_mark = 1;
+               }
+               //printf("Delta %d header %d tot %d use %d good %d\n", delta, header_raw_bit_count, tot_raw_bit_cntr, use_new_count, good_mark);
+            }
             if ((drive_params->controller == CONTROLLER_EDAX_PV9900 &&
                     (((raw_word & 0xffff) == 0x4489 && state != MARK_ID) || 
                      ((raw_word & 0xfffff) == 0xa4891 && state == MARK_ID)) )  ||
-               (drive_params->controller != CONTROLLER_EDAX_PV9900 && (raw_word & 0xffff) == 0x4489 && 
-                 zero_count >= MARK_NUM_ZEROS) ) {
+               (drive_params->controller != CONTROLLER_EDAX_PV9900 && 
+               (raw_word & 0xffff) == 0x4489 && good_mark) ) {
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
@@ -1635,8 +1668,8 @@ printf("Raw %08x tot %d\n",raw_word, tot_raw_bit_cntr);
 
                         // We will only get here if processing as data. If
                         // we found a header with good CRC switch to processing
-                        // it as a header.
-                        if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC)) {
+                        // it as a header. Poly != 0 for my testing
+                        if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC) && drive_params->header_crc.poly != 0) {
 //printf("Switched header %x\n", init_status);
                            mfm_mark_header_location(MARK_STORED, 0, 0);
                            mfm_mark_end_data(all_raw_bits_count, drive_params);

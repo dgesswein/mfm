@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 07/02/18 DJG Added Convergent AWS SA1000 format
 // 06/25/18 DJG Fixed calculating emulation file track data size for SA1000 drives
 // 06/17/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX.Changes to support 
 // adapting to header type found.
@@ -516,6 +517,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
          drive_params->controller == CONTROLLER_ALTOS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
+         drive_params->controller == CONTROLLER_CONVERGENT_AWS_SA1000 ||
          drive_params->controller == CONTROLLER_ISBC_215 ||
          drive_params->controller == CONTROLLER_DILOG_DQ614 ||
          drive_params->controller == CONTROLLER_ROHM_PBX ||
@@ -1232,6 +1234,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||
             drive_params->controller == CONTROLLER_ALTOS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
+            drive_params->controller == CONTROLLER_CONVERGENT_AWS_SA1000 ||
             drive_params->controller == CONTROLLER_ISBC_215 ||
             drive_params->controller == CONTROLLER_DILOG_DQ614 ||
             drive_params->controller == CONTROLLER_ROHM_PBX ||
