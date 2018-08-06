@@ -1008,7 +1008,10 @@ float emu_rps(int sample_rate_hz) {
    // If data rate about 8.68 MHz assume it is a SA1000 drive rotating
    // at 3125 RPM otherwise 3600 RPM
    if (abs(sample_rate_hz - 8680000) <= 10000) {
-     return 52.0833;
+     // 3125 RPM for Shugart. Quantum Q20x0 is 3000. No easy way to tell
+     // which. Will need to manually specify --track_words 5425 when
+     // creating emulation file.
+     return 52.0833; 
    } else {
      return 60.0;
    }

@@ -9,6 +9,7 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 08/05/18 DJG Don't allow drive 0 to be specified for mfm_read
 // 04/01/18 DJG Fixed handling of unknown format in stored command line
 // 01/18/17 DJG Added --ignore_seek_errors and fixed missing track_words when
 //     printing command line options
@@ -696,7 +697,12 @@ void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
    int i;
    // For mfm_util drive doesn't need to be specified. This
    // option error handling is getting messy.
-   if (!mfm_read) {
+   if (mfm_read) {
+      if (drive_params->drive < 1 || drive_params->drive > 4) {
+         msg(MSG_FATAL, "Drive must be between 1 and 4\n");
+         exit(1);
+      }
+   } else {
       min_read_opts &= ~drive_opt;
    }
    // Corvus H  and Cromemco drive doesn't have separate header and data 

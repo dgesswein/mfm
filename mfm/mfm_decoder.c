@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 08/05/18 DJG Added IBM_5288
 // 07/02/18 DJG Added Convergent AWS SA1000 format
 // 06/25/18 DJG Fixed calculating emulation file track data size for SA1000 drives
 // 06/17/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX.Changes to support 
@@ -514,6 +515,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ATT_3B2 ||
          drive_params->controller == CONTROLLER_WANG_2275 ||
          drive_params->controller == CONTROLLER_WANG_2275_B ||
+         drive_params->controller == CONTROLLER_IBM_5288 ||
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
          drive_params->controller == CONTROLLER_ALTOS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
@@ -726,6 +728,7 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
             stats->emu_data_truncated) {
          msg(MSG_ERR, "*** To create valid emulator file rerun with --track_words %d\n",
             stats->max_track_words + 2);
+         msg(MSG_ERR, "if decoding emulator file with mfm_util shows errors\n");
       }
    }
    emu_file_close(drive_params->emu_fd, drive_params->emulation_output);
@@ -1231,6 +1234,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ATT_3B2 ||
             drive_params->controller == CONTROLLER_WANG_2275 ||
             drive_params->controller == CONTROLLER_WANG_2275_B ||
+            drive_params->controller == CONTROLLER_IBM_5288 ||
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||
             drive_params->controller == CONTROLLER_ALTOS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||

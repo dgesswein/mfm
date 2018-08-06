@@ -12,6 +12,7 @@
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
 //
+// 08/05/18 DJG Added IBM_5288 format
 // 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
 //   correct location to look for headers. Remove debug print.
 // 06/10/18 DJG Added fourth DTC type. Modified header processing to allow
@@ -651,6 +652,22 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      24 bit CRC/ECC code
 //
+//   CONTROLLER_IBM_5288
+//   5 byte header + 1 byte checksum
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-4 head number. Bits 5-7 upper bits of cylinder
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 0 0xa1
+//      byte 0 0xa1
+//      byte 1 0xfb
+//      Sector data for sector size
+//      16 bit CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -892,7 +909,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
+      } else if ((drive_params->controller == CONTROLLER_WANG_2275_B) ||
+        (drive_params->controller == CONTROLLER_IBM_5288)) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0xe0) << 3);
 
          sector_status.head = bytes[3] & 0x1f;
@@ -1287,6 +1305,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
          id_byte_expected = 0xf8;
+      } else if (drive_params->controller == CONTROLLER_IBM_5288) {
+         id_byte_expected = 0xfb;
+         id_byte_index = 3;
       } else if (drive_params->controller == CONTROLLER_ALTOS) {
          id_byte_expected = 0xb0;
          id_byte_mask = 0xf0;

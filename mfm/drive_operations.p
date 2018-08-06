@@ -1,5 +1,7 @@
 // Common code for talking to drives. Included by other .p files
 //
+// 08/05/18 DJG Further increased seek complete timeout for Quantum Q2040 drive recal
+// 07/19/18 DJG Increased seek complete timeout for Quantum Q2040 drive recal
 // 04/21/18 DJG Handle drives that go not ready during seek to track 0
 //
 // Copyright 2014 David Gesswein.
@@ -19,9 +21,9 @@
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 
 
-// 4 seconds, guess at slowest time to complete a seek including possible
+// 8 seconds, guess at slowest time to complete a seek including possible
 // recalibrate.
-#define SEEK_COMPLETE_TIMEOUT 800000000
+#define SEEK_COMPLETE_TIMEOUT 1600000000
 // Pulse width for buffered seek pulses
 #define SEEK_PW 1000    //  5 microseconds
 #define SEEK_PW_SLOW 8000    //  40 microseconds

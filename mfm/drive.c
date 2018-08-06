@@ -13,6 +13,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 08/05/2018 DJG Drive 0 invalid for drive_select()
 // 05/06/2018 DJG Adjustement to try to make Syquest disks work better
 // 03/09/2018 DJG Make sure correct setup script run so pins are in correct
 //    direction.
@@ -83,7 +84,7 @@ void drive_select(int drive)
    static int fd[4];
    int i;
 
-   if (drive < 0 || drive > 4) {
+   if (drive < 1 || drive > 4) {
       msg(MSG_FATAL, "Invalid drive %d\n", drive);
       exit(1);
    }

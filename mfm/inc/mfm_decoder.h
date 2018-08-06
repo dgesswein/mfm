@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 08/05/18 DJG Added IBM_5288. Fixed Convergent AWS SA1000 format
 // 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
 //   correct location to look for headers
 // 06/03/18 DJG Added Tandy 8 Meg SA1004, fourth DTC variant, and ROHM_PBX
@@ -138,6 +139,7 @@ typedef struct {
       CONTROLLER_CONVERGENT_AWS_SA1000,
       CONTROLLER_WANG_2275,
       CONTROLLER_WANG_2275_B,
+      CONTROLLER_IBM_5288,
       CONTROLLER_EDAX_PV9900,
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
@@ -1165,14 +1167,14 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
          0, 0, 0
       },
-      {"CONVERGENT_AWS_SA1000",       512, 8640000, 0, 
+      {"CONVERGENT_AWS_SA1000",       512, 8680000, 0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
          {0x920d65c0,0x140a0445,32,5},{0xef26129d,0x140a0445,32,5}, CONT_MODEL,
-         8700, 785, 530
+         8700, 770, 350
       },
       {"WANG_2275",              256, 10000000,      0, 
          3, 4, 4, ARRAYSIZE(mfm_all_poly), 
@@ -1190,6 +1192,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"IBM_5288",            256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 4, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"EDAX_PV9900",              256, 10000000,      0, 
