@@ -18,6 +18,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 08/26/18 DJG Best sector wasn't always written out. Ignore bad headers at
+//    end of track
 // 08/05/18 DJG Added IBM_5288
 // 07/02/18 DJG Added Convergent AWS SA1000 format
 // 06/25/18 DJG Fixed calculating emulation file track data size for SA1000 drives
@@ -289,6 +291,8 @@ static void print_sector_list_status(DRIVE_PARAMS *drive_params,
       if (hard_errors) {
          int last_cyl = cyl;
          msg(MSG_ERR_SUMMARY, "Bad sectors on cylinder %d", cyl);
+         // Sector status list is indexed by header sector number relative to lowest
+         // sector number
          for (cntr = 0; cntr < num_sectors; cntr++) {
             if (!(sector_status_list[cntr].status & SECT_BAD_HEADER)) {
                if (sector_status_list[cntr].cyl != cyl &&
@@ -917,12 +921,14 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
       sector_status_list[sect_rel0].status &= ~SECT_NOT_WRITTEN;
       update = 1;
    }
-   // If the previous data had an error then check if we should update
-   if ((sector_status_list[sect_rel0].status & SECT_BAD_DATA) ||
-          sector_status_list[sect_rel0].ecc_span_corrected_data > 0) {
-      // If current doesn't have error and ECC correction if any at least
-      // as good as previous
-      if ( !(sector_status->status & SECT_BAD_DATA) &&
+   // If current read isn't bad
+   if ( !(sector_status->status & SECT_BAD_DATA)) {
+      // If last was bad then update
+      if (sector_status_list[sect_rel0].status & SECT_BAD_DATA) {
+         update = 1;
+      }
+      // If previous had ECC correction and current correction is less then update
+      if (sector_status_list[sect_rel0].ecc_span_corrected_data > 0 &&
              (sector_status->ecc_span_corrected_data == 0 ||
              sector_status->ecc_span_corrected_data <
              sector_status_list[sect_rel0].ecc_span_corrected_data) ) {
@@ -1283,7 +1289,12 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          exit(1);
       }
     } else {
-      status |= SECT_BAD_HEADER;
+      // Wern't able to process header to mark invalid if we haven't seen all
+      // expected headers. False header detection can occur in the junk at
+      // the end of the track.
+      if (*sector_index < drive_params->num_sectors) {
+         status |= SECT_BAD_HEADER;
+      }
       // Search for header in case we are out of sync. If we found
       // data next we can't process it anyway.
       *state = MARK_ID;

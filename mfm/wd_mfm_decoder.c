@@ -11,7 +11,10 @@
 // look ahead.
 // TODO use bytes between header marks to figure out if data or header 
 // passed. Use sector_numbers to recover data if only one header lost.
+// Code has somewhat messy implementation that should use the new data
+// on format to drive processing. Also needs to be added to other decoders.
 //
+// 08/27/18 DJG Mark sector data bad if too far from header
 // 08/05/18 DJG Added IBM_5288 format
 // 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
 //   correct location to look for headers. Remove debug print.
@@ -1477,6 +1480,16 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                int_bit_pos, avg_bit_sep_time, track_time);
          }
 #endif
+#if 0
+         if (cyl == 23 && head == 3) {
+            static int pass = 0;
+
+            printf
+               ("  DD %d,%d,%d,%.2f,%d,%.2f,%d\n", pass++,
+                  deltas[i], i, clock_time,
+                  int_bit_pos, avg_bit_sep_time, track_time);
+         }
+#endif
          if (all_raw_bits_count + int_bit_pos >= 32) {
             all_raw_bits_count = mfm_save_raw_word(drive_params,
                all_raw_bits_count, int_bit_pos, raw_word);
@@ -1673,10 +1686,11 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                if (decoded_bit_cntr >= 8) {
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
-                     // 5 is 2 MFM encoded bits and extra for fill fields.
-                     // 8 is byte to bits
+                     // If sufficent bits we may have missed a header
+                     // 7 is 2 MFM encoded bits and extra for fill fields.
+                     // 8 is byte to bits, dup code below
                      if (byte_cntr == header_bytes_needed &&
-                           header_raw_bit_delta > header_bytes_needed * 5 * 8) {
+                           header_raw_bit_delta > header_bytes_needed * 7 * 8) {
                         uint64_t crc;
                         int ecc_span;
                         SECTOR_DECODE_STATUS init_status = 0;
@@ -1710,10 +1724,23 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         mfm_mark_data_location(MARK_STORED, 0, 0);
                      }
                   } else {
+                     int force_bad = SECT_NO_STATUS;
+
+                     // If data header too far from sector header mark bad.
+                     // 7 is 2 MFM encoded bits and extra for fill fields.
+                     // 8 is byte to bits, dup code above
+                     if (state == PROCESS_DATA &&
+                        header_raw_bit_delta > header_bytes_needed * 7 * 8) {
+                        force_bad = SECT_BAD_DATA;
+                        msg(MSG_DEBUG, "Ignored data too far from header %d, %d on cyl %d head %d sector index %d\n",
+                          header_raw_bit_delta, header_bytes_needed * 7 * 8,
+                          cyl, head, sector_index);
+                     }
                      mfm_mark_end_data(all_raw_bits_count, drive_params);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
                         bytes_crc_len, bytes_needed, &state, cyl, head, 
-                        &sector_index, seek_difference, sector_status_list, 0);
+                        &sector_index, seek_difference, sector_status_list, 
+                        force_bad);
                   }
                   decoded_bit_cntr = 0;
                }
