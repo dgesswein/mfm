@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/05/18 DJG Added IBM_5288. Fixed Convergent AWS SA1000 format
 // 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
 //   correct location to look for headers
@@ -158,6 +159,7 @@ typedef struct {
       CONTROLLER_DG_MV2000, 
       CONTROLLER_SOLOSYSTEMS, 
       CONTROLLER_DILOG_DQ614,
+      CONTROLLER_DILOG_DQ604,
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
@@ -268,7 +270,7 @@ DEF_EXTERN struct {
   {0x1021, 16, 0},
   {0x8005, 16, 0},
   {0x140a0445, 32, 5},
-  {0x140a0445000101, 56, 16}, // From WD42C22C datasheet, not tested
+  {0x140a0445000101ll, 56, 16}, // From WD42C22C datasheet, not tested
   {0x0104c981, 32, 5},
   {0x24409, 24, 0},
   {0x3e4012, 24, 0}, // WANG 2275
@@ -277,6 +279,9 @@ DEF_EXTERN struct {
   {0x41044185, 32, 5},
   // MVME320 controller
   {0x10210191, 32, 5}
+  // DQ604 Not added to search since more likely to cause false
+  // positives that find real matches
+  //{0x1, 8, 0}
   // From uPD7261 datasheet. Also has better polynomials so commented out
   //{0x1, 16, 0} 
   // From 9410 CRC checker. Not seen on any drive so far
@@ -293,7 +298,7 @@ DEF_EXTERN struct {
 }  mfm_all_init[]
 #ifdef DEF_DATA
  = 
-   {{-1, 0}, {-1, 0xffffffffffffffff}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
+   {{-1, 0}, {-1, 0xffffffffffffffffll}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
      {32, 0x409e10aa},
      // This is 532 byte sector OMTI. Above are other OMTI. They likely are
      // compensating for something OMTI is doing to the CRC like below
@@ -1390,6 +1395,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"DILOG_DQ604",         256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         8, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0,0x1,8,0},{0,0x1,8,0}, CONT_MODEL,
          0, 0, 0
       },
       {"Xebec_104786",         256, 10000000,      100500,

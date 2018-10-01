@@ -9,6 +9,7 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 09/28/18 DJG Allow drive 0 when analyze specified
 // 08/05/18 DJG Don't allow drive 0 to be specified for mfm_read
 // 04/01/18 DJG Fixed handling of unknown format in stored command line
 // 01/18/17 DJG Added --ignore_seek_errors and fixed missing track_words when
@@ -698,7 +699,9 @@ void parse_validate_options(DRIVE_PARAMS *drive_params, int mfm_read) {
    // For mfm_util drive doesn't need to be specified. This
    // option error handling is getting messy.
    if (mfm_read) {
-      if (drive_params->drive < 1 || drive_params->drive > 4) {
+      // Drive 1-4 valid if specified. If analyze specified drive will be 0
+      if ((drive_params->drive < 1 || drive_params->drive > 4) &&
+          !(drive_params->analyze && drive_params->drive == 0)) {
          msg(MSG_FATAL, "Drive must be between 1 and 4\n");
          exit(1);
       }

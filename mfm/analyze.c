@@ -6,6 +6,8 @@
 
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
+// 09/10/18 DJG Made code not allowing larger sector sizes to match when
+//    shorter found to allow larger sectors if not many matches for shorter.
 // 06/22/18 DJG Fix checking of sector numbers for analyze_model. Detect
 //    SA1000 bit rate.
 // 03/31/18 DJG Added code to analyze drive formats marked as MODEL/
@@ -430,8 +432,11 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
 //
 // drive_params: Drive parameters determined so far and return what we have determined
 // deltas: MFM delta time transition data to analyze
+// max_deltas: Number of deltas
+// header_match: Number of headers found
+// *best_match_count: Return Highest good sectors found for set of parameters
 // return: Number of matching formats found.
-static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *deltas, int max_deltas, int *best_match_count)
+static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *deltas, int max_deltas, int headers_match, int *best_match_count)
 {
    // Return value
    int rc = 0;
@@ -476,8 +481,10 @@ static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *del
          for (size_ndx = 0; mfm_all_sector_size[size_ndx] != -1; size_ndx++) {
             drive_params->sector_size = mfm_all_sector_size[size_ndx];
             // If sector longer than one we already found don't try it. More
-            // zeros after CRC match will still match
-            if (sector_size != 0 && drive_params->sector_size > sector_size) {
+            // zeros after CRC match will still match. Still try larger
+            // sector sizes if we didn't match that many sectors
+            if (sector_size != 0 && drive_params->sector_size > sector_size &&
+                 previous_good_data_count >= .6 * headers_match) {
                continue;
             }
             msg(MSG_DEBUG, "Trying controller data %s len %d ", 
@@ -866,7 +873,7 @@ int analyze_headers(DRIVE_PARAMS *drive_params, void *deltas,
       for (i = 0; i < headers_match; i++) {
          if (mfm_controller_info[drive_params_list[i].controller].separate_data) {
             if (analyze_data(&drive_params_list[i], cyl, head, deltas, 
-                  max_deltas, &data_matches) > 1) {
+                  max_deltas, match_count[i], &data_matches) > 1) {
                format_count++;
             }
          } else {

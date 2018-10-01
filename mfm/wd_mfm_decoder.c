@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/27/18 DJG Mark sector data bad if too far from header
 // 08/05/18 DJG Added IBM_5288 format
 // 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
@@ -613,18 +614,40 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 5 low cylinder
 //      byte 6 head
 //      byte 7 sector number. MSB set on last physcial sector of track.
-//      bytes 8-11 32 bit CRC 0xffff,0x1021,16
+//      bytes 8-11 32 bit CRC 0x58e07342,0x140a0445,32
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xf8
 //      Sector data for sector size
-//      32 bit CRC/ECC code 0xffff,0x1021,16
+//      32 bit CRC/ECC code 0xcf2105e0,0x140a0445,32
 //   The controller supported partitioning the drive into multiple disks.
 //   example has 0 and 2 in the partition field. Drive was labeled as drive 0
 //   and 1. Second partition started at cyl 300. Cyl 301 head 0 had some
 //   good sectors then rest of cylinder had sector headers but no data headers.
 //   Unknow what this represents. Same on cyl 603. Cyl 604 on are a different
 //   format and likely weren't used by the controller.
+//
+//   CONTROLLER_DILOG_DQ604 (Distributed Logic)
+//   User manual without format info http://www.bitsavers.org/pdf/dilog/
+//   emu-st412-dq604
+//
+//   8 byte header + 1 byte crc
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 Bit 1 set on last logical sector
+//          of track. Bit 2 set on last logical sector of cylinder. Bit 3
+//          set on last locical sector of disk.
+//      byte 3 0x00
+//      byte 4 high cylinder 
+//      byte 5 low cylinder
+//      byte 6 head
+//      byte 7 sector number. 
+//      byte 8 8 bit CRC 0x0,0x1,8
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      8 bit CRC code 0x0,0x1,8
 //
 //   CONTROLLER_ALTOS
 //      Found on Quantum Q2040 8" drive
@@ -1225,6 +1248,26 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   sector_status.head, sector_status.sector);
          }
          if ((bytes[3])  != 0x33) {
+            msg(MSG_INFO, "Byte 3 %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[3], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         if ((bytes[1])  != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_DILOG_DQ604) {
+         sector_status.cyl = bytes[5] | (bytes[4] << 8);
+         sector_status.head = bytes[6];
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = bytes[7];
+       
+         if ((bytes[3])  != 0x00) {
             msg(MSG_INFO, "Byte 3 %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[3], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
