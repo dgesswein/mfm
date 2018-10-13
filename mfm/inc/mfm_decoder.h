@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/12/18 DJG Added CONTROLLER_IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/05/18 DJG Added IBM_5288. Fixed Convergent AWS SA1000 format
 // 07/02/18 DJG Added Convergent AWS SA1000 format and new data for finding
@@ -148,6 +149,7 @@ typedef struct {
       CONTROLLER_MORROW_MD11,
       CONTROLLER_UNKNOWN1,
       CONTROLLER_DEC_RQDX3, 
+      CONTROLLER_IBM_3174,
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ISBC_215,
       CONTROLLER_XEROX_8010,
@@ -328,6 +330,7 @@ DEF_EXTERN struct {
      // This is for Convergent AWS on Quantum Q2040 header and data
      {32, 0x920d65c0},
      {32, 0xef26129d},
+     {16, 0x8026}, // IBM 3174
      {16, 0x551a} // Altos
   }
 #endif
@@ -1270,6 +1273,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"IBM_3174",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 516, 17, 1, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0x8026,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"Seagate_ST11M",        256, 10000000,      0,

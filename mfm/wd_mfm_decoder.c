@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 09/10/18 DJG Added CONTROLLER_IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/27/18 DJG Mark sector data bad if too far from header
 // 08/05/18 DJG Added IBM_5288 format
@@ -694,6 +695,23 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      16 bit CRC/ECC code
 //
+//   CONTROLLER_IBM_3174
+//   No manual found describing low level format. 3174.td
+//   6 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder low
+//      byte 3 cylinder high in upper 3 bits, low 5 bits head
+//      byte 4 sector number
+//      byte 5 unknown, 2 for sample I have
+//      byte 6-7 CRC (0xfff,0x1021,16,0)
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xfb
+//      Sector data for sector size
+//      ECC code (2 byte)
+//   Last 3 cylinders don't have valid data
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -799,6 +817,26 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
          }
+         // Don't know what's in this byte. Print a message so it can be
+         // investigated if not the 2 seen previously.
+         if (bytes[5] != 0x2) {
+            msg(MSG_INFO, "Header Byte 5 not 2, byte %02x on cyl %d head %d sector %d\n",
+                  bytes[5], sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_IBM_3174) {
+         sector_status.cyl = (bytes[3] & 0xe0) << 3;
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = bytes[3] & 0x1f;
+         sector_status.sector = bytes[4];
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
          // Don't know what's in this byte. Print a message so it can be
          // investigated if not the 2 seen previously.
          if (bytes[5] != 0x2) {
@@ -1322,6 +1360,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.status |= init_status;
 
       if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
+         id_byte_expected = 0xfb;
+      } else if (drive_params->controller == CONTROLLER_IBM_3174) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_MVME320) {
          id_byte_expected = 0xfb;

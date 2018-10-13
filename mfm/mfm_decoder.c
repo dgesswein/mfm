@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/12/18 DJG Added IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/26/18 DJG Best sector wasn't always written out. Ignore bad headers at
 //    end of track
@@ -521,6 +522,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_WANG_2275 ||
          drive_params->controller == CONTROLLER_WANG_2275_B ||
          drive_params->controller == CONTROLLER_IBM_5288 ||
+         drive_params->controller == CONTROLLER_IBM_3174 ||
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
          drive_params->controller == CONTROLLER_ALTOS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
@@ -1243,6 +1245,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_WANG_2275 ||
             drive_params->controller == CONTROLLER_WANG_2275_B ||
             drive_params->controller == CONTROLLER_IBM_5288 ||
+            drive_params->controller == CONTROLLER_IBM_3174 ||
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||
             drive_params->controller == CONTROLLER_ALTOS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
