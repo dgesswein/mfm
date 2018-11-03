@@ -9,6 +9,7 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 11/03/18 DJG Renamed variable
 // 09/28/18 DJG Allow drive 0 when analyze specified
 // 08/05/18 DJG Don't allow drive 0 to be specified for mfm_read
 // 04/01/18 DJG Fixed handling of unknown format in stored command line
@@ -233,7 +234,7 @@ void parse_set_drive_params_from_controller(DRIVE_PARAMS *drive_params,
    drive_params->first_sector_number = contp->write_first_sector_number;
    drive_params->controller = controller;
    drive_params->sector_size = contp->write_sector_size;
-   if (!drive_params->start_time_set_cmd_line) {
+   if (!drive_params->dont_change_start_time) {
       drive_params->start_time_ns = contp->start_time_ns;
    }
    drive_params->header_crc = contp->write_header_crc;
@@ -637,7 +638,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'b':
             drive_params->start_time_ns = atoi(optarg);
-            drive_params->start_time_set_cmd_line = 1;
+            drive_params->dont_change_start_time = 1;
             break;
          case 't':
             drive_params->transitions_filename = optarg;

@@ -710,7 +710,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xfb
 //      Sector data for sector size
 //      ECC code (2 byte)
-//   Last 3 cylinders don't have valid data
+//   Last 3 cylinders don't have valid data. Sector is 516 bytes. From
+//      looking at the data the last 4 bytes may be extra data and not
+//      part of the normal sector data.
 //
 // state: Current state in the decoding
 // bytes: bytes to process

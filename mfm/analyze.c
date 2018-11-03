@@ -6,6 +6,7 @@
 
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
+// 11/03/18 DJG Renamed variable
 // 09/10/18 DJG Made code not allowing larger sector sizes to match when
 //    shorter found to allow larger sectors if not many matches for shorter.
 // 06/22/18 DJG Fix checking of sector numbers for analyze_model. Detect
@@ -322,7 +323,7 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
       drive_params->controller = cont;
       drive_params->sector_size = 
          mfm_controller_info[cont].analyze_sector_size;
-      if (!drive_params->start_time_set_cmd_line) {
+      if (!drive_params->dont_change_start_time) {
          drive_params->start_time_ns = 
             mfm_controller_info[cont].start_time_ns;
       }

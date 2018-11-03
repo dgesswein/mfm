@@ -1,5 +1,9 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
+//
+// 10/21/18 DJG Don't allow --begin_time to be changed from value in
+//    input file. It doesn't do anything and makes calculation of
+//    begin_time when last sector truncated wrong.
 // 12/25/17 DJG Made progress indicator only print same value once
 // 12/17/17 DJG Added progress indicator
 // 10/16/16 DJG Fixed spelling error
@@ -78,8 +82,8 @@ int main (int argc, char *argv[])
       return 0;
    }
 
-   // If they specified a transitions file get options that were stored
-   // in it.
+   // If they specified a transitions or emulation file get options that 
+   // were stored in it.
    parse_cmdline(argc, argv, &drive_params, "tm", 1, 1, 1);
    if (drive_params.transitions_filename != NULL ||
          drive_params.emulation_filename != NULL) {
@@ -104,6 +108,10 @@ int main (int argc, char *argv[])
          orig_cmdline = emu_file_info.decode_cmdline;
          orig_note = emu_file_info.note;
       }
+      // This can't be changed from command line. Use value set from input
+      // file
+      drive_params.dont_change_start_time = 1;
+
       if (orig_cmdline != NULL) {
          msg(MSG_INFO, "Original decode arguments: %s\n", orig_cmdline);
          if (orig_note != NULL && strlen(orig_note) != 0) {
@@ -128,6 +136,7 @@ int main (int argc, char *argv[])
          free(cmdline);
       }
    }
+
    // Now parse the full command line. This allows overriding options that
    // were in the transition file header.
    parse_cmdline(argc, argv, &drive_params, "Mrd", 0, 0, 0);

@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 11/03/18 DJG Renamed variable
 // 10/12/18 DJG Added CONTROLLER_IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/05/18 DJG Added IBM_5288. Fixed Convergent AWS SA1000 format
@@ -220,8 +221,9 @@ typedef struct {
    char *note;
    // Time after index to start read in nanoseconds
    uint32_t start_time_ns;
-   // Non zero if begin_time option set on command line. Don't override
-   int start_time_set_cmd_line;
+   // Non zero if start_time_ns has been set either from input file or command
+   // line and shouldn't be overridden.
+   int dont_change_start_time;
    // List of sector to mark bad in ext2emu. Sorted ascending
    MARK_BAD_INFO *mark_bad_list;
    // Index for next entry in array above
