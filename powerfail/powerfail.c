@@ -4,6 +4,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 11/16/18 DJG Adapt sleep time to wait value specified
 // 06/05/16 DJG Fix using read buffer when read failed
 // 09/07/14 DJG Ignore temporary A/D read failures 
 //
@@ -39,9 +40,6 @@
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 
-// check every 50 milliseconds
-#define SLEEP_TIME_US 50000 
-
 // process id of sub command
 int pid = 0;
 
@@ -60,6 +58,8 @@ int main(int argc, char *argv[])
    // Counts voltage under threhold. We require more than one to prevent
    // shutdown from a transient
    int under_count = 0;
+   // Minimum number of counts under threshold to power down
+   int min_under_count;
    // For collecting statistics for debug print
    int stat_count = 0;
    float ad_sum = 0;
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    float voltage;
    // A/D read failures
    int err_counter = 0;
+   int sleep_time_us;
 
    // Cleanup when we exit
    signal(SIGINT,(__sighandler_t) shutdown_signal);
@@ -100,6 +101,16 @@ int main(int argc, char *argv[])
          }
          exit(WEXITSTATUS(rc));
       }
+   }
+
+   // If wait time >= 20 milliseconds check twice otherwise check
+   // once. Double check probably not needed but leaving alone in case
+   if (drive_params.wait >= .02) {
+      sleep_time_us = round(drive_params.wait / 2.0 * 1e6);
+      min_under_count = 2;
+   } else {
+      sleep_time_us = round(drive_params.wait * 1e6);
+      min_under_count = 1;
    }
 
    // Read A/D and if enough samples are under threshold tell command
@@ -142,8 +153,7 @@ int main(int argc, char *argv[])
                msg(MSG_INFO, "Voltage %.2f under threshold %.2f count %d\n",
                      voltage, drive_params.threshold, under_count);
             }
-            if (++under_count
-                  >= round(drive_params.wait / SLEEP_TIME_US * 1e6)) {
+            if (++under_count >= min_under_count) {
                if (pid != 0) {
                   kill(-pid, SIGINT);
                   waitpid(pid, NULL, 0);
@@ -159,7 +169,7 @@ int main(int argc, char *argv[])
             under_count = 0;
          }
       }
-      usleep(SLEEP_TIME_US);
+      usleep(sleep_time_us);
    }
 
    return (0);

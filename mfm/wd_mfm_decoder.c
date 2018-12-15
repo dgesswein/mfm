@@ -14,6 +14,8 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 12/15/18 DJG Changed MACBOTTOM to not hard code sector size. Format also
+//    used by Philips P3800 with 512 byte sectors.
 // 09/10/18 DJG Added CONTROLLER_IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/27/18 DJG Mark sector data bad if too far from header
@@ -1034,7 +1036,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[2] | (bytes[1] << 8);
          sector_status.head = bytes[3];
          sector_status.sector = bytes[4];
-         sector_size = 524;
+         sector_size = drive_params->sector_size;
       } else if (drive_params->controller == CONTROLLER_ADAPTEC) {
          uint32_t lba_addr;
          lba_addr = (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
