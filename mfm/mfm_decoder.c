@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/16/18 DJG Added NIXDORF_8870
 // 10/12/18 DJG Added IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
 // 08/26/18 DJG Best sector wasn't always written out. Ignore bad headers at
@@ -498,6 +499,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    }
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
+         drive_params->controller == CONTROLLER_NIXDORF_8870 ||
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
@@ -1221,6 +1223,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_NIXDORF_8870 ||
             drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||

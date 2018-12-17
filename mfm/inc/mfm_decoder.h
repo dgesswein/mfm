@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 12/16/18 DJG Added NIXDORF_8870
 // 11/03/18 DJG Renamed variable
 // 10/12/18 DJG Added CONTROLLER_IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
@@ -127,6 +128,7 @@ typedef struct {
       CONTROLLER_NEWBURYDATA,
       CONTROLLER_ALTOS,
       CONTROLLER_WD_1006, 
+      CONTROLLER_NIXDORF_8870, 
       CONTROLLER_TANDY_8MEG, 
       CONTROLLER_WD_3B1,
       CONTROLLER_MOTOROLA_VME10, 
@@ -274,7 +276,7 @@ DEF_EXTERN struct {
   {0x1021, 16, 0},
   {0x8005, 16, 0},
   {0x140a0445, 32, 5},
-  {0x140a0445000101ll, 56, 16}, // From WD42C22C datasheet, not tested
+  {0x140a0445000101ll, 56, 22}, // From WD42C22C datasheet, not tested
   {0x0104c981, 32, 5},
   {0x24409, 24, 0},
   {0x3e4012, 24, 0}, // WANG 2275
@@ -282,7 +284,9 @@ DEF_EXTERN struct {
   // Adaptec bad block on Maxtor XT-2190
   {0x41044185, 32, 5},
   // MVME320 controller
-  {0x10210191, 32, 5}
+  {0x10210191, 32, 5},
+  // Nixdorf 
+  {0x8222f0804bda23ll, 56, 22}
   // DQ604 Not added to search since more likely to cause false
   // positives that find real matches
   //{0x1, 8, 0}
@@ -1067,6 +1071,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"NIXDORF_8870",         256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 16, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0,0x8222f0804bda23,56,22}, CONT_MODEL,
          0, 0, 0
       },
       {"TANDY_8MEG",              512, 8680000,      0, 

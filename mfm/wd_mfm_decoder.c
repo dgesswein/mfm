@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 12/16/18 DJG Added NIXDORF_8870
 // 12/15/18 DJG Changed MACBOTTOM to not hard code sector size. Format also
 //    used by Philips P3800 with 512 byte sectors.
 // 09/10/18 DJG Added CONTROLLER_IBM_3174
@@ -156,6 +157,14 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      CRC/ECC code
 //
 //   CONTROLLER_TANDY_8MEG, Tandy 8 meg 8" drive. Same as WD_1006
+//
+//   CONTROLLER_NIXDORF_8870
+//   Reference image nixdorf-1-raw_data from 8870 Quattro/7
+//      Same as WD_1006 except ECC and which bytes used in ECC differ so
+//      needs to be separate format
+//
+//      Cyl 0, head 0 has 17 sectors. Rest of disk has 16 sectors
+//      TODO: Support mixed formats.
 //
 //   CONTROLLER_MOTOROLA_VME10
 //   5 byte header + 4 byte CRC
@@ -885,6 +894,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
                IsOutermostCylinder(drive_params, exp_cyl)) ||
