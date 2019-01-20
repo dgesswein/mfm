@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 01/20/18 DJG Increased maximum sector to support iSBC 214/215 128B 54 sectors/track
+//    Added support for ext2emu for iSBC 214/215. Controller names changed.
 // 12/16/18 DJG Added NIXDORF_8870
 // 11/03/18 DJG Renamed variable
 // 10/12/18 DJG Added CONTROLLER_IBM_3174
@@ -48,7 +50,8 @@
 //
 //
 // MFM is up to 32 for 256 byte sectors. This allows growth for RLL/ESDI
-#define MAX_SECTORS 50
+// ISBC_214 can have 54 128 byte sectors
+#define MAX_SECTORS 70
 #define MAX_HEAD 16
 #define MAX_CYL 4096
 #define MAX_SECTOR_SIZE 10240 // Data size in bytes
@@ -128,6 +131,10 @@ typedef struct {
       CONTROLLER_NEWBURYDATA,
       CONTROLLER_ALTOS,
       CONTROLLER_WD_1006, 
+      CONTROLLER_ISBC_214_128B,
+      CONTROLLER_ISBC_214_256B,
+      CONTROLLER_ISBC_214_512B,
+      CONTROLLER_ISBC_214_1024B,
       CONTROLLER_NIXDORF_8870, 
       CONTROLLER_TANDY_8MEG, 
       CONTROLLER_WD_3B1,
@@ -154,7 +161,10 @@ typedef struct {
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_IBM_3174,
       CONTROLLER_SEAGATE_ST11M,
-      CONTROLLER_ISBC_215,
+      CONTROLLER_ISBC_215_128B,
+      CONTROLLER_ISBC_215_256B,
+      CONTROLLER_ISBC_215_512B,
+      CONTROLLER_ISBC_215_1024B,
       CONTROLLER_XEROX_8010,
       CONTROLLER_ROHM_PBX,
       CONTROLLER_ADAPTEC, 
@@ -476,6 +486,445 @@ DEF_EXTERN TRK_L trk_3B1[]
      }
    },
    {275, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// Format from http://www.bitsavers.org/pdf/intel/iSBC/134910-001_iSBC_214_Peripheral_Controller_Subsystem_Hardware_Reference_Manual_Aug_85.pdf
+// Four sectors sizes for Intel iSBC214 controller
+DEF_EXTERN TRK_L trk_ISBC214_128b[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 54, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 128
+              {1, FIELD_FILL, 0x60, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {134, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {128, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 130, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {15, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {251, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_ISBC214_256b[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 256
+              {1, FIELD_FILL, 0x00, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {262, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {15, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {291, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+DEF_EXTERN TRK_L trk_ISBC214_512b[] 
+#ifdef DEF_DATA
+ = 
+{ { 38, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 512
+              {1, FIELD_FILL, 0x20, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {38, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {265, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_ISBC214_1024b[] 
+#ifdef DEF_DATA
+ = 
+{ { 54, TRK_FILL, 0x4e, NULL },
+  { 9, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 1024
+              {1, FIELD_FILL, 0x40, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {1030, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {1024, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1026, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {54, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {257, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// Format from http://www.bitsavers.org/pdf/intel/iSBC/144780-002_iSBC_215_Generic_Winchester_Disk_Controller_Hardware_Reference_Manual_Dec84.pdf. Gaps not
+// specified in manual so iSBC_214 values used
+// Four sectors sizes for Intel iSBC215 controller
+DEF_EXTERN TRK_L trk_ISBC215_128b[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 54, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x19, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // Sector size 128. All tracks data, alternate not supported
+              {1, FIELD_FILL, 0x00, OP_SET, 2, NULL},
+              // Upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {134, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xd9, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {128, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 130, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {13, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {251, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_ISBC215_256b[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 31, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x19, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // Sector size 256. All tracks data, alternate not supported
+              {1, FIELD_FILL, 0x10, OP_SET, 2, NULL},
+              // Upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {262, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xd9, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {17, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {452, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+DEF_EXTERN TRK_L trk_ISBC215_512b[] 
+#ifdef DEF_DATA
+ = 
+{ { 38, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x19, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // Sector size 512. All tracks data, alternate not supported
+              {1, FIELD_FILL, 0x20, OP_SET, 2, NULL},
+              // Upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xd9, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {36, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {265, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_ISBC215_1024b[] 
+#ifdef DEF_DATA
+ = 
+{ { 54, TRK_FILL, 0x4e, NULL },
+  { 9, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x19, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // Sector size 1024. All tracks data, alternate not supported
+              {1, FIELD_FILL, 0x30, OP_SET, 2, NULL},
+              // Upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {1030, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xd9, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {1024, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1026, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {54, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {230, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -1073,6 +1522,42 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
          0, 0, 0
       },
+      {"Intel_iSBC_214_128B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC214_128b, 128, 54, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Intel_iSBC_214_256B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC214_256b, 256, 32, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Intel_iSBC_214_512B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC214_512b, 512, 17, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Intel_iSBC_214_1024B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC214_1024b, 1024, 9, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
       {"NIXDORF_8870",         256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1308,13 +1793,40 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE,
          0, 0, 0
       },
-      {"Intel_iSBC_215",      128, 10000000,      0,
+      {"Intel_iSBC_215_128B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, trk_ISBC215_128b, 128, 54, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Intel_iSBC_215_256B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC215_256b, 256, 31, 0, 5209,
+         0, 0,
+         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Intel_iSBC_215_512B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC215_512b, 512, 17, 0, 5209,
+         0, 0,
+         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Intel_iSBC_215_1024B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC215_1024b, 1024, 9, 0, 5209,
+         0, 0,
+         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
          0, 0, 0
       },
 // SA1004 8" drive

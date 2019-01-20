@@ -18,6 +18,9 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 01/20/18 DJG Make extracted data file always full size. Previously if
+//    tracks at end of disk were unreadable they wouldn't be written. Other
+//    unreadable tracks were zero filled. New names for iSBC 214/215 for ext2emu.
 // 12/16/18 DJG Added NIXDORF_8870
 // 10/12/18 DJG Added IBM_3174
 // 09/10/18 DJG Added CONTROLLER_DILOG_DQ604
@@ -499,6 +502,10 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    }
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
+         drive_params->controller == CONTROLLER_ISBC_214_128B ||
+         drive_params->controller == CONTROLLER_ISBC_214_256B ||
+         drive_params->controller == CONTROLLER_ISBC_214_512B ||
+         drive_params->controller == CONTROLLER_ISBC_214_1024B ||
          drive_params->controller == CONTROLLER_NIXDORF_8870 ||
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
@@ -529,7 +536,10 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ALTOS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS_SA1000 ||
-         drive_params->controller == CONTROLLER_ISBC_215 ||
+         drive_params->controller == CONTROLLER_ISBC_215_128B ||
+         drive_params->controller == CONTROLLER_ISBC_215_256B ||
+         drive_params->controller == CONTROLLER_ISBC_215_512B ||
+         drive_params->controller == CONTROLLER_ISBC_215_1024B ||
          drive_params->controller == CONTROLLER_DILOG_DQ614 ||
          drive_params->controller == CONTROLLER_DILOG_DQ604 ||
          drive_params->controller == CONTROLLER_ROHM_PBX ||
@@ -695,6 +705,8 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
    update_stats(drive_params, -1, -1, NULL);
    if (drive_params->ext_fd >= 0) {
       fix_ext_alt_tracks(drive_params);
+      ftruncate(drive_params->ext_fd, drive_params->num_cyl * drive_params->num_head *
+          drive_params->num_sectors * drive_params->sector_size);
       close(drive_params->ext_fd);
    }
 
@@ -1223,6 +1235,10 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_ISBC_214_128B ||
+            drive_params->controller == CONTROLLER_ISBC_214_256B ||
+            drive_params->controller == CONTROLLER_ISBC_214_512B ||
+            drive_params->controller == CONTROLLER_ISBC_214_1024B ||
             drive_params->controller == CONTROLLER_NIXDORF_8870 ||
             drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
@@ -1253,7 +1269,10 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ALTOS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS_SA1000 ||
-            drive_params->controller == CONTROLLER_ISBC_215 ||
+            drive_params->controller == CONTROLLER_ISBC_215_128B ||
+            drive_params->controller == CONTROLLER_ISBC_215_256B ||
+            drive_params->controller == CONTROLLER_ISBC_215_512B ||
+            drive_params->controller == CONTROLLER_ISBC_215_1024B ||
             drive_params->controller == CONTROLLER_DILOG_DQ614 ||
             drive_params->controller == CONTROLLER_DILOG_DQ604 ||
             drive_params->controller == CONTROLLER_ROHM_PBX ||

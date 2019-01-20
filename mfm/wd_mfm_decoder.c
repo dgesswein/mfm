@@ -14,6 +14,9 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 01/20/18 DJG Added seperate format for ISBC_214. Also ISBC_214 and 215
+//    renamed to have sector size as part of name for ext2emu. Make ISB_214/215
+//    alternate track decoding more robust
 // 12/16/18 DJG Added NIXDORF_8870
 // 12/15/18 DJG Changed MACBOTTOM to not hard code sector size. Format also
 //    used by Philips P3800 with 512 byte sectors.
@@ -149,6 +152,25 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 3 bits 0-3 head number. bits 5-6 sector size, bit 7 bad block flag
 //         sector size is 0 256 bytes, 1 512 bytes, 2 1024 bytes, 3 128 bytes
 //      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
+//   CONTROLLER ISBC_214_128 ISBC_214_256 ISBC_214_512 ISBC_214_1024
+//   http://www.bitsavers.org/pdf/intel/iSBC/134910-001_iSBC_214_Peripheral_Controller_Subsystem_Hardware_Reference_Manual_Aug_85.pdf
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-3 head number. bits 5-6 sector size, bit 7 bad block flag
+//         sector size is 0 256 bytes, 1 512 bytes, 2 1024 bytes, 3 128 bytes
+//      byte 4 sector number, 6-7 format type. 00 = data track, 01 = alternate
+//         10 = defective track, 11 = invalid. These bits are from iSBC 214
+//         which shares this format. The real WD1006 may not use them. As long
+//         as they are zero on WD1006 all should work.
 //      bytes 5-6 16 bit CRC
 //   Data
 //      byte 0 0xa1
@@ -519,9 +541,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      See pages around 80 and 132. It appears unused alternate tracks aren't
 //      formatted till use.
 //
-//   5 byte header + 4 byte CRC
+//   6 byte header + 4 byte CRC
 //      byte 0 0xa1
-//      byte 1 0x19
+//      byte 1 0x19 or 0xd9
 //      byte 2
 //         3-0 high cyl
 //         5-4 sector size 00 = 128, 01 = 256, 10 = 512, 11 = 1024
@@ -922,6 +944,45 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_ISBC_214_128B || 
+            drive_params->controller == CONTROLLER_ISBC_214_256B || 
+            drive_params->controller == CONTROLLER_ISBC_214_512B || 
+            drive_params->controller == CONTROLLER_ISBC_214_1024B) {
+         int sector_size_lookup[4] = {256, 512, 1024, 128};
+         int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
+         int cyl_high;
+
+         cyl_high = cyl_high_lookup[(bytes[1] & 0xf) ^ 0xe];
+         sector_status.cyl = 0;
+         if (cyl_high != -1) {
+            sector_status.cyl = cyl_high << 8;
+         }
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = bytes[3] & 0xf;
+         sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
+         bad_block = (bytes[3] & 0x80) >> 7;
+
+         sector_status.sector = bytes[4] & 0x3f;
+               mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head, 
+                    sector_status.cyl, sector_status.head);
+         if ((bytes[4] & 0xc0) == 0x40) {
+            is_alternate = 1;
+         } else if ((bytes[4] & 0xc0) == 0x80) {
+            alt_assigned = 1;
+         } else if ((bytes[4] & 0xc0) != 0x00) {
+            msg(MSG_INFO, "Invalid format type byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[4], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+
+         if (cyl_high == -1) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else if (drive_params->controller == CONTROLLER_ELEKTRONIKA_85) {
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
@@ -1243,7 +1304,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_ISBC_215) {
+      } else if (drive_params->controller == CONTROLLER_ISBC_215_128B ||
+            drive_params->controller == CONTROLLER_ISBC_215_256B ||
+            drive_params->controller == CONTROLLER_ISBC_215_512B ||
+            drive_params->controller == CONTROLLER_ISBC_215_1024B) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
          sector_status.head = bytes[5];
          sector_size = 128 << ((bytes[2] & 0x30) >> 4);
@@ -1384,11 +1448,16 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_ROHM_PBX) {
          id_byte_expected = 0xff;
          id_byte_index = 0;
-      } else if (drive_params->controller == CONTROLLER_ISBC_215 &&
-          bytes[1] == 0x19) {
-         id_byte_expected = 0x19; // Can use either 0x19 or 0xd9
-      } else if (drive_params->controller == CONTROLLER_ISBC_215) {
-         id_byte_expected = 0xd9;
+      } else if (drive_params->controller == CONTROLLER_ISBC_215_128B ||
+            drive_params->controller == CONTROLLER_ISBC_215_256B ||
+            drive_params->controller == CONTROLLER_ISBC_215_512B ||
+            drive_params->controller == CONTROLLER_ISBC_215_1024B) {
+         if (bytes[1] == 0x19) {
+            id_byte_expected = 0x19; // Can use either 0x19 or 0xd9
+            msg(MSG_INFO, "Data ID Byte 0x19. ext2emu won't generate files with this ID byte\n");
+         } else {
+            id_byte_expected = 0xd9;
+         }
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
          if (bytes[2] != 0xf8) {
             msg(MSG_INFO, "Invalid data id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
@@ -1423,16 +1492,41 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status.cyl, sector_status.head, sector_status.sector);
          sector_status.status |= SECT_BAD_DATA;
       }
-      if (drive_params->controller == CONTROLLER_ISBC_215 && alt_assigned) {
+      if ((drive_params->controller == CONTROLLER_ISBC_215_128B ||
+           drive_params->controller == CONTROLLER_ISBC_215_256B ||
+           drive_params->controller == CONTROLLER_ISBC_215_512B ||
+           drive_params->controller == CONTROLLER_ISBC_215_1024B ||
+           drive_params->controller == CONTROLLER_ISBC_214_256B ||
+           drive_params->controller == CONTROLLER_ISBC_214_512B ||
+           drive_params->controller == CONTROLLER_ISBC_214_1024B)
+           && alt_assigned) {
          // For defective tracks each sectors has repeating 4 byte sequence
          // Alt cyl low, alt cyl high, alt head, 0x00. Entire track is always
          // reassigned. TODO: This code should check the redundant data
          // since the first 4 bytes could be bad. Since I don't have an
          // example to test anyway this is good enough for now.
-         msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
-            (bytes[3] << 8) + bytes[2], bytes[4]);
-          mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
-            sector_status.head, (bytes[3] << 8) + bytes[2], bytes[4]);
+         int last_acyl = -1, last_ahead = -1;
+         int acyl,ahead;
+         int i;
+         // Find two identical values to ignore errors in data read
+         // Data repeats every 4 bytes
+         for (i = 2; i < 128; i += 4) {
+            acyl = (bytes[i+1] << 8) + bytes[i];
+            ahead = bytes[i+2];
+            if (acyl == last_acyl && ahead == last_ahead) {
+               msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
+                  acyl, ahead);
+               mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+                 sector_status.head, acyl, ahead);
+               break;
+            }
+            last_acyl = acyl;
+            last_ahead = ahead;
+         }
+         if (i >= 128) {
+            msg(MSG_ERR,"Unable to find alternate cylinder cyl %d head %d\n",
+               sector_status.cyl, sector_status.head);
+         }
       }
       if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
          msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",

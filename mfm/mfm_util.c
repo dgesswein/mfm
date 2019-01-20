@@ -1,6 +1,8 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 01/20/18 DJG Set length of A1 list to MAX_SECTORS*2 to prevent overflow.
+//    Minor code changes.
 // 10/21/18 DJG Don't allow --begin_time to be changed from value in
 //    input file. It doesn't do anything and makes calculation of
 //    begin_time when last sector truncated wrong.
@@ -665,8 +667,8 @@ static void process_field(DRIVE_PARAMS *drive_params,
                   exit(1);
                }
                   // Extract bit and update in track
-               temp = (value >> (field_def[ndx].byte_offset_bit_len - 
-                  bit_count++ - 1) & 1) << (7 - bit_offset);
+               temp = ( (value >> (field_def[ndx].byte_offset_bit_len - 
+                  bit_count++ - 1)) & 1) << (7 - bit_offset);
                if (field_def[ndx].op == OP_XOR) {
                   track[byte_offset] ^= temp;
                } else {
@@ -717,8 +719,9 @@ static int process_track(DRIVE_PARAMS *drive_params,
       switch (track_def[ndx].type) {
          case TRK_FILL:
             if (start + track_def[ndx].count > length) {
-               msg(MSG_FATAL, "Track overflow fill, %d %d %d\n", start, length,
-                   track_def[ndx].count);
+               msg(MSG_FATAL, "Track overflow by %d fill, %d %d %d\n", 
+                   start + track_def[ndx].count - length,
+                   start, track_def[ndx].count, length);
                exit(1);
             }
             memset(&track[start], track_def[ndx].value, track_def[ndx].count);
@@ -838,7 +841,7 @@ void ext2emu(int argc, char *argv[])
    uint32_t *track_mfm;
       // Store byte locations in track where special MFM encoding of A1
       // mark field needs to be inserted
-   int a1_list[100];
+   int a1_list[MAX_SECTORS*2];
    int a1_list_ndx = 0;
       // Number of bytes written to track
    int track_filled = 0;
