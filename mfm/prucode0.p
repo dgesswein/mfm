@@ -22,6 +22,8 @@
 // PRU0_CMD_DATA
 //
 // Time is in 200 MHz clocks
+// 02/17/19 DJG Capture sligtly past index to try to capture all data when
+//   sector straddles index.
 // 05/04/18 DJG Syquest SQ312RD take long time to report seek complete
 //   after being selected.
 // 04/21/18 DJG Handle drives that go not ready during seek to track 0
@@ -273,6 +275,10 @@ chk_ignore:
    MOV      r2, 0
    SBBO     r2, CYCLE_CNTR, 0, 4           // Clear timer
    LBCO     r5, CONST_PRURAM, PRU0_START_TIME_CLOCKS, 4   // Get delay time
+      // Capture longer on stop to try to make sure all bits captured
+      // if sector straddles index
+   MOV      r2, 640                 // 32 extra MFM clock/data bits
+   ADD      r5, r5, r2
    QBLE     caploop, r5, 2          // Capture more if delay > 1
    JMP      read_done
 chk_time:

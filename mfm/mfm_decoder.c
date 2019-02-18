@@ -18,6 +18,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 02/09/19 DJG Added CONTROLLER_SAGA_FOX
 // 01/20/18 DJG Make extracted data file always full size. Previously if
 //    tracks at end of disk were unreadable they wouldn't be written. Other
 //    unreadable tracks were zero filled. New names for iSBC 214/215 for ext2emu.
@@ -561,7 +562,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
          drive_params->controller == CONTROLLER_CROMEMCO ||
          drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
-         drive_params->controller == CONTROLLER_VECTOR4)  {
+         drive_params->controller == CONTROLLER_VECTOR4 ||
+         drive_params->controller == CONTROLLER_SAGA_FOX)  {
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE)  {
@@ -1044,6 +1046,17 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
       }
    }
    msg(msg_level, "\n");
+ 
+#if 0
+   for (i = 0; i < len; i++) {
+      //      MSG(MSG_INFO, " %02x",bytes[i]);
+      msg(msg_level, "%c",bytes[i]);
+      if (i % 16 == 80) {
+         msg(msg_level, "\n");
+      }
+   }
+   msg(msg_level, "\n");
+#endif
 }
 
 // Perform CRC check of data bytes.
@@ -1114,6 +1127,16 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
       } else {
          crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
       }
+   } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+      uint8_t x1 = 0, x2 = 0;
+      int i;
+      for (i = start; i < bytes_crc_len - crc_info.length/8; i += 2) {
+         x1 ^= bytes[i];
+      }
+      for (i = start+1; i < bytes_crc_len - crc_info.length/8; i += 2) {
+         x2 ^= bytes[i];
+      }
+      crc = (bytes[i] != x2) || (bytes[i+1] != x1) ;
    } else {
       int i;
       crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
@@ -1299,7 +1322,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       } else if (drive_params->controller == CONTROLLER_CORVUS_H ||
             drive_params->controller == CONTROLLER_CROMEMCO ||
             drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
-            drive_params->controller == CONTROLLER_VECTOR4) {
+            drive_params->controller == CONTROLLER_VECTOR4 ||
+            drive_params->controller == CONTROLLER_SAGA_FOX) {
          status |= corvus_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);

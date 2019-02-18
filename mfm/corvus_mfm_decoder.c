@@ -7,8 +7,9 @@
 // sectors where it does not write anything when formatting the track so
 // whatever existing data (possibly at the normal MFM 10 MHz will be seen.
 //
-// Copyright 2018 David Gesswein.
+// Copyright 2019 David Gesswein.
 //
+// 02/09/19 DJG Added CONTROLLER_SAGA_FOX
 // 04/22/18 DJG Made code for setting bit rate match other routines
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
@@ -134,6 +135,27 @@ static inline float filter(float v, float *delay)
 //      byte 3 sector
 //      256 bytes of sector data
 //      4 byte ecc
+//
+//   CONTROLLER_SAGA_FOX
+//      No information on format available
+//      Sector header mark seems to be a bunch of zeros followed by four ones
+//      All data is bit reversed. Information below is after bit reversing bytes
+//
+//      Header
+//      byte 0 0xf0
+//      byte 1 cylinder
+//      byte 2 unkown drive was too small to know if upper cyl. Code assumes
+//          it is upper cyl.
+//      byte 3 head
+//      byte 4 sector
+//      byte 5 xor of cyl and head
+//      byte 6 xor of bytes 0-5
+//
+//      Data
+//      byte 0 0xf0
+//      256 bytes of data
+//      byte 257 unknown
+//      byte 258 xor of bytes 0-257
 //      
 SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          int total_bytes,
@@ -149,6 +171,8 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
    uint8_t cromemco_sync[] = {0x04, 0x00, 0xaa, 0xaa, 0xaa, 0x00};
 
    if (*state == PROCESS_HEADER) {
+      *state = MARK_ID;
+
       memset(&sector_status, 0, sizeof(sector_status));
       sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
@@ -190,6 +214,17 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[2];
          sector_status.head = bytes[1];
          sector_status.sector = bytes[3];
+      } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+         if (bytes[0] != 0xf0) {
+            msg(MSG_ERR, "Bad sync byte %x on cyl %d,%d head %d,%d\n",
+               bytes[0], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         sector_status.cyl = bytes[1] | (bytes[2] << 8);
+         sector_status.head = bytes[3];
+         sector_status.sector = bytes[4];
+         *state = MARK_DATA;
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -214,10 +249,32 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
             seek_difference, &sector_status, drive_params, sector_status_list);
 
       sector_status.ecc_span_corrected_data = ecc_span;
-      if (!(sector_status.status & SECT_BAD_HEADER)) {
+      if (!mfm_controller_info[drive_params->controller].separate_data &&
+            !(sector_status.status & SECT_BAD_HEADER)) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
                sector_status_list, &bytes[0], total_bytes) == -1) {
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      }
+   } else { // PROCESS_DATA
+      if (crc != 0) {
+         sector_status.status |= SECT_BAD_DATA;
+      }
+      if (ecc_span != 0) {
+         sector_status.status |= SECT_ECC_RECOVERED;
+      }
+      sector_status.ecc_span_corrected_data = ecc_span;
+      // TODO: If bad sector number the stats such as count of spare/bad
+      // sectors is not updated. We need to know the sector # to update
+      // our statistics array. This happens with RQDX3
+      if (!(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER))) {
+         int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
+
+         // Bytes[1] is because 0xa1 can't be updated from bytes since
+         // won't get encoded as special sync pattern
+         if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
+               sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
       }
@@ -303,6 +360,13 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int next_header_time;
    // First address mark time in ns 
    int first_addr_mark_ns = 0;
+   // This reverses the bit ordering in a byte. The controller writes
+   // the header data LSB first not the normal MSB first.
+   static unsigned char rev_lookup[16] = {
+      0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
+      0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf };
+   #define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[(n & 0xf0)>>4])
+
 
    nominal_bit_sep_time = 200e6 /
          mfm_controller_info[drive_params->controller].clk_rate_hz;
@@ -315,8 +379,14 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       // May be better to check for sync data following and resync if
       // not correct for Coromemco.
       next_header_time = 32000;
-   } else { // VECTOR4, VECTOR4_ST506
+   } else if (drive_params->controller == CONTROLLER_VECTOR4 ||
+       drive_params->controller == CONTROLLER_VECTOR4_ST506) {
       next_header_time = 58000;
+   } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+      next_header_time = 91000;
+   } else {
+      msg(MSG_ERR, "Unknown controller\n");
+      exit(1);
    }
 #if VCD
 long long int bit_time = 0;
@@ -379,8 +449,8 @@ fprintf(out,"$var wire 1 & sector $end\n");
          raw_bit_cntr += int_bit_pos;
 
          // Are we looking for a mark code?
-         if ((state == MARK_ID)) {
-//printf("Raw %d %d %x\n",raw_bit_cntr, sync_count, raw_word);
+         if (state == MARK_ID || state == MARK_DATA) {
+//printf("Raw %d %d %x\n",tot_raw_bit_cntr, sync_count, raw_word);
             // These patterns are MFM encoded all zeros or all ones.
             // We are looking for zeros so we assume they are zeros.
             if (track_time > next_header_time && 
@@ -392,17 +462,30 @@ fprintf(out,"$var wire 1 & sector $end\n");
                }
             }
             // If we found enough zeros start looking for a 1
-            if (sync_count >= MARK_NUM_ZEROS) {
+            if (sync_count >= MARK_NUM_ZEROS ||
+               (drive_params->controller == CONTROLLER_SAGA_FOX && 
+                  sync_count >= 20)) {
                sync_count = 0;
-               state = HEADER_SYNC;
+               if (state == MARK_ID) {
+                  state = HEADER_SYNC;
+               } else {
+                  state = DATA_SYNC;
+               }
                raw_bit_cntr = 0;
                decoded_word = 0;
                decoded_bit_cntr = 0;
             }
          // We need to wait for the one bit to resynchronize.
-         } else if (state == HEADER_SYNC) {
-//printf("Raw %d %d %x\n",raw_bit_cntr, sync_count, raw_word);
-            if ((raw_word & 0xf) == 0x9) {
+         } else if (state == HEADER_SYNC || state == DATA_SYNC) {
+//printf("Raw %d %d %x\n",tot_raw_bit_cntr, sync_count, raw_word);
+            int found = 0;
+            // SAGA_FOX synced incorrectly with just 0x9
+            if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+               found = (raw_word & 0xfff) == 0xaa9;
+            } else {
+               found = (raw_word & 0xf) == 0x9;
+            }
+            if (found) {
 #if VCD
 bit_time = track_time / 198e6 * 1e12;
 fprintf(out,"#%lld\n1&\n", bit_time);
@@ -413,6 +496,11 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
 
+               // Figure out the length of data we should look for
+               bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
+                        drive_params->sector_size + 
+                        mfm_controller_info[drive_params->controller].data_trailer_bytes +
+                        drive_params->header_crc.length / 8;
                // Time next header should start at
                if (drive_params->controller == CONTROLLER_CORVUS_H) {
                   next_header_time += 164900;
@@ -423,26 +511,42 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                   // case drive rotation speed varies
                   next_header_time = track_time + 96000;
                   raw_bit_cntr = 2;
-               } else { //CROMEMCO
+               } else if (drive_params->controller == CONTROLLER_CROMEMCO) {
                   // We need the 0x04 that is also the sync we are using
                   // to start decoding so back up
                   raw_bit_cntr = 12;
+               } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+                  // case drive rotation speed varies
+                  if (state == HEADER_SYNC) {
+                     next_header_time = track_time + 4000;
+                     raw_bit_cntr = 10;
+                     // Figure out the length of header we should look for
+                     bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
+                        drive_params->header_crc.length / 8;
+                  } else {
+                     next_header_time = track_time + 82000;
+                     raw_bit_cntr = 10;
+                     // Figure out the length of data we should look for
+                     bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
+                        drive_params->sector_size + 
+                        mfm_controller_info[drive_params->controller].data_trailer_bytes +
+                        drive_params->data_crc.length / 8;
+                  }
                }
 //printf("Next header at %d track time %d\n",next_header_time, track_time);
                decoded_word = 0;
                decoded_bit_cntr = 0;
                // In this format header is attached to data so both
                // will be processed in this state
-               state = PROCESS_HEADER;
+               if (state == HEADER_SYNC) {
+                  state = PROCESS_HEADER;
+               } else {
+                  state = PROCESS_DATA;
+               }
                mfm_mark_header_location(all_raw_bits_count, raw_bit_cntr, 
                   tot_raw_bit_cntr);
                mfm_mark_data_location(all_raw_bits_count, raw_bit_cntr,
                   tot_raw_bit_cntr);
-               // Figure out the length of data we should look for
-               bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
-                        drive_params->sector_size + 
-                        mfm_controller_info[drive_params->controller].data_trailer_bytes +
-                        drive_params->header_crc.length / 8;
                bytes_needed = bytes_crc_len;
                // Must read enough extra bytes to ensure we send last 32
                // bit word to mfm_save_raw_word
@@ -453,7 +557,7 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                }
                byte_cntr = 0;
             }
-         } else {
+         } else { // Collect decoded bytes in sector header or data
 //printf("Raw %d %d %x\n",raw_bit_cntr, sync_count, raw_word);
             int entry_state = state;
             // If we have enough bits to decode do so. Stop if state changes
@@ -474,7 +578,11 @@ fprintf(out,"#%lld\n%d^\n#%lld\n%d^\n", bit_time,
                if (decoded_bit_cntr >= 8) {
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
-                     bytes[byte_cntr++] = decoded_word;
+                     if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+                        bytes[byte_cntr++] = REV_BYTE(decoded_word);
+                     } else {
+                        bytes[byte_cntr++] = decoded_word;
+                     }
 //printf("Decoded %d  %d %08x\n",byte_cntr, tot_raw_bit_cntr, decoded_word);
                   } else {
 #if VCD
@@ -499,7 +607,7 @@ fprintf(out,"#%lld\n0&\n", bit_time);
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
-   if (state == PROCESS_HEADER && sector_index < drive_params->num_sectors) {
+   if ((state == PROCESS_HEADER || state == PROCESS_DATA) && sector_index <= drive_params->num_sectors) {
       float begin_time =
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz

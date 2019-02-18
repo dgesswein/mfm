@@ -6,9 +6,10 @@
 // Call parse_validate_options to perform some validation on options that
 //   both mfm_util and mfm_read need
 //
-// Copyright 2018 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 02/10/19 DJG Added missing space
 // 11/03/18 DJG Renamed variable
 // 09/28/18 DJG Allow drive 0 when analyze specified
 // 08/05/18 DJG Don't allow drive 0 to be specified for mfm_read
@@ -143,7 +144,7 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
       }
    }
    if (drive_params->start_time_ns) {
-      safe_print(&cmdptr, &cmdleft, " --begin_time %u", 
+      safe_print(&cmdptr, &cmdleft, " --begin_time %u ", 
          drive_params->start_time_ns);
    }
    if (drive_params->emu_track_data_bytes != 0) {

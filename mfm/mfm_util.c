@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 02/09/19 DJG Added CONTROLLER_SAGA_FOX support
 // 01/20/18 DJG Set length of A1 list to MAX_SECTORS*2 to prevent overflow.
 //    Minor code changes.
 // 10/21/18 DJG Don't allow --begin_time to be changed from value in
@@ -21,7 +22,7 @@
 // 10/24/14 DJG Changes necessary due to addition of mfm_emu write buffer
 //     using decode options stored in header, and minor reformatting
 //
-// Copyright 2015 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -271,8 +272,8 @@ int main (int argc, char *argv[])
 // value: Value to reverse
 // len_bits: Number of bits in value
 // return: Reversed value
-uint32_t reverse_bits(uint32_t value, int len_bits) {
-   uint32_t new_value = 0;
+uint64_t reverse_bits(uint64_t value, int len_bits) {
+   uint64_t new_value = 0;
    int i;
 
    for (i = 0; i < len_bits; i++) {
@@ -423,6 +424,17 @@ static uint64_t get_check_value(uint8_t track[], int length, CRC_INFO *crc_info,
       }
    } else if (check_type == CHECK_PARITY) {
       value = parity64(track, length, crc_info);
+   } else if (check_type == CHECK_XOR16) {
+      int i;
+      uint8_t x1 = 0, x2 = 0;
+
+      for (i = 0; i < length; i += 2) {
+         x1 ^= track[i];
+      }
+      for (i = 1; i < length; i += 2) {
+         x2 ^= track[i];
+      }
+      value = (x2 << 8) | x1;
    } else {
       msg(MSG_FATAL, "Unknown check_type %d\n",check_type);
       exit(1);
@@ -590,6 +602,12 @@ static void process_field(DRIVE_PARAMS *drive_params,
             }
             get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
                length - field_def[ndx].byte_offset_bit_len);
+            if (field_def[ndx].op == OP_REVERSE) {
+               for (i = field_def[ndx].byte_offset_bit_len; i <
+                   length - field_def[ndx].byte_offset_bit_len; i++) {
+                  track[i] = reverse_bits(track[i], 8);
+               }
+            }
             data_set = 1;
          break;
             // Place holder for code to handle marking a sector
@@ -621,6 +639,11 @@ static void process_field(DRIVE_PARAMS *drive_params,
             field_def[ndx].len_bytes - 1);
          // If no bit list update the specified bytes
       } else if (field_def[ndx].bit_list == NULL) {
+            // For the silly controller that has the bits backward reverse them
+         if (field_def[ndx].op == OP_REVERSE) {
+            value = reverse_bits(value, field_def[ndx].len_bytes * 8);
+         }
+
          field_filled = MAX(field_filled, field_def[ndx].byte_offset_bit_len + 
             field_def[ndx].len_bytes - 1);
          if (field_def[ndx].byte_offset_bit_len + field_def[ndx].len_bytes 

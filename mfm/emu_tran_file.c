@@ -104,6 +104,7 @@
 //    Clock transition count clock frequency is in file header. For 200 MHz
 //    a count of 40 indicates 5 MHz pulse spacing.
 //
+// 02/09/19 DJG Minor cleanup
 // 09/04/16 DJG Fixed comment
 // 12/31/15 DJG Added error check
 // 12/24/15 DJG Cleanup and output valid MFM data if needing to pad track
@@ -245,7 +246,7 @@ int emu_file_seek_track(int fd, int seek_cyl, int seek_head,
 int emu_file_read_track_deltas(int fd, EMU_FILE_INFO *emu_file_info,
       uint16_t deltas[], int max_deltas, int *cyl, int *head)
 {
-   uint32_t bits[10000];   // Track bits read
+   uint32_t bits[MAX_TRACK_WORDS];   // Track bits read
    int num_words;          // Size of buffer and number of bytes read
    int num_deltas;         // Index of deltas building
    int delta_time;
@@ -442,7 +443,8 @@ int emu_file_read_header(char *fn, EMU_FILE_INFO *emu_file_info,
 // Write track header and bits
 //
 // fd: File descriptor to write to
-// words: Words to write
+// words: Words to write. Array will be filled to track_bytes length
+//    if shorter so must be large enough to hold track.
 // num_words: Number of words to write
 // cyl: Cylinder of track. Pass -1 to write end of file marker
 // head: Head/track number
@@ -521,8 +523,8 @@ void emu_file_rewrite_track(int fd, EMU_FILE_INFO *emu_file_info,
 // emu_file_info: Information on emulator file format
 // words: Words to write
 // num_words: Size of words buffer in words
-// cyl: Cylinder of track. Pass -1 to write end of file marker
-// head: Head/track number
+// cyl: Returns cylinder of track read. 
+// head: Returns Head/track number
 // return: number of words of track data read if OK, -1 if end of file found
 int emu_file_read_track_bits(int fd, EMU_FILE_INFO *emu_file_info,
       uint32_t *words, int num_words, int *cyl, int *head)

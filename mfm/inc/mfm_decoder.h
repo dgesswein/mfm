@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 02/09/19 DJG Added CONTROLLER_SAGA_FOX, adjusted trk_ISBC215_1024b to match
+//    example file
 // 01/20/18 DJG Increased maximum sector to support iSBC 214/215 128B 54 sectors/track
 //    Added support for ext2emu for iSBC 214/215. Controller names changed.
 // 12/16/18 DJG Added NIXDORF_8870
@@ -181,7 +183,8 @@ typedef struct {
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
-      CONTROLLER_VECTOR4_ST506
+      CONTROLLER_VECTOR4_ST506,
+      CONTROLLER_SAGA_FOX
    } controller;
    // The sector numbering used. This will vary from the physical order if
    // interleave is used. Only handles all sectors the same.
@@ -879,11 +882,13 @@ DEF_EXTERN TRK_L trk_ISBC215_512b[]
 DEF_EXTERN TRK_L trk_ISBC215_1024b[] 
 #ifdef DEF_DATA
  = 
-{ { 54, TRK_FILL, 0x4e, NULL },
+// This is from inspecting data from drive. First data after index
+// does not seem to be deterministic
+{ { 15, TRK_FILL, 0x00, NULL },
   { 9, TRK_SUB, 0x00, 
      (TRK_L []) 
      {
-        {14, TRK_FILL, 0x00, NULL},
+        {15, TRK_FILL, 0x00, NULL},
         {10, TRK_FIELD, 0x00, 
            (FIELD_L []) {
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
@@ -906,8 +911,9 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
               {-1, 0, 0, 0, 0, NULL}
            }
         },
-        // 3 after header and 12 before data field
-        {15, TRK_FILL, 0x00, NULL},
+        {3, TRK_FILL, 0x00, NULL},
+        {5, TRK_FILL, 0x4e, NULL},
+        {12, TRK_FILL, 0x00, NULL},
         {1030, TRK_FIELD, 0x00, 
            (FIELD_L []) {
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
@@ -919,12 +925,11 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
               {-1, 0, 0, 0, 0, NULL}
            }
         },
-        {3, TRK_FILL, 0x00, NULL},
-        {54, TRK_FILL, 0x4e, NULL},
+        {65, TRK_FILL, 0x4e, NULL},
         {-1, 0, 0, NULL},
      }
    },
-   {230, TRK_FILL, 0x4e, NULL},
+   {143, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -1415,7 +1420,55 @@ DEF_EXTERN TRK_L trk_dtc_520_256b[]
 #endif
 ;
 
-typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY} CHECK_TYPE;
+DEF_EXTERN TRK_L trk_saga_fox[] 
+#ifdef DEF_DATA
+ = 
+{ { 87, TRK_FILL, 0x00, NULL },
+  { 34, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {17, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x0f, OP_SET, 0, NULL},
+              // This adds upper 3 bits of cylinder to bits 4-6 of
+              // byte 3 and the rest in byte 2. 
+              {0, FIELD_CYL, 0x00, OP_REVERSE, 16,
+                 (BIT_L []) {
+                    { 8, 8}, // High byte get written to low after reverse
+                    { 16, 8},
+                    { -1, -1},
+                 }
+              },
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_REVERSE, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_REVERSE, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {19, TRK_FILL, 0x00, NULL},
+        {259, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x0f, OP_SET, 0, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_REVERSE, 1, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 257, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {-1, 0, 0, NULL},
+     }
+   },
+   {63, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
 
 typedef struct {
    char *name;
@@ -2020,6 +2073,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 20,
          {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"Saga_Fox",             256, 10000000,  330000,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 1, 0, 0, CHECK_XOR16, CHECK_XOR16,
+         0, 1, trk_saga_fox, 256, 33, 0, 5209,
+// Should be model after data filled in
+         0, 20,
+         {0x0,0,16,0},{0x0,0x0,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {NULL, 0, 0, 0,
