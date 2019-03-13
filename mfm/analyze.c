@@ -6,6 +6,8 @@
 
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
+// 03/12/19 DJG Fixed detecting format with MODEL using wrong number or 
+//    first sector number
 // 11/03/18 DJG Renamed variable
 // 09/10/18 DJG Made code not allowing larger sector sizes to match when
 //    shorter found to allow larger sectors if not many matches for shorter.
@@ -584,7 +586,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
        // Try to get a good read. sector_status_list will be the best from
        // all the reads.
        do {
-         drive_read_track(drive_params, cyl, head, deltas, max_deltas);
+          drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
           mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
           status = mfm_decode_track(drive_params, cyl, head, deltas, NULL, sector_status_list);
@@ -947,10 +949,20 @@ int analyze_format(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
       msg(MSG_ERR, "Multiple matching formats found, using first");
    }
    if (rc >= 1) {
-      // FIXME: This may do more than we want
+      DRIVE_PARAMS drive_params_hold;
+      // FIXME: This may do more than we want. We only need to determine
+      // number of heads. For now if it doesn't match we fall back to normal
+      // format detection.
       analyze_sectors(drive_params, cyl, deltas, max_deltas);
+      drive_params_hold = *drive_params;
       parse_set_drive_params_from_controller(drive_params, drive_params->controller);
-      return rc;
+      if (drive_params_hold.num_sectors != drive_params->num_sectors ||
+        drive_params_hold.first_sector_number != drive_params->first_sector_number ||
+       drive_params_hold.controller != drive_params->controller) {
+         msg(MSG_INFO, "Sector information detected doesn't match expected format, trying again\n");
+      } else {
+         return rc;
+      }
    }
 
    rc = analyze_headers(drive_params, deltas, max_deltas, cyl, head);

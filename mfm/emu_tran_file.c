@@ -104,6 +104,8 @@
 //    Clock transition count clock frequency is in file header. For 200 MHz
 //    a count of 40 indicates 5 MHz pulse spacing.
 //
+// 03/12/19 DJG Make tran_file_seek_track return EOF if cylinder or head
+//    value passed not valid for file
 // 02/09/19 DJG Minor cleanup
 // 09/04/16 DJG Fixed comment
 // 12/31/15 DJG Added error check
@@ -165,6 +167,9 @@ uint8_t expected_header_id[] =
 #define EMU_FILE_VERSION 0x02020200
 // File type 1, major version 2, minor version 2
 #define TRAN_FILE_VERSION 0x01020200
+// Size of end of file marker
+#define TRAN_FILE_EOF_SIZE 12
+
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 
@@ -830,39 +835,45 @@ int tran_file_write_header(char *fn, int num_cyl, int num_head,
 // fd: File descriptor to read from
 // seek_cyl: Cylinder number to find
 // seek_head: head number to find
-// start_first_track: Byte location of first track in file
+// tran_file_info: Information on transition file
 // return: 0 if track found else 1
 int tran_file_seek_track(int fd, int seek_cyl, int seek_head, 
-      int start_first_track) {
+     TRAN_FILE_INFO *tran_file_info) {
    int done = 0;
    uint32_t cyl, head;
    uint32_t num_bytes;
    CRC_INFO poly = trans_initial_poly;
    int rc = 0;
 
-   lseek(fd, start_first_track, SEEK_SET);
-   while (!done) {
-      tran_file_read(fd, &cyl, sizeof(cyl), &poly);
-      tran_file_read(fd, &head, sizeof(head), &poly);
-      tran_file_read(fd, &num_bytes, sizeof(num_bytes), &poly);
+   if (seek_head >= tran_file_info->num_head ||
+     seek_cyl >= tran_file_info->num_cyl) {
+     lseek(fd, -TRAN_FILE_EOF_SIZE, SEEK_END);
+     return 1;
+   } else {
+      lseek(fd, tran_file_info->file_header_size_bytes, SEEK_SET);
+      while (!done) {
+	 tran_file_read(fd, &cyl, sizeof(cyl), &poly);
+	 tran_file_read(fd, &head, sizeof(head), &poly);
+	 tran_file_read(fd, &num_bytes, sizeof(num_bytes), &poly);
 
-      if (cyl == -1 && head == -1) {
-         msg(MSG_DEBUG, "Unable to find cylinder %d head %d\n",
-               seek_cyl, seek_head);
-         rc = 1;
-         done = 1;
+	 if (cyl == -1 && head == -1) {
+	    msg(MSG_DEBUG, "Unable to find cylinder %d head %d\n",
+		  seek_cyl, seek_head);
+	    rc = 1;
+	    done = 1;
+	 }
+	 if (cyl == seek_cyl && head == seek_head) {
+	    done = 1;
+	    lseek(fd, -4 * 3, SEEK_CUR);
+	 } else {
+	    if (lseek(fd, num_bytes + 4, SEEK_CUR) == -1) {
+	       msg(MSG_FATAL, "tran_file_seek_track seek failed\n");
+	       exit(1);
+	    }
+	 }
       }
-      if (cyl == seek_cyl && head == seek_head) {
-         done = 1;
-         lseek(fd, -4 * 3, SEEK_CUR);
-      } else {
-         if (lseek(fd, num_bytes + 4, SEEK_CUR) == -1) {
-            msg(MSG_FATAL, "tran_file_seek_track seek failed\n");
-            exit(1);
-         }
-      }
+      return rc;
    }
-   return rc;
 }
 
 // Read transition track and return as deltas
@@ -953,7 +964,8 @@ void tran_file_write_track_deltas(int fd, uint16_t *deltas, int num_deltas, int 
    tran_file_write(fd, &value, sizeof(value), &poly);
    value = head;
    tran_file_write(fd, &value, sizeof(value), &poly);
-   // Cylinder -1 is end of file marker
+   // Cylinder -1 is end of file marker. If these three fields changed
+   // TRAN_FILE_EOF_SIZE needs to be updated.
    if (cyl == -1) {
       value = 0; // Data length is zero
       tran_file_write(fd, &value, sizeof(value), &poly);

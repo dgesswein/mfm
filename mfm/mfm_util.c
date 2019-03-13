@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 03/12/19 DJG Call parameter change
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX support
 // 01/20/18 DJG Set length of A1 list to MAX_SECTORS*2 to prevent overflow.
 //    Minor code changes.
@@ -181,7 +182,7 @@ int main (int argc, char *argv[])
          // Go back to beginning of file
          if (drive_params.tran_fd != -1) {
             tran_file_seek_track(drive_params.tran_fd, 0, 0,
-                  drive_params.tran_file_info->file_header_size_bytes);
+                  drive_params.tran_file_info);
          } else {
             emu_file_seek_track(drive_params.emu_fd, 0, 0,
                   drive_params.emu_file_info);

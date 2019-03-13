@@ -80,7 +80,7 @@ void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
 
    if (drive_params->tran_fd != -1) {
       if (tran_file_seek_track(drive_params->tran_fd, cyl, head, 
-            drive_params->tran_file_info->file_header_size_bytes)) {
+            drive_params->tran_file_info)) {
          num_deltas = 0;
       } else {
          num_deltas = tran_file_read_track_deltas(drive_params->tran_fd,

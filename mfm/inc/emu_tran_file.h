@@ -75,7 +75,7 @@ void emu_file_rewrite_track(int fd, EMU_FILE_INFO *emu_file_info,
 int tran_file_write_header(char *fn, int num_cyl, int num_head, char *cmdline,
       char *note, uint32_t start_time_ns);
 int tran_file_read_header(char *fn, TRAN_FILE_INFO *tran_file_info);
-int tran_file_seek_track(int fd, int seek_cyl, int seek_head, int start_first_track);
+int tran_file_seek_track(int fd, int seek_cyl, int seek_head, TRAN_FILE_INFO *tran_file_info);
 int tran_file_read_track_deltas(int fd,uint16_t deltas[], int max_deltas, int *cyl,
       int *head);
 void tran_file_write_track_deltas(int fd,uint16_t *deltas, int num_words, int cyl, int head);
