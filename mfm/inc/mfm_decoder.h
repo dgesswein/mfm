@@ -718,6 +718,8 @@ DEF_EXTERN TRK_L trk_ISBC214_1024b[]
 // Format from http://www.bitsavers.org/pdf/intel/iSBC/144780-002_iSBC_215_Generic_Winchester_Disk_Controller_Hardware_Reference_Manual_Dec84.pdf. Gaps not
 // specified in manual so iSBC_214 values used
 // Four sectors sizes for Intel iSBC215 controller
+// **** NOTE, these don't currently generate image readable by the controller.
+// **** More investigation needed if sufficient interest
 DEF_EXTERN TRK_L trk_ISBC215_128b[] 
 #ifdef DEF_DATA
  = 
@@ -1420,6 +1422,9 @@ DEF_EXTERN TRK_L trk_dtc_520_256b[]
 #endif
 ;
 
+// **** NOTE, these don't currently generate image readable by the controller.
+// **** More investigation needed if sufficient interest
+// No information on format is available
 DEF_EXTERN TRK_L trk_saga_fox[] 
 #ifdef DEF_DATA
  = 

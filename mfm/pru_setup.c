@@ -17,6 +17,7 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 03/14/19 DJG Fix comment
 // 06/23/18 DJG Add 8.68 MHz data rate support.
 // 05/19/17 DJG Add ability to dump PRU shared memory.
 // 12/24/15 DJG Comment cleanup
@@ -452,6 +453,7 @@ static void wait_bits(uint32_t *ptr, uint32_t mask, uint32_t value, char *desc) 
 // include ecap. The code only knows how to deal with specific target bit rates
 // since calculating proper dividers is non trivial.
 // tgt_bitrate_hz: Target bitrate for mfm clock and data in Hertz
+// halt: Halt PRU during clock switch. If code is running best to halt.
 // return: PRU clock rate in Hertz
 uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
    int fd;

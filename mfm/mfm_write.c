@@ -18,6 +18,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 03/14/19 DJG Set PRU clock rate. Needed for SA1000 support
 // 03/09/18 DJG Use drive specified on command line
 // 06/30/17 DJG Set drive parameters to number of cylinder and heads in
 //          emulation file. Get rid of hard coded values.
@@ -178,6 +179,7 @@ int main(int argc, char *argv[])
 
    // Initialize PRU
    ddr_mem_size = pru_setup(2);
+   pru_set_clock(drive_params.emu_file_info->sample_rate_hz, PRU_SET_CLOCK_NO_HALT);
    if (ddr_mem_size == -1) {
       exit(1);
    }
