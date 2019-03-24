@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 03/22/19 DJG Added REV C support
 // 04/20/18 DJG Fixed previous change to work properly with analyze
 // 03/09/18 DJG Added ability to request reading more heads or cylinders
 //   than analyze detects
@@ -21,7 +22,7 @@
 //    Fixed off by 1 allocating command line storage
 // 11/09/14 DJG Changes for note option
 //
-// Copyright 2018 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -200,6 +201,8 @@ int main(int argc, char *argv[])
 
    pru_write_word(MEM_PRU0_DATA, PRU0_START_TIME_CLOCKS, 
       drive_params.start_time_ns / CLOCKS_TO_NS);
+
+   pru_write_word(MEM_PRU0_DATA, PRU0_BOARD_REVISION, board_get_revision());
 
    deltas = deltas_setup(ddr_mem_size);
    max_deltas = ddr_mem_size / sizeof(deltas[0]);

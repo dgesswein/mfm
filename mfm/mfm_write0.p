@@ -146,6 +146,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/22/19 DJG Added REV C support
 // 01/22/16 DJG Make sure write going inactive is checked when all
 //     capture registers used. High frequency noise? casued problem.
 // 01/17/16 DJG Fix select speedup state tracking
@@ -197,7 +198,8 @@
 // Code will need to change if this is changed
 
 .setcallreg r29.w0
-#define RETREG r29
+#define CALL_HOLD r29.w2
+#define RET_REG r29.w0
 
 .origin 0
 .entrypoint START

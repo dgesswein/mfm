@@ -13,6 +13,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 03/22/2019 DJG Added REV C support
 // 09/01/2018 DJG Drive 0 is valid for drive_select(), don't drive
 //    and select lines
 // 08/05/2018 DJG Drive 0 invalid for drive_select()
@@ -27,7 +28,7 @@
 // 07/30/2015 DJG Added support for revision B board.
 // 05/16/2015 DJG Changes for drive_file.c
 //
-// Copyright 2014-2018 David Gesswein.
+// Copyright 2014-2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -76,15 +77,28 @@ static int current_cyl;
 // drive: drive number to select (1-4) or zero to select none.
 void drive_select(int drive)
 {
-   char *drive_pins[] = {
-         "/sys/class/gpio/gpio22/direction",
+   char *drive_pins[3][4] = {
+         {"/sys/class/gpio/gpio22/direction",
          "/sys/class/gpio/gpio23/direction",
          "/sys/class/gpio/gpio26/direction",
-         "/sys/class/gpio/gpio27/direction"
+         "/sys/class/gpio/gpio27/direction"},
+
+         {"/sys/class/gpio/gpio22/direction",
+         "/sys/class/gpio/gpio23/direction",
+         "/sys/class/gpio/gpio26/direction",
+         "/sys/class/gpio/gpio27/direction"},
+
+         {"/sys/class/gpio/gpio46/direction",
+         "/sys/class/gpio/gpio15/direction",
+         "/sys/class/gpio/gpio26/direction",
+         "/sys/class/gpio/gpio27/direction"}
    };
    static int first_time = 1;
    static int fd[4];
    int i;
+   int board_revision;
+
+   board_revision = board_get_revision();
 
    if (drive < 0 || drive > 4) {
       msg(MSG_FATAL, "Invalid drive %d\n", drive);
@@ -97,9 +111,9 @@ void drive_select(int drive)
 
       first_time = 0;
       for (i = 0; i < 4; i++) {
-         fd[i] = open(drive_pins[i], O_RDWR);
+         fd[i] = open(drive_pins[board_revision][i], O_RDWR);
          if (fd[i] < 0) {
-            msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pins[i]);
+            msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pins[board_revision][i]);
             exit(1);
          }
       }
@@ -108,14 +122,14 @@ void drive_select(int drive)
       rc = read(fd[i], buf, sizeof(buf));
       if (rc != 4) {
          if (rc < 0) {
-            msg(MSG_FATAL, "Error reading pin %s, did you run the setup script?\n", drive_pins[i]);
+            msg(MSG_FATAL, "Error reading pin %s, did you run the setup script?\n", drive_pins[board_revision][i]);
             exit(1);
          }
          // Remove newline
          if (rc > 1) {
             buf[rc-1] = 0;
          }
-         msg(MSG_FATAL, "Wrong pin setting pin %s - %s, must reboot between reading and emulation.\n", drive_pins[i], buf);
+         msg(MSG_FATAL, "Wrong pin setting pin %s - %s, must reboot between reading and emulation.\n", drive_pins[board_revision][i], buf);
          exit(1);
       }
    }
@@ -137,12 +151,18 @@ void drive_select(int drive)
 // head: Head to select 0-15
 void drive_set_head(int head)
 {
-   char *head_pins[2][4] = {
+   char *head_pins[3][4] = {
       {
          "/sys/class/gpio/gpio2/direction",
          "/sys/class/gpio/gpio3/direction",
          "/sys/class/gpio/gpio4/direction",
          "/sys/class/gpio/gpio5/direction"
+      },
+      {
+         "/sys/class/gpio/gpio8/direction",
+         "/sys/class/gpio/gpio9/direction",
+         "/sys/class/gpio/gpio10/direction",
+         "/sys/class/gpio/gpio11/direction"
       },
       {
          "/sys/class/gpio/gpio8/direction",
@@ -189,11 +209,17 @@ int drive_at_track0(void)
 {
    static int fd = -1;
    char str[128];
+   int pin;
    if (fd == -1) {
-      sprintf(str, "/sys/class/gpio/gpio%d/value", GPIO0_TRACK_0);
+      if (board_get_revision() == 2) {
+         pin = GPIO3_TRACK_0_BIT_REVC + GPIO3_START_PIN;
+      } else {
+         pin = GPIO0_TRACK_0_BIT;
+      }
+      sprintf(str, "/sys/class/gpio/gpio%d/value", pin);
       fd = open(str, O_RDONLY);
       if (fd < 0) {
-         msg(MSG_FATAL, "Unable to open pin %d\n", GPIO0_TRACK_0);
+         msg(MSG_FATAL, "Unable to open pin %d\n", pin);
          exit(1);
       }
    }

@@ -22,6 +22,7 @@
 // PRU0_CMD_DATA
 //
 // Time is in 200 MHz clocks
+// 03/22/19 DJG Added REV C support
 // 02/17/19 DJG Capture sligtly past index to try to capture all data when
 //   sector straddles index.
 // 05/04/18 DJG Syquest SQ312RD take long time to report seek complete
@@ -39,7 +40,7 @@
 // 09/06/14 DJG Increased seek timeout to 4 seconds so if the drive
 //    recalibrates we may not time out.
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -56,6 +57,8 @@
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 
 .setcallreg r29.w0
+#define CALL_HOLD r29.w2
+#define RET_REG r29.w0
 
 .origin 0
 .entrypoint START
@@ -111,7 +114,7 @@ wait_cmd:
    MOV      r2,0              
    SBBO     r2, CYCLE_CNTR, 0, 4
    // Store drive status for ARM
-   SBCO     r31, CONST_PRURAM, PRU0_STATUS, 4
+   CALL     get_status
    // Get command and branch to correct routine
    LBCO     r1, CONST_PRURAM, PRU0_CMD, 4 
    QBEQ     read_track, r1, CMD_READ_TRACK

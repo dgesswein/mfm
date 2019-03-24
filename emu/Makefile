@@ -8,7 +8,7 @@
 # make clean
 #
 
-PRU = prucode0_reva.bin prucode0_revb.bin prucode1_reva.bin prucode1_revb.bin
+PRU = prucode0_reva.bin prucode0_revb.bin prucode0_revc.bin prucode1_reva.bin prucode1_revb.bin prucode1_revc.bin
 PROJECT = mfm_emu
 
 OBJDIR=obj
@@ -70,6 +70,9 @@ clean :
 
 %_revb.bin: %.p prucode.hp $(INCDIR)/cmd.h
 	$(PASM) -b -L -DREVB $< $*_revb
+
+%_revc.bin: %.p prucode.hp $(INCDIR)/cmd.h
+	$(PASM) -b -L -DREVC $< $*_revc
 
 $(OBJDIR)/%.o: %.c $(INCLUDES) | obj
 	$(CC) $(CFLAGS) -c -o $@ $<

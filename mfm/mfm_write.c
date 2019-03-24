@@ -18,6 +18,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 03/22/19 DJG Added REV C support
 // 03/14/19 DJG Set PRU clock rate. Needed for SA1000 support
 // 03/09/18 DJG Use drive specified on command line
 // 06/30/17 DJG Set drive parameters to number of cylinder and heads in
@@ -196,6 +197,7 @@ int main(int argc, char *argv[])
 
    pru_write_word(MEM_PRU0_DATA, PRU0_START_TIME_CLOCKS, 
       drive_params.start_time_ns / CLOCKS_TO_NS);
+   pru_write_word(MEM_PRU0_DATA, PRU0_BOARD_REVISION, board_get_revision());
    // TODO: Get driver working to find unused channel
    pru_write_word(MEM_PRU1_DATA,PRU1_DMA_CHANNEL, 7);
    pru_write_word(MEM_PRU1_DATA,PRU1_DRIVE0_TRACK_HEADER_BYTES,

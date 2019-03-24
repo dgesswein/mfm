@@ -104,8 +104,7 @@
 // Time for a disk rotation in PRU clocks
 #define PRU0_ROTATION_TIME           0x9c
 
-// Select line mask for current drive selected
-#define PRU0_CUR_DRIVE_SEL           0xa0
+// 0xa0 unused
 
 // Last cylinder requested from ARM
 #define PRU0_DRIVE0_LAST_ARM_CYL     0xa4
@@ -151,7 +150,10 @@
 // Bits in registers for the control lines
 #define R30_DRIVE0_SEL 1
 #define R30_SEEK_COMPLETE_BIT 2
+// Rev A,B
 #define R30_WRITE_FAULT_BIT 3
+// Rev C
+#define GPIO1_WRITE_FAULT_BIT 19
 #define R30_READY_BIT 4
 #define R30_INDEX_BIT 5
 #define R30_MFM0_IN_ENABLE 15
@@ -160,18 +162,38 @@
 #define R31_WRITE_GATE 0
 #define R31_SEEK_DIR_BIT 6
 #define R31_STEP_BIT 7
+// Rev C
+#define R31_SEL1_BIT 14
+#define R31_SEL2_BIT 16
 
 #define REVB_DETECT_PIN  46 // GPIO 1_14
+#define REVC_DETECT_PIN  61 // GPIO 1_29
 
+// Rev A,B
 #define GPIO0_TRACK_0 30
+// Rev C
+#define R30_TRACK_0_BIT   3
 #define GPIO0_DRIVE0_LED 14
+// Rev A,B
+#ifndef REVC
 #define GPIO0_DRIVE1_LED 15
+#else
+// Rev C
+#define GPIO0_DRIVE1_LED 30
+#endif
 #define GPIO0_DRIVE1_SEL_RECOVERY 31
 
-#define GPIO1_TEST    29
+#define GPIO1_TEST    16
 
 #define GPIO_SELECT1  22
 #define GPIO_SELECT2  23
+#ifdef REVC
+#define GPIO_HEAD0     8
+#define GPIO_HEAD1     9
+#define GPIO_HEAD2    10
+#define GPIO_HEAD3    11
+#define GPIO_DRIVE_SELECT_LINES 
+#else
 #ifdef REVB
 #define GPIO_HEAD0     8
 #define GPIO_HEAD1     9
@@ -186,6 +208,7 @@
 #define GPIO_SELECT3  26
 #define GPIO_SELECT4  27
 #define GPIO_DRIVE_SELECT_LINES (1 << GPIO_SELECT1) | (1 << GPIO_SELECT2) | (1 << GPIO_SELECT3) | (1 << GPIO_SELECT4)
+#endif
 #endif
 #define CUR_SELECT_HEAD_WRITE_ERR 31
 

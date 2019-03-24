@@ -17,6 +17,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/22/2019 DJG Added REV C support
 // 03/09/2018 DJG Make sure correct setup script run so pins are in correct
 //    direction.
 // 05/19/17 DJG Dummped more memory on error.
@@ -626,15 +627,17 @@ int main(int argc, char *argv[])
    int i;
    DRIVE_PARAMS drive_params;
    int cyl,head;
-   int select_map[2][5] = 
+   int select_map[3][5] = 
       {
          {0, GPIO_SELECT1, GPIO_SELECT2, GPIO_SELECT3, GPIO_SELECT4},
-         {0, GPIO_SELECT1, GPIO_SELECT2, 0, 0}
+         {0, GPIO_SELECT1, GPIO_SELECT2, 0, 0},
+         {0, R31_SEL1_BIT, R31_SEL2_BIT, 0, 0}
       };
-   char *pru_files[2][2] =
+   char *pru_files[3][2] =
       { 
          {"prucode0_reva.bin","prucode1_reva.bin"},
-         {"prucode0_revb.bin","prucode1_revb.bin"}
+         {"prucode0_revb.bin","prucode1_revb.bin"},
+         {"prucode0_revc.bin","prucode1_revc.bin"}
       };
    int max_buffer = 0;
    struct sched_param params;

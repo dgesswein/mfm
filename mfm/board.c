@@ -3,12 +3,13 @@
 // board_initialize sets up this module.
 // board_get_revision returns the revision of the MFM emulator board
 // 
+// 03/22/2019 DJG Added REV C support
 // 02/08/2017 DJG Fix incorrect format for print
 // 10/16/2016 DJG Improved error message
 // 12/24/2015 DJG Fix wrong value in error print
 // 08/01/2015 DJG New module to support revision B board.
 //
-// Copyright 2015 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -38,31 +39,38 @@
 #include "cmd.h"
 #include "board.h"
 
+#define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
+
 // 0 = first/A, 1 = B. Used to index arrays so can't change encoding
-static int board_revision; 
+static int board_revision = -1; 
 
 // Perform any setup needed by this module. Call once before any other
 // routine
 void board_initialize(void) {
-   static int fd = -1;
+   int pins[] = {REVC_DETECT_PIN, REVB_DETECT_PIN};
+   int fd;
+   int i;
    char str[128];
-   if (fd == -1) {
-      sprintf(str, "/sys/class/gpio/gpio%d/value", REVB_DETECT_PIN);
-      fd = open(str, O_RDONLY);
-      if (fd < 0) {
-         msg(MSG_FATAL, "Unable to open pin %d, did you run the setup script?\n", REVB_DETECT_PIN);
-         exit(1);
+   if (board_revision == -1) {
+         // Default is A
+      board_revision = 0;
+      for (i = 0; i < ARRAYSIZE(pins); i++) { 
+         sprintf(str, "/sys/class/gpio/gpio%d/value", pins[i]);
+         fd = open(str, O_RDONLY);
+         if (fd < 0) {
+            msg(MSG_FATAL, "Unable to open pin %d, did you run the setup script?\n", pins[i]);
+            exit(1);
+         }
+         // Pin grounded to indicate version 
+         pread(fd, str, sizeof(str), 0);
+         close(fd);
+         if (str[0] == '0') {
+            board_revision = ARRAYSIZE(pins) - i;
+            break;
+         }
       }
    }
-   pread(fd, str, sizeof(str), 0);
-   // 0 is revision B 
-   if (str[0] == '0') {
-       board_revision = 1;
-       msg(MSG_INFO, "Board revision B detected\n");
-   } else {
-       board_revision = 0;
-       msg(MSG_INFO, "Board revision A detected\n");
-   }
+   msg(MSG_INFO, "Board revision %c detected\n", 'A' + board_revision);
 }
 
 // Return board revision 

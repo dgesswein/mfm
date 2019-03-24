@@ -1,10 +1,11 @@
 // Common code for talking to drives. Included by other .p files
 //
+// 03/22/19 DJG Added REV C support
 // 08/05/18 DJG Further increased seek complete timeout for Quantum Q2040 drive recal
 // 07/19/18 DJG Increased seek complete timeout for Quantum Q2040 drive recal
 // 04/21/18 DJG Handle drives that go not ready during seek to track 0
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -48,10 +49,19 @@ settle0_lp:
    QBLT     settle0_lp, r3, r0
 
 seek0_lp:
+   // Signal on different pin for revision C (2) board
+   LBCO     r0, CONST_PRURAM, PRU0_BOARD_REVISION, 4
+   QBEQ     track_0_revc, r0, 2
    MOV      r0, GPIO0 | GPIO_DATIN          // Read bits
    LBBO     r0, r0, 0, 4
-   QBBC     seek0_done, r0, GPIO0_TRACK_0   // Already at track0, stop
+   QBBC     seek0_done, r0, GPIO0_TRACK_0_BIT   // Already at track0, stop
+   JMP      seek0_next
+track_0_revc:
+   MOV      r0, GPIO3 | GPIO_DATIN          // Read bits
+   LBBO     r0, r0, 0, 4
+   QBBC     seek0_done, r0, GPIO3_TRACK_0_BIT_REVC  // Already at track0, stop
 
+seek0_next:
    // Pulse the step bit for the correct duration
    MOV      r3, SEEK_PW_SLOW
    SET      r30, R30_STEP_BIT       // Start pulse
@@ -62,6 +72,7 @@ seek0_w:
    QBLT     seek0_w, r3, r0
    CLR      r30, R30_STEP_BIT       
 
+   // Wait for seek complete
    MOV      r3, SEEK_COMPLETE_TIMEOUT
    CALL     wait_ready
       // Didn't go ready, return to cmd loop. Error set in wait_ready
@@ -139,7 +150,9 @@ wait_ready:
    MOV      r2,0
    SBBO     r2, CYCLE_CNTR, 0, 4    // Clear timer
 ready_loop:
-   SBCO     r31, CONST_PRURAM, PRU0_STATUS, 4
+   MOV      CALL_HOLD, RET_REG
+   CALL     get_status
+   MOV      RET_REG, CALL_HOLD
    // Ready when seek complete, ready, and drive selected are low
    QBBS     ready_timeout, r31, R31_SEEK_COMPLETE_BIT
    QBBS     ready_timeout, r31, R31_READY_BIT
@@ -163,7 +176,25 @@ ready_timeout:
    QBLT     ready_loop, r3, r0
    MOV      r0, CMD_STATUS_READY_ERR
    SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
-   SBCO     r31, CONST_PRURAM, PRU0_STATUS, 4
+   MOV      CALL_HOLD, RET_REG
+   CALL     get_status
+   MOV      RET_REG, CALL_HOLD
+   RET
+   
+// r0 modified
+// r1 is updated status register.
+get_status:
+   LBCO     r0, CONST_PRURAM, PRU0_BOARD_REVISION, 4
+   MOV      r1, r31
+   QBNE     store_status, r0, 2
+   MOV      r0, GPIO1 | GPIO_DATIN          // Read bits
+   LBBO     r0, r0, 0, 4
+   // If revision C board put write fault in same bit a A & B. R31 bit should
+   // be 0 when read for revision C.
+   QBBC     store_status, r0, GPIO1_WRITE_FAULT_BIT
+   SET      r1, R31_WRITE_FAULT_BIT
+store_status:
+   SBCO     r1, CONST_PRURAM, PRU0_STATUS, 4
    RET
    
    // Measure drive RPM, time between index pulses

@@ -147,6 +147,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/22/19 DJG Added Board REV C support
 // 05/19/17 DJG Changed seek so it will set cylinder to zero if greater than
 //     limit at end of seek. Previous code did it on each step so would go
 //     n n+1 0 1 if step pulses kept coming in the same seek. 
@@ -240,7 +241,9 @@
 #define MIN_QUEUE_LEFT r21
 
    // Address and size of DDR memory region. Both not currently used
-#define DDR_SIZE     r22 
+//#define DDR_SIZE     r22 
+   // Bit in GPIO or R31 for currently selected drive
+#define CUR_DRIVE_SEL r22
 #define DDR_ADDR     r23
 // r24 and r25 used by subroutines and not restored
 
@@ -332,7 +335,7 @@ START:
 
       // Get DDR address and size.
    LBCO     DDR_ADDR, CONST_PRURAM, PRU_DDR_ADDR, 4
-   LBCO     DDR_SIZE, CONST_PRURAM, PRU_DDR_SIZE, 4
+   //LBCO     DDR_SIZE, CONST_PRURAM, PRU_DDR_SIZE, 4
 
 
       // No drive selected
@@ -356,7 +359,7 @@ START:
    SBCO     RZERO, CONST_PRURAM, PRU_TEST3, 4
    SBCO     RZERO, CONST_PRURAM, PRU_TEST4, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_ECAP_OVERRUN, 4
-   SBCO     RZERO, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
+   MOV      CUR_DRIVE_SEL, 0
 
       // Set multiply only mode. Only needs to be done once
    MOV      r25, 0                 
@@ -375,9 +378,13 @@ START:
    SBBO     r0, r1, 0, 4
    CLR      r30, R30_WRITE_FAULT_BIT
    CLR      r30, R30_INDEX_BIT
+#ifdef REVC
+   SET      r30, R30_TRACK_0_BIT
+#else
    MOV      r0, 1 << GPIO0_TRACK_0
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
    SBBO     r0, r1, 0, 4
+#endif
       // Turn off receiving MFM write data in so we can send data out
    SET      r30, R30_MFM0_IN_ENABLE       
    SET      r30, R30_MFM1_IN_ENABLE       
@@ -475,14 +482,24 @@ headok2:
       // Not waiting a command
    SBCO     RZERO, CONST_PRURAM, PRU0_WAITING_CMD, 4
       // Make sure we have the current head select etc.
+#ifdef REVC
+   CALL     get_select_head
+   JMP      select
+#else
    JMP      select_head
+#endif
 
 wait_cmd:
       // Let select_head & step know we are waiting for a command
    MOV      r0, 1
    SBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
       // If needed handle select or head line change interrupt?
+#ifdef REVC
+   QBBS     select, r31, CUR_DRIVE_SEL
+   QBBS     handle_head, r31, 30        
+#else
    QBBS     select_head, r31, 30        
+#endif
       // Got a step pulse? Only unbuffered/ST506 should do this.
    QBBC     step, r31, R31_STEP_BIT     // Doing a seek?
       // Check for time wrap and if index pulse needs updating
@@ -517,7 +534,12 @@ next_mfm:
    SET      r30, R30_READY_BIT    
    SET      r30, R30_SEEK_COMPLETE_BIT 
 next_mfmb:
-   QBBS     select_head, r31, 30        // Handle gpio interrupt
+#ifdef REVC
+   QBBS     select, r31, CUR_DRIVE_SEL
+   QBBS     handle_head, r31, 30        
+#else
+   QBBS     select_head, r31, 30        
+#endif
    QBBC     step, r31, R31_STEP_BIT  // Got step pulse?
       // Switch to PWM mode
    SBCO     RZERO, CONST_ECAP, ECCTL1, 4
@@ -639,7 +661,12 @@ chke:
    LBCO     r0, CONST_ECAP, ECFLG, 2    // did PWM read shadow regs? 4 cycles
    QBBS     loadit, r0, 6               // Yes, load a new one
    QBBC     write, r31, R31_WRITE_GATE  // If write gate active handle it
-   QBBS     select_head, r31, 30        // Handle gpio interrupt
+#ifdef REVC
+   QBBS     select, r31, CUR_DRIVE_SEL
+   QBBS     handle_head, r31, 30        
+#else
+   QBBS     select_head, r31, 30        
+#endif
    QBBC     step, r31, R31_STEP_BIT     // Doing a seek?
    CALL     set_index                   // Keep index pulse updated
    JMP      chke                        // Check PWM again
@@ -679,6 +706,147 @@ clrok:
    LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
    QBEQ     read, r1, 0
    JMP      EXIT
+
+#ifdef REVC
+select:
+      // Stop PRU 1. We will check stopped later
+   MOV      PRU0_STATE, STATE_READ_DONE
+   XOUT     10, PRU0_BUF_STATE, 4
+      // Special case of step will restart here when it started
+      // a step but didn't actually need to.
+step_restart:
+      // If we we aren't selected anymore handle it
+   LBCO     CUR_DRIVE_SEL, CONST_PRURAM, PRU0_DRIVE0_SELECT, 4
+   QBEQ     selected0, CUR_DRIVE_SEL, 0      // If zero always selected (radial select)
+   QBBC     selected0, r31, CUR_DRIVE_SEL    // Branch if matches drive 0 select
+   LBCO     CUR_DRIVE_SEL, CONST_PRURAM, PRU0_DRIVE1_SELECT, 4
+   QBEQ     notsel, CUR_DRIVE_SEL, 0          // If zero no second drive
+   QBBS     notsel, r31, CUR_DRIVE_SEL
+
+      // If this drive is currently selected we don't have to do anything
+   QBEQ     selected, DRIVE_DATA, DRIVE_DATA_BYTES
+   MOV      DRIVE_DATA, DRIVE_DATA_BYTES          // Offset of drive 1 data
+   SET      r30, R30_READY_BIT    
+   SET      r30, R30_SEEK_COMPLETE_BIT 
+     // Cylinder of currently selected drive
+   LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+   QBEQ     track0a, r3, 0
+   CLR      r30, R30_TRACK_0_BIT
+   JMP      finish1
+track0a:
+   SET      r30, R30_TRACK_0_BIT
+finish1:
+   // Turn on drive 1 select and LED and off drive 0
+   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
+   MOV      r1, GPIO0 | GPIO_SETDATAOUT
+   SBBO     r0, r1, 0, 4
+   MOV      r0, (1 << GPIO0_DRIVE1_LED)
+   MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
+   SBBO     r0, r1, 0, 4
+   CLR      r30, R30_DRIVE0_SEL  
+   JMP      selected
+
+selected_always:
+   // Point to a bit that will always be zero to prevent calling
+   // select
+   MOV      CUR_DRIVE_SEL, 20
+selected0:
+      // If this drive is currently selected we don't have to do anything
+   QBEQ     selected, DRIVE_DATA, 0
+   MOV      DRIVE_DATA, 0
+   SET      r30, R30_READY_BIT    
+   SET      r30, R30_SEEK_COMPLETE_BIT 
+     // Cylinder of currently selected drive
+   LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+   QBEQ     track0b, r3, 0
+   CLR      r30, R30_TRACK_0_BIT
+   JMP      finish2
+track0b:
+   SET      r30, R30_TRACK_0_BIT
+finish2:
+   // Turn on drive 0 select and LED and off drive 1
+   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
+   MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
+   SBBO     r0, r1, 0, 4
+   MOV      r0, (1 << GPIO0_DRIVE1_LED)
+   MOV      r1, GPIO0 | GPIO_SETDATAOUT
+   SBBO     r0, r1, 0, 4
+   SET      r30, R30_DRIVE0_SEL  
+selected:
+restart_lp:
+   XIN      10, PRU1_BUF_STATE, 4
+   QBNE     selected, PRU1_STATE, STATE_READ_DONE
+   XOUT     10, DRIVE_DATA, 4       // Send currently selected drive offset.
+      // We are selected so turn on selected signal
+      // If we are not waiting for a command start outputting MFM data else
+      // return to waiting for a command
+   LBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
+   QBEQ     next_mfmb, r0, 0
+   JMP      wait_cmd
+
+
+      // We aren't selected, turn off signals and wait for select again
+notsel:
+      // Indicate no drive selected
+   MOV      DRIVE_DATA, 1
+      // Turn off all the control signals since we aren't selected
+   CLR      r30, R30_SEEK_COMPLETE_BIT
+   CLR      r30, R30_READY_BIT    
+   CLR      r30, R30_DRIVE0_SEL  
+   CLR      r30, R30_INDEX_BIT
+   CLR      r30, R30_TRACK_0_BIT
+   MOV      r0, (1 << GPIO0_DRIVE0_LED) | (1 << GPIO0_DRIVE1_LED)
+   MOV      r1, GPIO0 | GPIO_SETDATAOUT
+   SBBO     r0, r1, 0, 4
+   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY)
+   MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
+   SBBO     r0, r1, 0, 4
+   SBCO     RZERO, CONST_ECAP, CAP2, 4  // Turn off data
+   MOV      CUR_DRIVE_SEL, 0
+
+waitsel:
+      // Check if we should exit
+   LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
+   QBNE     EXIT, r1, 0
+   LBCO     r1, CONST_PRURAM, PRU0_CMD, 4 
+   QBEQ     handle_start, r1, CMD_START  // And start, update seek time
+      // Keep track of drive rotation while waiting
+   CALL     check_rotation             
+      // Are we selected?
+   QBBC     select, r31, R31_SEL1_BIT
+   QBBC     select, r31, R31_SEL2_BIT
+   JMP      waitsel
+
+handle_head:
+      // Stop PRU 1. We will check stopped later
+   MOV      PRU0_STATE, STATE_READ_DONE
+   XOUT     10, PRU0_BUF_STATE, 4
+      // Clear GPIO 0 interrupt before reading value so if it changes we will
+      // get a new interrupt and not miss a change
+   MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
+      // Clear all the lines we use
+   MOV      r4, GPIO_DRIVE_HEAD_LINES
+   SBBO     r4, r1, 0, 4
+      // This read is needed to prevent extra interrupts. Since
+      // writes are posted the actual register write may happen after
+      // we clear the flag in int controller below unless we read it
+      // back to make sure the write is done. Is glitch logic really
+      // needed? Replaced by getting head
+   //LBBO     r4, r1, 0, 4               
+      // Copy current value and get new head and select
+   CALL     get_select_head
+
+      // Clear interrupt status flag in interrupt controller
+   MOV      r0, GPIO0_EVT
+   SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
+
+   LBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
+   SBCO     r24, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4 // Update
+      // If they are the same report a glitch for debugging
+   QBEQ     glitch, r24, r1
+   JMP      selected
+
+#else
 
       // Handle GPIO interrupt from head or select lines changing
       // This routine needs to be under 1us from head change to
@@ -732,14 +900,12 @@ restart_lp:
       // a step but didn't actually need to.
 step_restart:
       // If we we aren't selected anymore handle it
-   LBCO     r0, CONST_PRURAM, PRU0_DRIVE0_SELECT, 4
-   SBCO     r0, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
-   QBEQ     selected0, r0, 0        // If zero always selected (radial select)
-   QBBC     selected0, r24, r0      // Branch if matches drive 0 select
-   LBCO     r0, CONST_PRURAM, PRU0_DRIVE1_SELECT, 4
-   SBCO     r0, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
-   QBEQ     notsel, r0, 0          // If zero no second drive
-   QBBS     notsel, r24, r0
+   LBCO     CUR_DRIVE_SEL, CONST_PRURAM, PRU0_DRIVE0_SELECT, 4
+   QBEQ     selected0, CUR_DRIVE_SEL, 0  // If zero always selected (radial select)
+   QBBC     selected0, r24, CUR_DRIVE_SEL // Branch if matches drive 0 select
+   LBCO     CUR_DRIVE_SEL, CONST_PRURAM, PRU0_DRIVE1_SELECT, 4
+   QBEQ     notsel, CUR_DRIVE_SEL, 0       // If zero no second drive
+   QBBS     notsel, r24, CUR_DRIVE_SEL
       // If this drive is currently selected we don't have to do anything
    QBEQ     selected, DRIVE_DATA, DRIVE_DATA_BYTES
    MOV      DRIVE_DATA, DRIVE_DATA_BYTES          // Offset of drive 1 data
@@ -791,9 +957,7 @@ selected:
       // return to waiting for a command
    LBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
    QBEQ     next_mfmb, r0, 0
-   JMP      wait_cmd
-
-      // We aren't selected, turn off signals and wait for select again
+   JMP      wait_cmd // We aren't selected, turn off signals and wait for select again
 notsel:
       // Indicate no drive selected
    MOV      DRIVE_DATA, 1
@@ -809,7 +973,8 @@ notsel:
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
    SBBO     r0, r1, 0, 4
    SBCO     RZERO, CONST_ECAP, CAP2, 4  // Turn off data
-   SBCO     RZERO, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
+   MOV      CUR_DRIVE_SEL, 0
+
 waitsel:
       // Check if we should exit
    LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
@@ -820,6 +985,17 @@ waitsel:
    CALL     check_rotation             
    QBBS     select_head, r31, 30        // Select or head line change interrupt?
    JMP      waitsel
+
+#endif
+
+
+glitch:
+   SBCO     r24, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
+   LBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
+   ADD      r1, r1, 1
+   SBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
+   JMP      restart_lp
+
 handle_start:
    CALL     do_cmd_start
       // For unbuffered seeks if after we started the first seek we get
@@ -840,13 +1016,6 @@ handle_cyl_change:
    CALL     send_arm_cyl
    MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
-
-glitch:
-   SBCO     r24, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
-   LBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
-   ADD      r1, r1, 1
-   SBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
-   JMP      restart_lp
 
       // Handle seeks. We count the number of step pulses that are within
       // SEEK_FINISH_TIME and add/subtract from current cylinder based on
@@ -899,7 +1068,12 @@ waitstephigh2:
       // Keep our time and index signal updated while waiting
    CALL     check_rotation             
    CALL     set_index
-   QBBS     select_head, r31, 30        // Select or head line change interrupt?
+#ifdef REVC
+   QBBS     select, r31, CUR_DRIVE_SEL
+   QBBS     handle_head, r31, 30        
+#else
+   QBBS     select_head, r31, 30       // Select or head line change interrupt? 
+#endif
    QBBC     waitstephigh2, r31, R31_STEP_BIT  
       // Check we didn't step past end of disk. We shouldn't have stepped
       // at all here but check just in case the controller does weird things
@@ -919,13 +1093,14 @@ seek_lp:
    QBBC     step, r31, R31_STEP_BIT  // Got another pulse
    CALL     check_rotation             
    CALL     set_index
-   CALL     get_select_head
-   LBCO     r0, CONST_PRURAM, PRU0_CUR_DRIVE_SEL, 4
-   MOV      r2, 0
-   SET      r2, r0 
-   AND      r2, r24, r2
+#ifdef REVC
       // If we are no longer selected finish seek, bit low when selected
-   QBNE     seek_wait_done, r2, 0
+   QBBS     seek_wait_done, r31, CUR_DRIVE_SEL
+#else
+   CALL     get_select_head
+      // If we are no longer selected finish seek, bit low when selected
+   QBBS     seek_wait_done, r24, CUR_DRIVE_SEL
+#endif
    LBCO     r0, CONST_IEP, IEP_COUNT, 4
    QBLT     seek_lp, r1, r0
 
@@ -1026,6 +1201,16 @@ clr_time:
    RET
 
       // Set track 0 signal based on current cylinder
+#ifdef REVC
+set_track0:
+   LBBO     r25, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+   QBEQ     track0, r25, 0
+   CLR      r30, R30_TRACK_0_BIT
+   RET
+track0:
+   SET      r30, R30_TRACK_0_BIT
+   RET
+#else
 set_track0:
    MOV      r24, 1 << GPIO0_TRACK_0
       // Cylinder of currently selected drive
@@ -1038,6 +1223,7 @@ track0:
 settrack0:
    SBBO     r24, r25, 0, 4
    RET
+#endif
 
 // Get select and head value
 // Returns PRU0_CUR_SELECT_HEAD in r24
@@ -1243,8 +1429,15 @@ EXIT:
    SBBO     r0, r1, 0, 4
    CLR      r30, R30_WRITE_FAULT_BIT
    CLR      r30, R30_INDEX_BIT
+#ifdef REVC
+   CLR      r30, R30_TRACK_0_BIT
+#else
    MOV      r0, 1 << GPIO0_TRACK_0
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
+   SBBO     r0, r1, 0, 4
+#endif
+   MOV      r0, (1 << GPIO0_DRIVE0_LED) | (1 << GPIO0_DRIVE1_LED)
+   MOV      r1, GPIO0 | GPIO_SETDATAOUT
    SBBO     r0, r1, 0, 4
    MOV      r1, CMD_STATUS_OK
    SBCO     r1, CONST_PRURAM, PRU0_CMD, 4 // Indicate command completed ok

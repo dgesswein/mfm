@@ -38,9 +38,15 @@
 #define PRU0_START_TIME_CLOCKS 0x18 // Delay from index until we start
                                     // capturing transitions
 #define PRU_DATARAM_ADDR  0x1c      // Physical address of the PRU memory
+#define PRU0_BOARD_REVISION 0x20    // 0 = A etc
 
 #define REVB_DETECT_PIN  46 // GPIO 1_14
-#define GPIO0_TRACK_0    30
+#define REVC_DETECT_PIN  61 // GPIO 1_29
+// Rev A,B
+#define GPIO0_TRACK_0_BIT    30
+// Rev C
+#define GPIO3_TRACK_0_BIT_REVC 17
+#define GPIO3_START_PIN      (32*3)
 // Where the physical lines show up in the PRU registers
 #define R30_SEEK_DIR_BIT  6
 #define R30_STEP_BIT      7
@@ -48,7 +54,10 @@
 
 #define R31_DRIVE_SEL         1
 #define R31_SEEK_COMPLETE_BIT 2
+// Rev A,B
 #define R31_WRITE_FAULT_BIT   3
+// Rev C
+#define GPIO1_WRITE_FAULT_BIT 19
 #define R31_READY_BIT         4
 #define R31_INDEX_BIT         5
 

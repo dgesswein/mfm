@@ -87,7 +87,7 @@
                     0x040 0x0f // OUT  P9_14 = gpio1_18
                     0x184 0x0f // OUT  P9_24 = gpio0_15
                     0x180 0x0f // OUT  P9_26 = gpio0_14
-                    0x07c 0x0f // OUT  P8_26 = gpio1_29 TESTING
+                    0x07c 0x37 // IN   P8_26 = gpio1_29, pullup, REV C detect
                     // Rev B GPIO
                     0x038 0x37 // IN   P8_16 = gpio1_14, pullup
                     0x0d8 0x3f // IN   P8_31 = gpio0_10
