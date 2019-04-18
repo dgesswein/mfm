@@ -104,6 +104,7 @@
 //    Clock transition count clock frequency is in file header. For 200 MHz
 //    a count of 40 indicates 5 MHz pulse spacing.
 //
+// 04/14/19 DJG Pick correct RPM for SA1000 with 8.6 MHz clock rate
 // 03/12/19 DJG Make tran_file_seek_track return EOF if cylinder or head
 //    value passed not valid for file
 // 02/09/19 DJG Minor cleanup
@@ -1020,8 +1021,9 @@ if (deltas[i] == 0) {
 //
 float emu_rps(int sample_rate_hz) {
    // If data rate about 8.68 MHz assume it is a SA1000 drive rotating
-   // at 3125 RPM otherwise 3600 RPM
-   if (abs(sample_rate_hz - 8680000) <= 10000) {
+   // at 3125 RPM otherwise 3600 RPM. Wang used 8.6 MHz to allow sufficient
+   // margin to cover both
+   if (abs(sample_rate_hz - 8680000) <= 90000) {
      // 3125 RPM for Shugart. Quantum Q20x0 is 3000. No easy way to tell
      // which. Will need to manually specify --track_words 5425 when
      // creating emulation file.

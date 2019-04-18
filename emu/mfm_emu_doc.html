@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2017-04-15T09:50:54.287064245"/>
+	<meta name="changed" content="2019-04-17T21:54:57.479789536"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -65,8 +65,13 @@ debug messages). Higher bits are more important messages in general.</p>
 <p style="margin-bottom: 0in">--rate -r #</p>
 <p style="margin-left: 0.49in; margin-bottom: 0in">Bit rate in Hz for
 the MFM clock and data bits. Only needed if initialize specified.
-Default is 10,000,000. if not specified. 
-</p>
+Default is 10,000,000. if not specified. For most SA1000 controllers
+specify 8680000. Only needed when –initialize specified.</p>
+<p style="margin-bottom: 0in">--rpm -R #</p>
+<p style="margin-left: 0.49in; margin-bottom: 0in">Drive RPM. Default
+is 3600 unless rate is close to 8680000 where the default is 3125 for
+SA1000 drives. For Quantum Q2000 drives specify 3000 if you wish to
+emulate the real drive RPM. Only needed when –initialize specified.</p>
 <p style="margin-bottom: 0in">--version -v</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Print program
 version number.</p>

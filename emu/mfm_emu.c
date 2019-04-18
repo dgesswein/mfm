@@ -14,9 +14,11 @@
 // to let it fetch the next cylinder.
 //
 
-// Copyright 2014 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 04/15/2019 DJG Added support for RPM set on command line
+// 04/14/2019 DJG Added print
 // 03/22/2019 DJG Added REV C support
 // 03/09/2018 DJG Make sure correct setup script run so pins are in correct
 //    direction.
@@ -656,8 +658,6 @@ int main(int argc, char *argv[])
    parse_cmdline(argc, argv, &drive_params);
 
    if (drive_params.initialize) {
-      float rps;
-
       if (drive_params.num_drives != 1) {
          msg(MSG_FATAL, "Only one filename may be specified when initializing\n");
          exit(1);
@@ -665,10 +665,13 @@ int main(int argc, char *argv[])
       drive_params.cmdline = parse_print_cmdline(&drive_params, 0);
       // If data rate about 8.68 MHz assume it is a SA1000 drive rotating
       // at 3125 RPM otherwise 3600 RPM
-      rps = emu_rps(drive_params.sample_rate_hz);
+      if (drive_params.rpm == 0) {
+         drive_params.rpm = round(emu_rps(drive_params.sample_rate_hz) * 60.0);
+      }
+      msg(MSG_INFO, "Emulated drive RPM %d\n", drive_params.rpm);
       // Calculate round number of words for track based on rotation rate
       // and bit rate
-      track_size = ceil(1/rps * drive_params.sample_rate_hz / 8 / 4)*4;
+      track_size = ceil(1.0/(drive_params.rpm/60.0) * drive_params.sample_rate_hz / 8 / 4)*4;
       data = calloc(1,track_size);
       for (i = 0; i < track_size / sizeof(data[0]); i++) {
          data[i] = 0xaaaaaaaa;

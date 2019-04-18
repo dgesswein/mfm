@@ -147,6 +147,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 04/14/19 DJG Added comment
 // 03/22/19 DJG Added Board REV C support
 // 05/19/17 DJG Changed seek so it will set cylinder to zero if greater than
 //     limit at end of seek. Previous code did it on each step so would go
@@ -687,6 +688,8 @@ end_track:
  LBBO     r1, CYCLE_CNTR, 0, 4
 SBCO r1, CONST_PRURAM, 0xf0, 4
  MOV     r2, 165000*20
+ // Verify simulated RPM <= 3636. This is old debugging check that probably
+ // no longer needed.
  QBLE     clrok, r1, r2
 halt
 clrok:

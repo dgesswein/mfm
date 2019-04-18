@@ -17,6 +17,7 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 04/08/19 DJG Added support for 8.6 MHz --rate for WANG SVP
 // 03/14/19 DJG Fix comment
 // 06/23/18 DJG Add 8.68 MHz data rate support.
 // 05/19/17 DJG Add ability to dump PRU shared memory.
@@ -477,7 +478,10 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
       { 15000000, 2, 65, 4},
       // This gives 199.68 MHz, divided by 23 gives 8.6817 MHz rate vs
       // desires 8.68. Pre divide by 5, multiply by 208 and divide by 5.
-      { 8680000, 5, 208, 5}
+      { 8680000, 5, 208, 5},
+      // This gives 197.8182 MHz, divided by 23 gives 8.6008 MHz rate vs
+      // desires 8.6. Pre divide by 11, multiply by 272 and divide by 3.
+      { 8600000, 11, 272, 3}
    };
    int ndx;
 

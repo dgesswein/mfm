@@ -4,11 +4,12 @@
 // Call parse_print_cmdline to print drive parameter information in command
 //   line format
 //
+// 04/15/19 DJG Added RPM option
 // 01/04/15 DJG Changed buffer to pool, added begin_time and rate options.
 // 11/09/14 DJG Added command option to set number of buffers and max delay
 //    added note and options command line options.
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -64,9 +65,10 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          {"version", 0, NULL, 'v'},
          {"note", 1, NULL, 'n'},
          {"options", 1, NULL, 'o'},
+         {"rpm", 1, NULL, 'R'},
          {NULL, 0, NULL, 0}
    };
-   char short_options[] = "f:d:h:c:r:b:ip:q:vn:o:";
+   char short_options[] = "f:d:h:c:r:b:ip:q:vn:o:R:";
    int rc;
    // Loop counters
    int i;
@@ -153,6 +155,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          break;
       case 'r':
          drive_params->sample_rate_hz = strtoul(optarg, NULL, 0);
+         break;
+      case 'R':
+         drive_params->rpm = strtoul(optarg, NULL, 0);
          break;
       case '?':
          exit(1);
