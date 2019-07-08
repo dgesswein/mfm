@@ -6,6 +6,10 @@
 
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
+//
+// 06/19/19 DJG Added missing /n to error message
+// 06/08/19 DJG Don't say disk is RLL if secondary period couldn't be
+//    determined.
 // 03/12/19 DJG Fixed detecting format with MODEL using wrong number or 
 //    first sector number
 // 11/03/18 DJG Renamed variable
@@ -164,7 +168,7 @@ static void analyze_rate(DRIVE_PARAMS *drive_params, int cyl, int head,
        msg(MSG_ERR, "Primary transition period %.0f ns, should be around 200\n",
          rate1);
     } else {
-       if (rate2 <= 280) {
+       if (rate2 <= 280 && rate2 != 0) {
           msg(MSG_ERR, "Secondary transition period %.0f ns, likely RLL\n",
             rate2);
           msg(MSG_ERR, "RLL is not currently supported\n");
@@ -946,7 +950,7 @@ int analyze_format(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
       rc = analyze_model(drive_params, cyl, head, deltas, max_deltas);
    }
    if (rc > 1) {
-      msg(MSG_ERR, "Multiple matching formats found, using first");
+      msg(MSG_ERR, "Multiple matching formats found, using first\n");
    }
    if (rc >= 1) {
       DRIVE_PARAMS drive_params_hold;

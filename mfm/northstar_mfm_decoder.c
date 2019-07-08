@@ -16,6 +16,7 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
 //    determining --begin_time if needed
@@ -117,7 +118,7 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
 
       sector_status.cyl = bytes[1] | (((int) bytes[0] & 0xf0) << 4);
-      sector_status.head = bytes[2] & 0xf ;
+      sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0xf);
       sector_status.sector = bytes[0] & 0xf;
       // Don't know how/if these are encoded in header
       sector_size = drive_params->sector_size;

@@ -1,6 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/19/19 DJG Removed DTC_256B since only difference from DEC_520_256B was
+//    error. Added SM1040 format. Fixed Xerox_8010 bitrate. Added recovery 
+//    mode flag
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX, adjusted trk_ISBC215_1024b to match
 //    example file
 // 01/20/18 DJG Increased maximum sector to support iSBC 214/215 128B 54 sectors/track
@@ -142,7 +145,6 @@ typedef struct {
       CONTROLLER_WD_3B1,
       CONTROLLER_MOTOROLA_VME10, 
       CONTROLLER_DTC, 
-      CONTROLLER_DTC_256B, 
       CONTROLLER_DTC_520_256B, 
       CONTROLLER_DTC_520_512B, 
       CONTROLLER_MACBOTTOM, 
@@ -171,7 +173,9 @@ typedef struct {
       CONTROLLER_ROHM_PBX,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
-      CONTROLLER_SYMBOLICS_3620, CONTROLLER_SYMBOLICS_3640, 
+      CONTROLLER_SYMBOLICS_3620, 
+      CONTROLLER_SM1040,
+      CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_DG_MV2000, 
       CONTROLLER_SOLOSYSTEMS, 
@@ -207,6 +211,8 @@ typedef struct {
    int retries;
    // Number of retries to do without seeking
    int no_seek_retries;
+   // Use drive recovery line.
+   int recovery;
    // Disables some header checks. Not currently used.
    int ignore_header_mismatch;
    // Drive number for setting select lines
@@ -1661,15 +1667,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
          0, 0, 0
       },
-      {"DTC_256B",             256, 10000000,      0,
-         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
-         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_dtc_pc_512b, 256, 33, 0, 5209,
-         0, 0,
-         {0,0x24409,24,5},{0,0x24409,24,5}, CONT_MODEL,
-         0, 0, 0
-      },
       {"DTC_520_256B",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1888,7 +1885,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 0
       },
 // SA1004 8" drive
-      {"Xerox_8010",      128, 8680000,      0,
+      {"Xerox_8010",      128, 8500000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
@@ -1933,6 +1930,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"SM1040",       256, 10000000,      0, 
+         0, 1, 4, ARRAYSIZE(mfm_all_poly), 
+         0, 1, CINFO_CHS,
+         10, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0x6e958e56,0x140a0445,32,5},{0xcf2105e0,0x140a0445,32,5}, CONT_MODEL,
          0, 0, 0
       },
       {"Symbolics_3640",       256, 10000000,      0, 
@@ -2250,6 +2256,7 @@ void mfm_mark_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params);
 void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
+int mfm_fix_head(DRIVE_PARAMS *drive_params, int exp_head, int head);
 
 #undef DEF_EXTERN
 #endif /* MFM_DECODER_H_ */

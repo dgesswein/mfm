@@ -6,6 +6,7 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate and 
 //    format Xerox 8010
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
@@ -166,7 +167,7 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[3];
 
          // More is in here but what is not documented in manual
-         sector_status.head = bytes[4] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4] & 0xf);
          if ((bytes[4] & 0xf0) != 0) {
             msg(MSG_INFO, "byte 4 upper bits not zero: %02x on cyl %d head %d sector %d\n",
                 bytes[4], sector_status.cyl, sector_status.head, sector_status.sector);
@@ -183,7 +184,7 @@ SECTOR_DECODE_STATUS tagged_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_XEROX_8010) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
-         sector_status.head = bytes[4];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4]);
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[5];

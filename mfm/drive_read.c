@@ -6,6 +6,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 07/05/2019 DJG Added support for using recovery signal
 // 03/09/2018 DJG Added logic to not retry when requested to read more
 //   cylinders or heads than analyze determined
 // 11/05/2016 DJG Made retry seek progression more like it was before change below
@@ -88,6 +89,7 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
    double start, last = 0;
    double min = 9e9, max = 0, tot = 0;
    int count = 0;
+   int recovery_active = 0;
 
    // Start up delta reader
    deltas_start_thread(drive_params);
@@ -120,28 +122,40 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
             if (no_seek_count <= 0) {
                int clip_seek_len = seek_len;
 
-               if (cyl + seek_len >= drive_params->num_cyl) {
-                  clip_seek_len = drive_params->num_cyl - cyl - 1;
-               }
-               if (cyl + seek_len < 0) {
-                  clip_seek_len = -cyl;
-               }
-               //printf("seeking %d %d %d\n",err_cnt, seek_len, seek_len + cyl);
-               if (clip_seek_len != 0) {
-                  drive_step(drive_params->step_speed, clip_seek_len, 
-                     DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
-                  drive_step(drive_params->step_speed, -clip_seek_len, 
-                     DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
-               }
-               if (seek_len < 0) {
-                  seek_len = seek_len * 2;
-                  if (seek_len <= -drive_params->num_cyl) {
-                     seek_len = -1;
+               // In recovery mode the drive will perform a microstep instead
+               // of a full cylinder step. The sequency of microsteps positions
+               // will repeat after a drive dependent number of steps
+               if (drive_params->recovery) {
+                  if (!recovery_active) {
+                     drive_enable_recovery(1);
+                     recovery_active = 1;
                   }
-               }
-               seek_len = -seek_len;
-               if (seek_len == 0) {
-                  seek_len = 1;
+                  drive_step(drive_params->step_speed, 1, 
+                     DRIVE_STEP_NO_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+               } else {
+                  if (cyl + seek_len >= drive_params->num_cyl) {
+                     clip_seek_len = drive_params->num_cyl - cyl - 1;
+                  }
+                  if (cyl + seek_len < 0) {
+                     clip_seek_len = -cyl;
+                  }
+                  //printf("seeking %d %d %d\n",err_cnt, seek_len, seek_len + cyl);
+                  if (clip_seek_len != 0) {
+                     drive_step(drive_params->step_speed, clip_seek_len, 
+                        DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+                     drive_step(drive_params->step_speed, -clip_seek_len, 
+                        DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+                  }
+                  if (seek_len < 0) {
+                     seek_len = seek_len * 2;
+                     if (seek_len <= -drive_params->num_cyl) {
+                        seek_len = -1;
+                     }
+                  }
+                  seek_len = -seek_len;
+                  if (seek_len == 0) {
+                     seek_len = 1;
+                  }
                }
                no_seek_count = drive_params->no_seek_retries;
             }
@@ -194,6 +208,21 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
             }
          // repeat until we get all the data or run out of retries
          } while (sect_err && err_cnt++ < retries);
+         if (recovery_active) {
+           drive_enable_recovery(0);
+           // My ST225 doesn't follow the manual behavior of inactivating seek
+           // complete after recovery goes inactive while it repositions the 
+           // heads. The heads seem to be moving since I get data from several
+           // cylinders. If a step is done the drive gets confused and needs 
+           // to be power cylcled. This delay seems to make it work.
+           usleep(25000);
+           // Wait for seek complete 
+           if (pru_exec_cmd(CMD_CHECK_READY, 0)) {
+              drive_print_drive_status(MSG_FATAL, drive_get_drive_status());
+              exit(1);
+           }
+           recovery_active = 0;
+         }
          if (err_cnt > 0) {
             if (err_cnt == retries + 1) {
                msg(MSG_ERR, "Retries failed cyl %d head %d\n", cyl, head);

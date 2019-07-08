@@ -13,11 +13,14 @@
 //   the extract file
 // call mfm_decode_done when all tracks have been processed
 // call mfm_handle_alt_track_ch to add alternate track to list
+// call mfm_fix_head to adjust head value in header if needed
 //
 // TODO: make it use sector number information and checking CRC at data length to write data
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 07/07/19 DJG If both bad header and bad data set count as bad header.
+// 06/19/19 DJG Removed DTC_256B and added SM1040. Improve 3 bit head support.
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX
 // 01/20/18 DJG Make extracted data file always full size. Previously if
 //    tracks at end of disk were unreadable they wouldn't be written. Other
@@ -371,10 +374,10 @@ static void update_stats(DRIVE_PARAMS *drive_params, int cyl, int head,
          }
          if (last_sector_list[i].status & SECT_SPARE_BAD) {
             stats->num_spare_bad++;
-         } else if (last_sector_list[i].status & SECT_BAD_DATA) {
-            stats->num_bad_data++;
          } else if (last_sector_list[i].status & SECT_BAD_HEADER) {
             stats->num_bad_header++;
+         } else if (last_sector_list[i].status & SECT_BAD_DATA) {
+            stats->num_bad_data++;
          } else {
             stats->num_good_sectors++;
          }
@@ -517,7 +520,6 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
-         drive_params->controller == CONTROLLER_DTC_256B ||
          drive_params->controller == CONTROLLER_DTC_520_512B ||
          drive_params->controller == CONTROLLER_DTC_520_256B ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
@@ -545,6 +547,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DILOG_DQ604 ||
          drive_params->controller == CONTROLLER_ROHM_PBX ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+         drive_params->controller == CONTROLLER_SM1040 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
@@ -784,11 +787,6 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
       return;
    }
 
-   // WD 1003 controllers wrote 3 bit head code so head 8 is written as 0.
-   // If requested and head seems correct fix read head value.
-   if (drive_params->head_3bit && sector_status->head == (exp_head & 0x7)) {
-      sector_status->head = exp_head;
-   }
    if (sector_status->cyl >= 0 && sector_status->cyl < ARRAYSIZE(cyl_found)) {
       cyl_found[sector_status->cyl] = 1;
    }
@@ -1272,7 +1270,6 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||
-            drive_params->controller == CONTROLLER_DTC_256B ||
             drive_params->controller == CONTROLLER_DTC_520_512B ||
             drive_params->controller == CONTROLLER_DTC_520_256B ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
@@ -1300,6 +1297,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DILOG_DQ604 ||
             drive_params->controller == CONTROLLER_ROHM_PBX ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+            drive_params->controller == CONTROLLER_SM1040 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
                head, sector_index,
@@ -1754,5 +1752,22 @@ static void print_missing_cyl(DRIVE_PARAMS *drive_params) {
             printf("  %d\n",i);
          }
       }
+   }
+}
+
+// Perform 3 head bit correction
+//
+// drive_params: Drive parameters
+// head: Head value from header
+// exp_head: Expected head
+// return: Corrected head value
+int mfm_fix_head(DRIVE_PARAMS *drive_params, int exp_head, int head) {
+   // WD 1003 controllers wrote 3 bit head code so head 8 is written as 0.
+   // If requested and head seems correct fix read head value.
+//printf("3 bit %d, head %d exp %d\n",drive_params->head_3bit, head, exp_head);
+   if (drive_params->head_3bit && head == (exp_head & 0x7)) {
+      return exp_head;
+   } else {
+      return head;
    }
 }

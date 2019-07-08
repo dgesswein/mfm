@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 07/07/19 DJG Turn off recovery line when exiting
 // 03/22/19 DJG Added REV C support
 // 04/20/18 DJG Fixed previous change to work properly with analyze
 // 03/09/18 DJG Added ability to request reading more heads or cylinders
@@ -137,6 +138,9 @@ void shutdown(void)
    if (called)
       return;
    called = 1;
+
+   // Turn off recovery mode
+   drive_enable_recovery(0);
 
    set_restore_max_cpu_speed(1);
    // Turn off selected light on drive

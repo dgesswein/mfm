@@ -9,6 +9,7 @@
 //
 // Copyright 2019 David Gesswein.
 //
+// 07/05/19 DJG Improved 3 bit head field handling
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX
 // 04/22/18 DJG Made code for setting bit rate match other routines
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
@@ -182,11 +183,11 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
 
       if (drive_params->controller == CONTROLLER_CORVUS_H) {
          sector_status.cyl = bytes[1] | (bytes[2] << 8);
-         sector_status.head = bytes[0] >> 5 ;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[0] >> 5 );
          sector_status.sector = bytes[0] & 0x1f;
       } else if (drive_params->controller == CONTROLLER_CROMEMCO) {
          sector_status.cyl = bytes[6] | (bytes[7] << 8);
-         sector_status.head = bytes[8] ;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[8]);
          sector_status.sector = 0; // Only 1 sector
          if (memcmp(bytes, cromemco_sync, sizeof(cromemco_sync)) != 0) {
             msg(MSG_ERR, "Bad alignment bytes %x %x %x %x %x %x on cyl %d,%d head %d,%d\n",
@@ -202,7 +203,7 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
          sector_status.cyl = ((bytes[1] & 0xf) << 8)  | bytes[2];
-         sector_status.head = bytes[1] >> 4;
+         sector_status.head = mfm_fix_head(drive_params, exp_head,bytes[1] >> 4);
          sector_status.sector = bytes[3];
       } else if (drive_params->controller == CONTROLLER_VECTOR4_ST506) {
          if (bytes[0] != 0xff) {
@@ -212,7 +213,7 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
          sector_status.cyl = bytes[2];
-         sector_status.head = bytes[1];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[1]);
          sector_status.sector = bytes[3];
       } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
          if (bytes[0] != 0xf0) {
@@ -222,7 +223,7 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
          sector_status.cyl = bytes[1] | (bytes[2] << 8);
-         sector_status.head = bytes[3];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
          sector_status.sector = bytes[4];
          *state = MARK_DATA;
       } else {

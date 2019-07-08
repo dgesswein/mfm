@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate
 // 04/20/18 DJG Figured proper sector number decoding and which added
 //    32 sector support to SOLOSYSTEMS/Syquest SQ306R.
@@ -177,7 +178,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_EC1841) {
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
-         sector_status.head = bytes[5] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5] & 0xf);
          if (drive_params->controller == CONTROLLER_EC1841) {
             // Controller shifts the sectors by 3 from what is recored
             // in the header. We only handle 17 512 byte and 32 256 byte
@@ -250,7 +251,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
-         sector_status.head = bytes[5] & 0x7f;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5] & 0x7f);
          sector_size = drive_params->sector_size;
          bad_block = 0;
          sector_status.sector = (bytes[2] >> 1) & 0x1f;

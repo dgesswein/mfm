@@ -10,9 +10,11 @@
 //    head if necessary.
 // drive_step steps the head the requested number of cylinders.
 // drive_is_file: Indicate if real drive or reading from file
+// drive_enable_recovery: Set the recovery line active/inactive
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 07/05/2019 DJG Added support for using recovery signal
 // 03/22/2019 DJG Added REV C support
 // 09/01/2018 DJG Drive 0 is valid for drive_select(), don't drive
 //    and select lines
@@ -308,6 +310,9 @@ int drive_current_cyl() {
 // drive_params: Drive parameters
 void drive_setup(DRIVE_PARAMS *drive_params)
 {
+   // Turn off recovery mode
+   drive_enable_recovery(0);
+
    drive_select(drive_params->drive);
 
    if (pru_exec_cmd(CMD_CHECK_READY, 0)) {
@@ -370,3 +375,30 @@ double drive_rpm(void) {
       exit(1);
    }
 }
+
+// Activate recovery mode if enable non zero
+//
+// enable: Non zero value to enable recovery mode, 0 normal mode
+void drive_enable_recovery(int enable)
+{
+   char *pin = "/sys/class/gpio/gpio31/direction";
+   static int first_time = 1;
+   static int fd;
+
+   // Open the files once
+   if (first_time) {
+      first_time = 0;
+      fd = open(pin, O_RDWR);
+      if (fd < 0) {
+         msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", pin);
+         exit(1);
+      }
+   }
+   if (enable) {
+      write(fd, "high", 4); // Signal is active low with inverting driver
+   } else {
+      write(fd, "low", 3); 
+   }
+   usleep(100); // Allow lines to settle
+}
+

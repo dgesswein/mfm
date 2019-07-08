@@ -77,6 +77,7 @@
                     0x02c 0x0f // OUT  P8_17 = gpio0_27
                     0x070 0x0f // OUT  P9_11 = gpio0_30
                     0x078 0x0f // OUT  P9_12 = gpio1_28
+                    0x074 0x0f // OUT  P9_13 = gpio0_31
                     0x040 0x0f // OUT  P9_14 = gpio1_18
                     // Rev C GPIO
                     0x038 0x0f // OUT  P8_16 = gpio1_14

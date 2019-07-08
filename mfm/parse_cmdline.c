@@ -9,6 +9,7 @@
 // Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 07/05/2019 DJG Added support for using recovery signal
 // 02/10/19 DJG Added missing space
 // 11/03/18 DJG Renamed variable
 // 09/28/18 DJG Allow drive 0 when analyze specified
@@ -448,6 +449,7 @@ static struct option long_options[] = {
          {"interleave", 1, NULL, 'i'},
          {"head_3bit", 0, NULL, '3'},
          {"retries", 1, NULL, 'r'},
+         {"recovery", 0, NULL, 'R'},
          {"analyze", 2, NULL, 'a'},
          {"quiet", 1, NULL, 'q'},
          {"begin_time", 1, NULL, 'b'},
@@ -632,6 +634,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             if (tok != NULL) {
                drive_params->no_seek_retries = atoi(tok+1);
             }
+            break;
+         case 'R':
+            drive_params->recovery = 1;
             break;
          case 'a':
             drive_params->analyze = 1;

@@ -14,7 +14,11 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
-// 01/20/18 DJG Added seperate format for ISBC_214. Also ISBC_214 and 215
+// 07/05/19 DJG Improved 3 bit head field handling
+// 06/20/19 DJG Removed lines of code that were accidently left for adding 
+//    alternate tracks for ISBC_214_*
+// 06/19/19 DJG Added SM1040 and removed DTC_256B
+// 01/20/19 DJG Added seperate format for ISBC_214. Also ISBC_214 and 215
 //    renamed to have sector size as part of name for ext2emu. Make ISB_214/215
 //    alternate track decoding more robust
 // 12/16/18 DJG Added NIXDORF_8870
@@ -747,6 +751,29 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      looking at the data the last 4 bytes may be extra data and not
 //      part of the normal sector data.
 //
+//   CONTROLLER_SM1040
+//   No manual found disk1tran
+//   10 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 flags, 
+//          bits 0-1 upper 2 bits of head
+//          bit 5 last physical sector on track
+//          bit 6 last physical sector on cyl
+//      byte 3 0x13
+//      byte 4 high byte of cylinder
+//      byte 5 low byte of cylinder
+//      byte 6 head
+//      byte 7 sector bits 0-6. Bit 7 last sector on track
+//      byte 8 0x02
+//      byte 9 0x64
+//      byte 10-13 CRC (0xfff,0x1021,16,0)
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xfb
+//      Sector data for sector size
+//      ECC code (4 byte)
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -795,7 +822,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[3];
 
          // More is in here but what is not documented in manual
-         sector_status.head = bytes[4] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4] & 0xf);
          bad_block = bytes[4] >> 7;;
          alt_assigned = (bytes[4] & 0x40) >> 6;
          is_alternate = (bytes[4] & 0x20) >> 5;
@@ -814,7 +841,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[2];
 
          // More is in here but what is not documented in manual
-         sector_status.head = bytes[4] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4] & 0xf);
          bad_block = bytes[4] >> 7;;
          alt_assigned = (bytes[4] & 0x40) >> 6;
          is_alternate = (bytes[4] & 0x20) >> 5;
@@ -838,7 +865,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = (bytes[3] & 0xf0) << 4;
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_status.sector = bytes[4];
          // Don't know how/if these are encoded in header
          sector_size = drive_params->sector_size;
@@ -868,7 +895,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = (bytes[3] & 0xe0) << 3;
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = bytes[3] & 0x1f;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0x1f);
          sector_status.sector = bytes[4];
          // Don't know how/if these are encoded in header
          sector_size = drive_params->sector_size;
@@ -887,7 +914,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_MVME320) {
          sector_status.cyl = (bytes[2] << 8) | bytes[3];
 
-         sector_status.head = bytes[4];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4]);
          sector_status.sector = bytes[5];
          // Don't know how/if these are encoded in header
          sector_size = drive_params->sector_size;
@@ -906,7 +933,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_MOTOROLA_VME10) {
          sector_status.cyl = (bytes[2] << 8) | bytes[3];
-         sector_status.head = bytes[4] >> 5;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4] >> 5);
          sector_status.sector = bytes[4] & 0x1f;
          sector_size = drive_params->sector_size;
          if (bytes[1] != 0xfe) {
@@ -932,7 +959,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
          bad_block = (bytes[3] & 0x80) >> 7;
 
@@ -959,13 +986,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
          bad_block = (bytes[3] & 0x80) >> 7;
 
          sector_status.sector = bytes[4] & 0x3f;
-               mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head, 
-                    sector_status.cyl, sector_status.head);
          if ((bytes[4] & 0xc0) == 0x40) {
             is_alternate = 1;
          } else if ((bytes[4] & 0xc0) == 0x80) {
@@ -994,7 +1019,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[4];
@@ -1019,9 +1044,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[2];
 
          if (drive_params->controller == CONTROLLER_MIGHTYFRAME) {
-            sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x20) >> 2);
+            sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[3] & 0x7) | ((bytes[4] & 0x20) >> 2));
          } else { // DG MV/2000
-            sector_status.head = (bytes[3] & 0x7) | ((bytes[4] & 0x80) >> 4);
+            sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[3] & 0x7) | ((bytes[4] & 0x80) >> 4));
          }
          sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
          bad_block = (bytes[3] & 0x80) >> 7;
@@ -1037,7 +1062,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_WANG_2275) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0xf0) << 4);
 
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[4];
@@ -1052,7 +1077,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
         (drive_params->controller == CONTROLLER_IBM_5288)) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0xe0) << 3);
 
-         sector_status.head = bytes[3] & 0x1f;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0x1f);
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[4];
@@ -1066,18 +1091,17 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_EDAX_PV9900) {
          sector_status.cyl = bytes[1] | (bytes[2] << 8);
 
-         sector_status.head = bytes[4];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4]);
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[3];
 
       } else if (drive_params->controller == CONTROLLER_DTC_520_256B ||
               drive_params->controller == CONTROLLER_DTC_520_512B ||
-              drive_params->controller == CONTROLLER_DTC_256B ||
               drive_params->controller == CONTROLLER_DTC) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x70) << 4);
 
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_size = drive_params->sector_size;
          bad_block = (bytes[3] & 0x80) >> 7;
 
@@ -1092,7 +1116,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_ALTOS) {
          sector_status.cyl = ((bytes[1] & 0xf) << 5) | (bytes[2] >> 3);
 
-         sector_status.head = bytes[2] & 0x7;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0x7);
          sector_size = drive_params->sector_size;
 
          sector_status.sector = bytes[3];
@@ -1105,7 +1129,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_MACBOTTOM) {
          sector_status.cyl = bytes[2] | (bytes[1] << 8);
-         sector_status.head = bytes[3];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
          sector_status.sector = bytes[4];
          sector_size = drive_params->sector_size;
       } else if (drive_params->controller == CONTROLLER_ADAPTEC) {
@@ -1160,7 +1184,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          sector_status.cyl |= bytes[2];
 
-         sector_status.head = bytes[3] >> 4;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] >> 4);
          bad_block = 0;
          sector_size = drive_params->sector_size;
 
@@ -1174,7 +1198,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3620) {
          sector_status.cyl = (bytes[3] << 8) | bytes[4];
-         sector_status.head = bytes[5];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5]);
          sector_status.sector = bytes[6];
          sector_size = drive_params->sector_size;
          if (bytes[1] != 0xfe || bytes[2] != 0xfe) {
@@ -1196,7 +1220,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          #define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[n>>4])
 
          sector_status.cyl = (REV_BYTE(bytes[8]) >> 4) | (REV_BYTE(bytes[9]) << 4);
-         sector_status.head = (REV_BYTE(bytes[7]) >> 6) | ((REV_BYTE(bytes[8]) & 0x3) << 2);
+         sector_status.head = mfm_fix_head(drive_params, exp_head, (REV_BYTE(bytes[7]) >> 6) | ((REV_BYTE(bytes[8]) & 0x3) << 2));
          sector_status.sector = REV_BYTE(bytes[7]) & 0x7;
          if ((bytes[7] & 0x1c) != 0 || (bytes[8] & 0x30) != 0 || 
                (bytes[10] & 0xfe) != 0 ) {
@@ -1229,14 +1253,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                // Bad block. Everything other than unknown byte set to 0xff
                // Set what we know and mark bad so it won't be used.
                sector_status.cyl = exp_cyl;
-               sector_status.head = exp_head;
+               sector_status.head = mfm_fix_head(drive_params, exp_head, exp_head);
                sector_status.status |= SECT_BAD_HEADER;
                msg(MSG_INFO,"Spare sector used on cyl %d, head %d, physical sector %d\n",
                   sector_status.cyl, sector_status.head, *sector_index);
             } else {
                // Controller area only had sector and possibly cylinder
                sector_status.cyl = bytes[3];
-               sector_status.head = exp_head;
+               sector_status.head = mfm_fix_head(drive_params, exp_head, exp_head);
                sector_status.sector = bytes[4];
             }
          } else {
@@ -1244,7 +1268,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             uint8_t byte2 = bytes[2];
 
             sector_status.cyl = (((bytes[2] & 0xc0) << 2) | bytes[3]) + 1;
-            sector_status.head = bytes[2] & 0xf;
+            sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0xf);
             if (byte5 == 0x4) {
                msg(MSG_INFO, "Cylinder %d head %d assigned alternate cyl %d head %d. Extract data fixed\n",
                   exp_cyl, exp_head, sector_status.cyl, sector_status.head);
@@ -1277,7 +1301,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_ALTOS_586) {
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x7) << 8);
 
-         sector_status.head = bytes[3] >> 4;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] >> 4);
          sector_size = drive_params->sector_size;
          bad_block = (bytes[3] & 0x8) != 0;
 
@@ -1292,7 +1316,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_ATT_3B2) {
          sector_status.cyl = bytes[2] | ((bytes[1] ^ 0xff) << 8);
 
-         sector_status.head = bytes[3];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
          sector_size = drive_params->sector_size;
          bad_block = 0;
 
@@ -1309,7 +1333,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_ISBC_215_512B ||
             drive_params->controller == CONTROLLER_ISBC_215_1024B) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
-         sector_status.head = bytes[5];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5]);
          sector_size = 128 << ((bytes[2] & 0x30) >> 4);
          sector_status.sector = bytes[4];
          is_alternate = (bytes[1] & 0xc0) == 0x40;
@@ -1323,7 +1347,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_ROHM_PBX) {
          sector_status.cyl = bytes[5] | ((bytes[4] & 0xc0) << 2);
-         sector_status.head = bytes[3] & 0xf;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
          sector_size = drive_params->sector_size;
          sector_status.sector = bytes[4] & 0x3f;
 
@@ -1336,7 +1360,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
           drive_params->controller == CONTROLLER_CONVERGENT_AWS_SA1000) {
          sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
-         sector_status.head = bytes[2] >> 4;
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] >> 4);
          sector_size = drive_params->sector_size;
          bad_block = 0;
 
@@ -1350,7 +1374,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_DILOG_DQ614) {
          sector_status.cyl = bytes[5] | (bytes[4] << 8);
-         sector_status.head = bytes[6];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[6]);
          sector_size = drive_params->sector_size;
          bad_block = 0;
 
@@ -1377,13 +1401,45 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_DILOG_DQ604) {
          sector_status.cyl = bytes[5] | (bytes[4] << 8);
-         sector_status.head = bytes[6];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[6]);
          sector_size = drive_params->sector_size;
          bad_block = 0;
 
          sector_status.sector = bytes[7];
        
          if ((bytes[3])  != 0x00) {
+            msg(MSG_INFO, "Byte 3 %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[3], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         if ((bytes[1])  != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SM1040) {
+         sector_status.cyl = bytes[5] | (bytes[4] << 8);
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[6]);
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = bytes[7] & 0x7f;
+       
+         if ((bytes[9])  != 0x64) {
+            msg(MSG_INFO, "Byte 9 %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[3], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         if ((bytes[8])  != 0x02) {
+            msg(MSG_INFO, "Byte 8 %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[3], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         if ((bytes[3])  != 0x13) {
             msg(MSG_INFO, "Byte 3 %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[3], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
