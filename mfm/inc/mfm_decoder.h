@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 07/19/19 DJG Added ext2emu support for Xerox 8010
 // 06/19/19 DJG Removed DTC_256B since only difference from DEC_520_256B was
 //    error. Added SM1040 format. Fixed Xerox_8010 bitrate. Added recovery 
 //    mode flag
@@ -126,6 +127,8 @@ typedef struct {
    int first_sector_number;
    // Size of data area of sector in bytes
    int sector_size;
+   // Size of metadata area of sector in bytes
+   int metadata_bytes;
    // CRC/ECC used for header and data area
    CRC_INFO header_crc, data_crc;
    // Track format
@@ -223,7 +226,7 @@ typedef struct {
    int tran_fd;
    int emu_fd;
    int ext_fd;
-   int metadata_fd;
+   int ext_metadata_fd;
    TRAN_FILE_INFO *tran_file_info;
    EMU_FILE_INFO *emu_file_info;
    // Size of data for each emulator track. Only valid when writing
@@ -407,7 +410,7 @@ typedef struct field_l {
          // These are for controllers that need special handling
       FIELD_HEAD_SEAGATE_ST11M, FIELD_CYL_SEAGATE_ST11M,
          // Mark end of sector to increment sector counter
-      FIELD_NEXT_SECTOR
+      FIELD_NEXT_SECTOR, FIELD_SECTOR_METADATA,
       } type;
       // Value for field. 
    uint8_t value;
@@ -1479,6 +1482,64 @@ DEF_EXTERN TRK_L trk_saga_fox[]
 #endif
 ;
 
+// Some info in
+// http://bitsavers.org/pdf/xerox/8010_dandelion/DandelionHardwareRefRev2.2.pdf
+// Starting on page 75 and 88
+// The number of fill bytes should be reasonably close. The actual fill byte
+// values may not match the real format since the values seen were not
+// consistant.
+DEF_EXTERN TRK_L trk_xerox_8010[] 
+#ifdef DEF_DATA
+ = 
+{ { 60, TRK_FILL, 0x4e, NULL },
+  { 16, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {8, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x41, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 2, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 5, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {21, TRK_FILL, 0x00, NULL},
+        {28, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x43, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {24, FIELD_SECTOR_METADATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 26, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {23, TRK_FILL, 0x00, NULL},
+        {516, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x43, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {790, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
 
 typedef struct {
@@ -1889,7 +1950,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 512, 16, 0, 5209,
+         0, 1, trk_xerox_8010, 512, 16, 0, 5425,
          24, 0,
          {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL,
          0, 0, 0

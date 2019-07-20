@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 07/19/19 DJG Added ext2emu support for Xerox 8010
 // 03/12/19 DJG Call parameter change
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX support
 // 01/20/18 DJG Set length of A1 list to MAX_SECTORS*2 to prevent overflow.
@@ -475,6 +476,38 @@ static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
    };
 }
 
+// Get the sector tag from the extract data tag file and put it in the track
+// data array
+//
+// drive_params: Drive parameters
+// track: Location to write data read to
+// length: Number of bytes in track
+static void get_metadata(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
+   int block;
+   int rc;
+
+   if (drive_params->metadata_bytes > length) {
+      msg(MSG_FATAL, "Track overflow get_data\n");
+      exit(1);
+   }
+   block = (get_cyl() * drive_params->num_head + get_head()) *
+       drive_params->num_sectors + get_sector(drive_params) -
+       drive_params->first_sector_number;
+
+   if (lseek(drive_params->ext_metadata_fd, 
+          block * drive_params->metadata_bytes, SEEK_SET) == -1) {
+      msg(MSG_FATAL, "Failed to seek to sector in extracted metadata file %s\n", 
+           strerror(errno));
+      exit(1);
+   }
+   if ((rc = read(drive_params->ext_metadata_fd, track, 
+         drive_params->metadata_bytes)) != drive_params->metadata_bytes) {
+      msg(MSG_FATAL, "Failed to read extracted metadata file rc %d %s\n", rc,
+            rc == -1 ? strerror(errno): "");
+      exit(1);
+   };
+}
+
 // Process field definitions to write the specified data to the track
 //
 // drive_params: Drive parameters
@@ -602,6 +635,21 @@ static void process_field(DRIVE_PARAMS *drive_params,
                exit(1);
             }
             get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
+               length - field_def[ndx].byte_offset_bit_len);
+            if (field_def[ndx].op == OP_REVERSE) {
+               for (i = field_def[ndx].byte_offset_bit_len; i <
+                   length - field_def[ndx].byte_offset_bit_len; i++) {
+                  track[i] = reverse_bits(track[i], 8);
+               }
+            }
+            data_set = 1;
+         break;
+         case FIELD_SECTOR_METADATA:
+            if (field_def[ndx].len_bytes != drive_params->metadata_bytes) {
+               msg(MSG_FATAL, "Sector length mismatch\n");
+               exit(1);
+            }
+            get_metadata(drive_params, &track[field_def[ndx].byte_offset_bit_len],
                length - field_def[ndx].byte_offset_bit_len);
             if (field_def[ndx].op == OP_REVERSE) {
                for (i = field_def[ndx].byte_offset_bit_len; i <
@@ -889,6 +937,7 @@ void ext2emu(int argc, char *argv[])
    drive_params.num_sectors = controller->write_num_sectors;
    drive_params.first_sector_number = controller->write_first_sector_number;
    drive_params.sector_size = controller->write_sector_size;
+   drive_params.metadata_bytes = controller->metadata_bytes;
    drive_params.data_crc = controller->write_data_crc;
    drive_params.header_crc = controller->write_header_crc;
    drive_params.emu_track_data_bytes = controller->track_words * 4;
@@ -901,6 +950,19 @@ void ext2emu(int argc, char *argv[])
    if (drive_params.ext_fd < 0) {
       msg(MSG_FATAL, "Unable to open extract file: %s\n", strerror(errno));
       exit(1);
+   }
+   if (drive_params.metadata_bytes != 0) {
+      char extention[] = ".metadata";
+      char fn[strlen(drive_params.extract_filename) + strlen(extention) + 1];
+
+      strcpy(fn, drive_params.extract_filename);
+      strcat(fn, extention);
+
+      drive_params.ext_metadata_fd = open(fn, O_RDONLY);
+      if (drive_params.ext_metadata_fd < 0) {
+         msg(MSG_FATAL, "Unable to open extract tag file: %s\n", strerror(errno));
+         exit(1);
+      }
    }
    drive_params.emu_fd = emu_file_write_header(drive_params.emulation_filename,
         drive_params.num_cyl, drive_params.num_head,

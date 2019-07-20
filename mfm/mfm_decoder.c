@@ -19,6 +19,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 07/19/19 DJG Variable renamed
 // 07/07/19 DJG If both bad header and bad data set count as bad header.
 // 06/19/19 DJG Removed DTC_256B and added SM1040. Improve 3 bit head support.
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX
@@ -630,7 +631,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
         drive_params->start_time_ns, drive_params->emu_track_data_bytes);
    }
 
-   drive_params->metadata_fd = -1;
+   drive_params->ext_metadata_fd = -1;
    drive_params->ext_fd = -1;
    if (write_files && drive_params->extract_filename != NULL) {
       drive_params->ext_fd = open(drive_params->extract_filename, O_RDWR | O_CREAT |
@@ -645,8 +646,8 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
 
          strcpy(fn, drive_params->extract_filename);
          strcat(fn, extention);
-         drive_params->metadata_fd = open(fn, O_RDWR | O_CREAT | O_TRUNC, 0664);
-         if (drive_params->metadata_fd < 0) {
+         drive_params->ext_metadata_fd = open(fn, O_RDWR | O_CREAT | O_TRUNC, 0664);
+         if (drive_params->ext_metadata_fd < 0) {
             perror("Unable to create metadata output file");
             exit(1);
          }
@@ -1006,7 +1007,7 @@ int mfm_write_metadata(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    int rc;
 
 
-   if (drive_params->metadata_fd >= 0) {
+   if (drive_params->ext_metadata_fd >= 0) {
       if (sector_status->is_lba) {
          offset = (off_t) sector_status->lba_addr * size;
       } else {
@@ -1016,11 +1017,11 @@ int mfm_write_metadata(uint8_t bytes[], DRIVE_PARAMS * drive_params,
                   (off_t) sector_status->cyl * (size *
                        drive_params->num_sectors * drive_params->num_head);
       }
-      if (lseek(drive_params->metadata_fd, offset, SEEK_SET) < 0) {
+      if (lseek(drive_params->ext_metadata_fd, offset, SEEK_SET) < 0) {
          msg(MSG_FATAL, "Seek failed metadata: %s\n", strerror(errno));
          exit(1);
       };
-      if ((rc = write(drive_params->metadata_fd, bytes, size)) != size) {
+      if ((rc = write(drive_params->ext_metadata_fd, bytes, size)) != size) {
          msg(MSG_FATAL, "Metadata write failed, rc %d: %s", rc, strerror(errno));
          exit(1);
       }

@@ -433,6 +433,14 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 #endif
             if (((raw_word & 0xffff) == 0x4489)
                   && zero_count >= MARK_NUM_ZEROS) {
+#if 0
+static int last_tot_raw_bit_cntr = 0;
+if (tot_raw_bit_cntr < last_tot_raw_bit_cntr)
+   last_tot_raw_bit_cntr = 0;
+printf("header %d at %d bytes %d\n", state, tot_raw_bit_cntr,
+   (tot_raw_bit_cntr - last_tot_raw_bit_cntr)/8/2);
+last_tot_raw_bit_cntr = tot_raw_bit_cntr;
+#endif
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
