@@ -1,7 +1,10 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
-// 07/19/19 DJG Added ext2emu support for Xerox 8010
+// 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
+//    match format
+// 07/19/19 DJG Added ext2emu support for Xerox 8010. Fixed data for 
+//    trk_omti_5510
 // 06/19/19 DJG Removed DTC_256B since only difference from DEC_520_256B was
 //    error. Added SM1040 format. Fixed Xerox_8010 bitrate. Added recovery 
 //    mode flag
@@ -185,6 +188,8 @@ typedef struct {
       CONTROLLER_DILOG_DQ614,
       CONTROLLER_DILOG_DQ604,
       CONTROLLER_XEBEC_104786, 
+      CONTROLLER_XEBEC_104527_256B, 
+      CONTROLLER_XEBEC_104527_512B, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
       CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
@@ -983,7 +988,7 @@ DEF_EXTERN TRK_L trk_omti_5510[]
         {-1, 0, 0, NULL},
      }
    },
-   {715, TRK_FILL, 0x4e, NULL},
+   {717, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -1755,6 +1760,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
          0, 0, 0
       },
+      // Also DEC professional 350 & 380
       {"Elektronika_85",      256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -1945,7 +1951,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
          0, 0, 0
       },
-// SA1004 8" drive
+// Quantum Q20#0 Xerox Star drive
+// SA100# 8" drives with similar format won't work properly with this
+// format and ext2emu due to different rotation speed.
       {"Xerox_8010",      128, 8500000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -2040,9 +2048,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 0
       },
 // END of WD type controllers
-//    Changed begin time from 0 to 100500 to work with 1410A. The sample
-//    I have of the 104786 says it should work with it also so changing default.
-//    Its possible this will cause problems with other variants.
       {"SOLOsystems",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -2070,6 +2075,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0x1,8,0},{0,0x1,8,0}, CONT_MODEL,
          0, 0, 0
       },
+//    Changed begin time from 0 to 100500 to work with 1410A. The sample
+//    I have of the 104786 says it should work with it also so changing default.
+//    Its possible this will cause problems with other variants.
       {"Xebec_104786",         256, 10000000,      100500,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -2077,6 +2085,24 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"Xebec_104527_256B",         256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0x0,0xa00805,32,11},{0x0,0xa00805,32,11}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Xebec_104527_512B",         256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0x0,0xa00805,32,11},{0x0,0xa00805,32,11}, CONT_MODEL,
          0, 0, 0
       },
       {"Xebec_S1420",         256, 10000000,      0,
@@ -2173,6 +2199,10 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // The possible states from reading each sector.
 
 // These are ORed into the state
+// This is set if information is found such as sector our of the expected
+// range. If MODEL controller mostly matches but say has one less sector than
+// the disk has it was being selected instead of going on to ANALYZE 
+#define ANALYZE_WRONG_FORMAT 0x1000
 // If this is set the data being CRC'd is zero so the zero CRC
 // result is ambiguous since any polynomial will match
 #define SECT_AMBIGUOUS_CRC 0x800

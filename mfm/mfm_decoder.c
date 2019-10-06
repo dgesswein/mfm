@@ -19,6 +19,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
+//    match format
 // 07/19/19 DJG Variable renamed
 // 07/07/19 DJG If both bad header and bad data set count as bad header.
 // 06/19/19 DJG Removed DTC_256B and added SM1040. Improve 3 bit head support.
@@ -558,6 +560,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
       rc = tagged_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+         drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
+         drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
          drive_params->controller == CONTROLLER_XEBEC_S1420 ||
          drive_params->controller == CONTROLLER_EC1841 ||
          drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
@@ -807,6 +811,7 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
          msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
             sector_status->cyl, exp_cyl, sector_status->head, exp_head,
             *sector_index);
+         sector_status->status |= ANALYZE_WRONG_FORMAT;
          sector_status->status |= SECT_WRONG_CYL;
          if (seek_difference != NULL) {
             *seek_difference = exp_cyl - sector_status->cyl;
@@ -837,6 +842,7 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
                drive_params->sector_numbers[orig_sector_index],
                orig_sector_index);
          sector_status->status |= SECT_BAD_HEADER;
+         sector_status->status |= ANALYZE_WRONG_FORMAT;
          *sector_index = orig_sector_index;
       }
       sector_status->logical_sector = *sector_index;
@@ -848,28 +854,40 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
       msg(MSG_ERR,"Expected sector size %d header says %d cyl %d head %d sector %d\n",
             drive_params->sector_size, sector_size, sector_status->cyl,
             sector_status->head, sector_status->sector);
+      sector_status->status |= ANALYZE_WRONG_FORMAT;
    }
-         //  Code copies from mfm_write_sector
-         //  so sectors marked bad will be properly handled. Something cleaner
-         //  would be good.
-         int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
-         if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
-            msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d\n",
-               sect_rel0, drive_params->num_sectors-1, sector_status->sector,
-               sector_status->cyl,sector_status->head);
-         } else if (sector_status->head > drive_params->num_head) {
-            msg(MSG_ERR_SERIOUS,"Head out of range %d max %d cyl %d sector %d\n",
-               sector_status->head, drive_params->num_head,
-               sector_status->cyl, sector_status->sector);
-         } else {
+   //  Code copies from mfm_write_sector
+   //  so sectors marked bad will be properly handled. Something cleaner
+   //  would be good.
+   int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
+   if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
+      msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d\n",
+         sect_rel0, drive_params->num_sectors-1, sector_status->sector,
+         sector_status->cyl,sector_status->head);
+      sector_status->status |= SECT_BAD_HEADER;
+      sector_status->status |= ANALYZE_WRONG_FORMAT;
+   } else if (sector_status->head > drive_params->num_head) {
+      msg(MSG_ERR_SERIOUS,"Head out of range %d max %d cyl %d sector %d\n",
+         sector_status->head, drive_params->num_head,
+         sector_status->cyl, sector_status->sector);
+      sector_status->status |= SECT_BAD_HEADER;
+      sector_status->status |= ANALYZE_WRONG_FORMAT;
+   } 
+   if (sect_rel0 < MAX_SECTORS) {
+      int sector_to_update = sect_rel0;
+
+      // If < 0 mark bad in last sector for analyze.
+      if (sector_to_update < 0) {
+         sector_to_update = MAX_SECTORS-1;
+      }
       // If we haven't written the sector update the sector status info. If
       // we have written we don't need to update here. Updating could change
       // sector data indicating good sector written to bad
-      if (sector_status_list[sect_rel0].status & SECT_NOT_WRITTEN) {
-            sector_status_list[sect_rel0] = *sector_status;
+      if (sector_status_list[sector_to_update].status & SECT_NOT_WRITTEN) {
+            sector_status_list[sector_to_update] = *sector_status;
                // Set to bad data as default. If data found good this will 
                // be changed. Keep not written flag if it was set.
-         sector_status_list[sect_rel0].status |= SECT_BAD_DATA | SECT_NOT_WRITTEN;
+         sector_status_list[sector_to_update].status |= SECT_BAD_DATA | SECT_NOT_WRITTEN;
       }
    }
 }
@@ -1312,6 +1330,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
                drive_params, seek_difference, sector_status_list, ecc_span,
                init_status);
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||
             drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {

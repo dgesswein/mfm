@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 08/23/19 DJG Fixed typo and print format.
 // 07/19/19 DJG Added ext2emu support for Xerox 8010
 // 03/12/19 DJG Call parameter change
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX support
@@ -976,8 +977,8 @@ void ext2emu(int argc, char *argv[])
       // Warn if the extracted data file doesn't match the expected size for
       // the parameters specified
    if (calc_size != finfo.st_size) {
-      msg(MSG_INFO, "Calculated extract file size %d bytes, actual size %d\n",
-        calc_size, finfo.st_size); }
+      msg(MSG_INFO, "Calculated extract file size %d bytes, actual size %jd\n",
+        calc_size, (intmax_t) finfo.st_size); }
 
       // If interleave values specified set them
    if (drive_params.sector_numbers != NULL) {
@@ -1020,7 +1021,7 @@ void ext2emu(int argc, char *argv[])
    }
       // Warn if we didn't update all of the track array
    if (track_filled != track_length) {
-      msg(MSG_INFO, "Not all track filled, %d of %d bytes uses\n",
+      msg(MSG_INFO, "Not all track filled, %d of %d bytes used\n",
         track_filled, track_length);
    }
    emu_file_close(drive_params.emu_fd, 1);

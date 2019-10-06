@@ -7,6 +7,8 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
+//    match forma
 // 06/19/19 DJG Added missing /n to error message
 // 06/08/19 DJG Don't say disk is RLL if secondary period couldn't be
 //    determined.
@@ -235,6 +237,9 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
          // If we find a good sector outside the range we expect or are
          // missing a sector then don't consider it a match. Read errors
          // can cause format match to fail.
+         if (sector_status_list[i].status & ANALYZE_WRONG_FORMAT) {
+            not_match = 1;
+         }
          if (sector_status_list[i].status & SECT_BAD_HEADER) {
             if (i < drive_params->num_sectors) {
                // Allow one missed sector
@@ -255,7 +260,7 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
             good_data_count++;
          }
       }
-//printf("not match %d good %d\n", not_match, good_data_count);
+//printf("%s not match %d good %d\n", mfm_controller_info[cont].name, not_match, good_data_count);
       if (!not_match && good_data_count >= ceil(drive_params->num_sectors * 2 / 3.0) &&
              matches < ARRAYSIZE(match_list)) {
          match_list[matches++] = cont;

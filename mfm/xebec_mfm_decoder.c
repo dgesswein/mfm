@@ -86,8 +86,9 @@ static inline float filter(float v, float *delay)
 // The format names are arbitrarily assigned to the first controller found
 // writing that format.
 // The format is
-//   CONTROLLER_XEBEC_104786,
+//   CONTROLLER_XEBEC_104786, 104527
 //   Closest manuals found http://bitsavers.trailing-edge.com/pdf/xebec/
+//   http://technischmuseum.nl/documentation/documentation%20files/Holborn/Xebec%20S1410/Xebec%20S1410%20104524%20104526%20104527.pdf
 //   9 byte header + 4 byte CRC
 //      byte 0-1 0x00
 //      byte 2 0xc2
@@ -174,6 +175,8 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
 
       if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841) {
          sector_status.cyl = bytes[3]<< 8;

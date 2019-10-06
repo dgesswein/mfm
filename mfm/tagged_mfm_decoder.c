@@ -107,6 +107,8 @@ static inline float filter(float v, float *delay)
 //      
 //   CONTROLLER_XEROX_8010. Found on 8" SA1004 drive. Best guess at what
 //      used with
+//      Quantum image xerox-1108-chinacat-q2040.trans
+//      Shugart image sa1004_d.tran
 //   6 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0x41

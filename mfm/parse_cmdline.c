@@ -9,6 +9,8 @@
 // Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/05/19 DJG Print format first in command line. When controller defines
+//    all parameters all options set before it will be overwritten
 // 07/05/2019 DJG Added support for using recovery signal
 // 02/10/19 DJG Added missing space
 // 11/03/18 DJG Renamed variable
@@ -98,6 +100,10 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
    int cmdleft = sizeof(cmdline)-1;
    char *cmdptr = cmdline;
 
+   if (drive_params->controller != CONTROLLER_NONE) {
+      safe_print(&cmdptr, &cmdleft, "--format %s ",
+         mfm_controller_info[drive_params->controller].name);
+   }
    if (drive_params->num_sectors != 0) {
       safe_print(&cmdptr, &cmdleft, "--sectors %d,%d ",
          drive_params->num_sectors, drive_params->first_sector_number);
@@ -115,10 +121,6 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
          "--data_crc  0x%llx,0x%llx,%d,%d ",
          drive_params->data_crc.init_value, drive_params->data_crc.poly,
          drive_params->data_crc.length, drive_params->data_crc.ecc_max_span);
-   }
-   if (drive_params->controller != CONTROLLER_NONE) {
-      safe_print(&cmdptr, &cmdleft, "--format %s ",
-         mfm_controller_info[drive_params->controller].name);
    }
    safe_print(&cmdptr, &cmdleft,
          "--sector_length %d ", drive_params->sector_size);
