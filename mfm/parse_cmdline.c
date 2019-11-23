@@ -9,6 +9,7 @@
 // Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/25/19 DJG Set drive_params->metadata_bytes
 // 10/05/19 DJG Print format first in command line. When controller defines
 //    all parameters all options set before it will be overwritten
 // 07/05/2019 DJG Added support for using recovery signal
@@ -238,6 +239,7 @@ void parse_set_drive_params_from_controller(DRIVE_PARAMS *drive_params,
    drive_params->first_sector_number = contp->write_first_sector_number;
    drive_params->controller = controller;
    drive_params->sector_size = contp->write_sector_size;
+   drive_params->metadata_bytes = contp->metadata_bytes;
    if (!drive_params->dont_change_start_time) {
       drive_params->start_time_ns = contp->start_time_ns;
    }

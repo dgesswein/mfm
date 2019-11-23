@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/25/19 DJG Added PERQ T2 format
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
 //    match format
 // 07/19/19 DJG Added ext2emu support for Xerox 8010. Fixed data for 
@@ -73,7 +74,6 @@
 #define MAX(x,y) (x > y ? x : y)
 #define MIN(x,y) (x < y ? x : y)
 #define BIT_MASK(x) (1 << (x))
-
 
 // Number of nanoseconds of each PRU clock
 #define CLOCKS_TO_NS 5
@@ -196,7 +196,8 @@ typedef struct {
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
       CONTROLLER_VECTOR4_ST506,
-      CONTROLLER_SAGA_FOX
+      CONTROLLER_SAGA_FOX,
+      CONTROLLER_PERQ_T2
    } controller;
    // The sector numbering used. This will vary from the physical order if
    // interleave is used. Only handles all sectors the same.
@@ -1613,7 +1614,8 @@ typedef struct {
 } CONTROLLER;
 
 DEF_EXTERN CONTROLLER mfm_controller_info[]
-// Keep sorted by header length. MUST MATCH order of controller enum
+// Keep sorted by header length for same controller family. 
+// MUST MATCH order of controller enum
 #ifdef DEF_DATA
    = {
       {"CONTROLLER_NONE",        0, 10000000,      0, 
@@ -2183,6 +2185,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0x0,0,16,0},{0x0,0x0,16,0}, CONT_MODEL,
          0, 0, 0
       },
+      {"PERQ_T2",              256, 10000000,    754000, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 513, 16, 0, 5209,
+         16, 0,
+         {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
          0,0, CINFO_NONE,
@@ -2271,6 +2282,9 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_parms, int cyl,
 SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_parms, int cyl, 
    int head, uint16_t deltas[], int *seek_difference, 
    SECTOR_STATUS bad_sector_list[]);
+SECTOR_DECODE_STATUS perq_decode_track(DRIVE_PARAMS *drive_parms, int cyl, 
+   int head, uint16_t deltas[], int *seek_difference, 
+   SECTOR_STATUS bad_sector_list[]);
 
 void mfm_check_header_values(int exp_cyl, int exp_head, int *sector_index, 
    int sector_size, int *seek_difference, SECTOR_STATUS *sector_status, 
@@ -2292,7 +2306,7 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // PROCESS_HEADER is processing the header bytes and PROCESS_DATA processing
 // the data bytes. HEADER_SYNC and DATA_SYNC are looking for the one bit to sync to
 // in CONTROLLER_XEBEC_104786. Not all decoders use all states.
-typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, MARK_DATA2, HEADER_SYNC, DATA_SYNC, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
+typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, MARK_DATA2, HEADER_SYNC, HEADER_SYNC2, DATA_SYNC, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
 } STATE_TYPE;
 
 SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],
@@ -2330,6 +2344,12 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
       SECTOR_STATUS sector_status_list[], int ecc_span,
       SECTOR_DECODE_STATUS init_status);
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
+      int total_bytes,
+      uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
+      DRIVE_PARAMS *drive_params, int *seek_difference,
+      SECTOR_STATUS sector_status_list[], int ecc_span,
+      SECTOR_DECODE_STATUS init_status);
+SECTOR_DECODE_STATUS perq_process_data(STATE_TYPE *state, uint8_t bytes[],
       int total_bytes,
       uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
       DRIVE_PARAMS *drive_params, int *seek_difference,

@@ -19,6 +19,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/25/19 DJG Added PERQ T2 format
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
 //    match format
 // 07/19/19 DJG Variable renamed
@@ -576,6 +577,9 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE)  {
       rc = northstar_decode_track(drive_params, cyl, head, deltas, seek_difference,
+            sector_status_list);
+   } else if (drive_params->controller == CONTROLLER_PERQ_T2)  {
+      rc = perq_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else {
       rc = mfm_decode_track_deltas(drive_params, cyl, head, deltas, seek_difference,
@@ -1350,8 +1354,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          status |= northstar_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
-      } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
-         status |= northstar_process_data(state, bytes, total_bytes, crc, cyl,
+      } else if (drive_params->controller == CONTROLLER_PERQ_T2) {
+         status |= perq_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
       } else {
