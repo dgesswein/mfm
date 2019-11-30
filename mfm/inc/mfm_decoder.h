@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 11/29/19 DJG Fix PERQ T2 format to ignore sector data trailing byte
 // 10/25/19 DJG Added PERQ T2 format
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
 //    match format
@@ -2189,7 +2190,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 0, NULL, 513, 16, 0, 5209,
+         1, 0, NULL, 512, 16, 0, 5209,
          16, 0,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
          0, 0, 0

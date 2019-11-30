@@ -97,7 +97,8 @@ static inline float filter(float v, float *delay)
 //      2 byte crc
 //      ...
 //      sync 0xf0
-//      513 bytes of data
+//      512 bytes of data
+//      1 trailer byte
 //      2 byte crc. Its unclear if the CRC is really the end since some
 //      sectors get zero CRC before the 515'th byte.
 //

@@ -19,6 +19,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/22/19 DJG Fixed unintended clearing of last_status which caused bad
+//    data to be written to emu file when seek error
 // 10/25/19 DJG Added PERQ T2 format
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
 //    match format
@@ -888,9 +890,13 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
       // we have written we don't need to update here. Updating could change
       // sector data indicating good sector written to bad
       if (sector_status_list[sector_to_update].status & SECT_NOT_WRITTEN) {
-            sector_status_list[sector_to_update] = *sector_status;
+         int last_status = sector_status_list[sector_to_update].last_status;
+
+         sector_status_list[sector_to_update] = *sector_status;
+            // Keep existing last status
+         sector_status_list[sector_to_update].last_status = last_status;
                // Set to bad data as default. If data found good this will 
-               // be changed. Keep not written flag if it was set.
+               // be changed. Keep not written flag.
          sector_status_list[sector_to_update].status |= SECT_BAD_DATA | SECT_NOT_WRITTEN;
       }
    }
