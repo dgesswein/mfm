@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 12/31/19 DJG Allow additional special encoded bytes
 // 08/23/19 DJG Fixed typo and print format.
 // 07/19/19 DJG Added ext2emu support for Xerox 8010
 // 03/12/19 DJG Call parameter change
@@ -64,6 +65,12 @@
 #include "board.h"
 
 #define MAX_DELTAS 131072
+
+// Location that needs special encoding such as A1 marking header
+typedef struct {
+   int index;
+   uint16_t pattern;
+} SPECIAL_LIST;
 
 void ext2emu(int argc, char *argv[]);
 
@@ -516,13 +523,14 @@ static void get_metadata(DRIVE_PARAMS *drive_params, uint8_t track[], int length
 // start: Offset into track fields are referenced to
 // length: Number of bytes in track
 // field_def: The array of field definitions to process
-// a1_list: List of locations where special a1 code is in track
-// a1_list_ndx: Next free index in list
-// a1_list_len: Maximum number of entries in list
+// special_list: List of locations where special a1 code is in track
+// special_list_ndx: Next free index in list
+// special_list_len: Maximum number of entries in list
 //
 static void process_field(DRIVE_PARAMS *drive_params, 
    uint8_t full_track[], int start, int length, 
-   FIELD_L field_def[], int a1_list[], int *a1_list_ndx, int a1_list_len)
+   FIELD_L field_def[], SPECIAL_LIST special_list[], int *special_list_ndx,
+   int special_list_len)
 {
    int ndx = 0;
    uint64_t value;
@@ -554,7 +562,8 @@ static void process_field(DRIVE_PARAMS *drive_params,
             if (field_def[ndx].op == OP_SET) {
                memset(&track[field_def[ndx].byte_offset_bit_len], 
                   field_def[ndx].value, field_def[ndx].len_bytes);
-            } else if (field_def[ndx].op == OP_XOR) {
+            } else if (field_def[ndx].op == OP_XOR || 
+                  field_def[ndx].op == OP_REVERSE_XOR) {
                for (i = 0; i < field_def[ndx].len_bytes; i++) {
                   track[field_def[ndx].byte_offset_bit_len + i] ^= 
                      field_def[ndx].value;
@@ -638,8 +647,8 @@ static void process_field(DRIVE_PARAMS *drive_params,
             get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
                length - field_def[ndx].byte_offset_bit_len);
             if (field_def[ndx].op == OP_REVERSE) {
-               for (i = field_def[ndx].byte_offset_bit_len; i <
-                   length - field_def[ndx].byte_offset_bit_len; i++) {
+               int start = field_def[ndx].byte_offset_bit_len;
+               for (i = start; i < start + field_def[ndx].len_bytes; i++) {
                   track[i] = reverse_bits(track[i], 8);
                }
             }
@@ -653,8 +662,8 @@ static void process_field(DRIVE_PARAMS *drive_params,
             get_metadata(drive_params, &track[field_def[ndx].byte_offset_bit_len],
                length - field_def[ndx].byte_offset_bit_len);
             if (field_def[ndx].op == OP_REVERSE) {
-               for (i = field_def[ndx].byte_offset_bit_len; i <
-                   length - field_def[ndx].byte_offset_bit_len; i++) {
+               int start = field_def[ndx].byte_offset_bit_len;
+               for (i = start; i < start + field_def[ndx].len_bytes; i++) {
                   track[i] = reverse_bits(track[i], 8);
                }
             }
@@ -667,13 +676,26 @@ static void process_field(DRIVE_PARAMS *drive_params,
             // Special A1 with missing clock. We put a1 in the data and fix the
             // encoded MFM data curing the conversion
          case FIELD_A1:
-            if (*a1_list_ndx >= a1_list_len) {
-               msg(MSG_FATAL, "A1 list overflow\n");
+            if (*special_list_ndx >= special_list_len) {
+               msg(MSG_FATAL, "Special list overflow\n");
                exit(1);
             }      
-            a1_list[(*a1_list_ndx)++] = start + 
+            special_list[*special_list_ndx].index = start + 
                 field_def[ndx].byte_offset_bit_len;
+            special_list[(*special_list_ndx)++].pattern = 0x4489;
             value = 0xa1;
+         break;
+            // Special E3 with missing clock. We put E3 in the data and fix the
+            // encoded MFM data curing the conversion.
+         case FIELD_C0:
+            if (*special_list_ndx >= special_list_len) {
+               msg(MSG_FATAL, "Special list overflow\n");
+               exit(1);
+            }      
+            special_list[*special_list_ndx].index = start + 
+                field_def[ndx].byte_offset_bit_len;
+            special_list[(*special_list_ndx)++].pattern = 0x12aa;
+            value = 0xC0;
          break;
          case FIELD_NEXT_SECTOR:
             inc_sector(drive_params);
@@ -690,7 +712,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
          // If no bit list update the specified bytes
       } else if (field_def[ndx].bit_list == NULL) {
             // For the silly controller that has the bits backward reverse them
-         if (field_def[ndx].op == OP_REVERSE) {
+         if (field_def[ndx].op == OP_REVERSE || field_def[ndx].op == OP_REVERSE_XOR) {
             value = reverse_bits(value, field_def[ndx].len_bytes * 8);
          }
 
@@ -707,7 +729,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
          value <<= (sizeof(value) - field_def[ndx].len_bytes) * 8;
          for (i = 0; i < field_def[ndx].len_bytes; i++) {
             int wbyte = (value >> (sizeof(value)*8 - 8));
-            if (field_def[ndx].op == OP_XOR) {
+            if (field_def[ndx].op == OP_XOR || field_def[ndx].op == OP_REVERSE_XOR) {
                track[field_def[ndx].byte_offset_bit_len + i] ^= wbyte;
             } else {
                track[field_def[ndx].byte_offset_bit_len + i] = wbyte;
@@ -722,7 +744,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
          int bit_count = 0;
 
             // For the silly controller that has the bits backward reverse them
-         if (field_def[ndx].op == OP_REVERSE) {
+         if (field_def[ndx].op == OP_REVERSE || field_def[ndx].op == OP_REVERSE_XOR) {
             value = reverse_bits(value, field_def[ndx].byte_offset_bit_len);
          }
             // Now pull off starting at the highest bit and put them into
@@ -742,7 +764,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
                   // Extract bit and update in track
                temp = ( (value >> (field_def[ndx].byte_offset_bit_len - 
                   bit_count++ - 1)) & 1) << (7 - bit_offset);
-               if (field_def[ndx].op == OP_XOR) {
+               if (field_def[ndx].op == OP_XOR || field_def[ndx].op == OP_REVERSE_XOR) {
                   track[byte_offset] ^= temp;
                } else {
                   track[byte_offset] &= ~(1 << (7 - bit_offset));
@@ -774,14 +796,14 @@ static void process_field(DRIVE_PARAMS *drive_params,
 // start: Offset into track to start writing data to
 // length: Number of bytes in track
 // track_def: The array of track definitions to process
-// a1_list: List of locations where special a1 code is in track
-// a1_list_ndx: Next free index in list
-// a1_list_len: Maximum number of entries in list
+// special_list: List of locations where special a1 code is in track
+// special_list_ndx: Next free index in list
+// special_list_len: Maximum number of entries in list
 //
 // return: Next offset into track to write to
 static int process_track(DRIVE_PARAMS *drive_params,
    uint8_t track[], int start, int length, TRK_L track_def[],
-   int a1_list[], int *a1_list_ndx, int a1_list_len)
+   SPECIAL_LIST special_list[], int *special_list_ndx, int special_list_len)
 {
    int ndx = 0;
    int new_start;
@@ -806,7 +828,7 @@ static int process_track(DRIVE_PARAMS *drive_params,
             for (i = 0; i < track_def[ndx].count; i++) {
                start = process_track(drive_params, track, start, length, 
                   (TRK_L *) track_def[ndx].list, 
-                  a1_list, a1_list_ndx, a1_list_len);
+                  special_list, special_list_ndx, special_list_len);
             }
          break;
          case TRK_FIELD:
@@ -819,8 +841,8 @@ static int process_track(DRIVE_PARAMS *drive_params,
                // process the field definitions
             memset(&track[start], track_def[ndx].value, track_def[ndx].count);
             process_field(drive_params, track, start, track_def[ndx].count, 
-               (FIELD_L *) track_def[ndx].list, a1_list, a1_list_ndx,
-               a1_list_len);
+               (FIELD_L *) track_def[ndx].list, special_list, special_list_ndx,
+               special_list_len);
             start = new_start;
          break;
          default:
@@ -838,10 +860,10 @@ static int process_track(DRIVE_PARAMS *drive_params,
 // data: Bytes to convert
 // length: Number of bytes to convert
 // mfm_data: Destination to write encoded data to
-// a1_list: List of locations special a1 mark pattern should be written
-// a1_list_length; Length of list
+// special_list: List of locations special a1 mark pattern should be written
+// special_list_length; Length of list
 void mfm_encode(uint8_t data[], int length, uint32_t mfm_data[], int mfm_length,
-   int a1_list[], int a1_list_length) 
+   SPECIAL_LIST special_list[], int special_list_length) 
 {
       // Convert a byte to 16 MFM encoded bits. First index is the MFM
       // bit immediately preceding.
@@ -857,7 +879,7 @@ void mfm_encode(uint8_t data[], int length, uint32_t mfm_data[], int mfm_length,
    uint32_t value32 = 0;
       // extracted bit
    int ext_bit;
-   int a1_list_ndx = 0;
+   int special_list_ndx = 0;
 
    if (length * 2 / sizeof(mfm_data[0]) > mfm_length) {
       msg(MSG_FATAL, "MFM data overflow\n");
@@ -882,11 +904,11 @@ void mfm_encode(uint8_t data[], int length, uint32_t mfm_data[], int mfm_length,
    }
    last_bit = 0;
    for (i = 0; i < length; i++) {
-         // If at the top location in the A1 list write the special pattern.
-         // A1 list is in ascending order. Otherwise encode the byte
-      if (a1_list_ndx < a1_list_length && i == a1_list[a1_list_ndx]) {
-         value16 = 0x4489;
-         a1_list_ndx++;
+         // If at the top location in the special list write the special.
+         // pattern. List is in ascending order. Otherwise encode the byte
+      if (special_list_ndx < special_list_length && i == special_list[special_list_ndx].index) {
+         value16 = special_list[special_list_ndx].pattern;
+         special_list_ndx++;
       } else {
          value16 = mfm_encode[last_bit][data[i]];
       }
@@ -914,8 +936,8 @@ void ext2emu(int argc, char *argv[])
    uint32_t *track_mfm;
       // Store byte locations in track where special MFM encoding of A1
       // mark field needs to be inserted
-   int a1_list[MAX_SECTORS*2];
-   int a1_list_ndx = 0;
+   SPECIAL_LIST special_list[MAX_SECTORS*2];
+   int special_list_ndx = 0;
       // Number of bytes written to track
    int track_filled = 0;
    DRIVE_PARAMS drive_params;
@@ -988,7 +1010,7 @@ void ext2emu(int argc, char *argv[])
       set_sector_interleave(&drive_params, 1, 0);
    }
 
-   memset(a1_list, 0, sizeof(a1_list));
+   memset(special_list, 0, sizeof(special_list));
 
    track_length = drive_params.emu_track_data_bytes / 2;
    track = msg_malloc(track_length , "Track data");
@@ -1008,15 +1030,15 @@ void ext2emu(int argc, char *argv[])
             // to emulator file
          track_filled = process_track(&drive_params, track, 0, track_length,
             controller->track_layout, 
-            a1_list, &a1_list_ndx, ARRAYSIZE(a1_list));
+            special_list, &special_list_ndx, ARRAYSIZE(special_list));
          mfm_encode(track, track_length, track_mfm, 
             drive_params.emu_track_data_bytes / sizeof(track_mfm[0]), 
-            a1_list, a1_list_ndx);
+            special_list, special_list_ndx);
          emu_file_write_track_bits(drive_params.emu_fd, (uint32_t *)track_mfm,
              drive_params.emu_track_data_bytes/4, cyl, head,
              drive_params.emu_track_data_bytes);
 
-         a1_list_ndx = 0;
+         special_list_ndx = 0;
       }
    }
       // Warn if we didn't update all of the track array

@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 12/31/19 DJG Added PERQ T2 ext2emu support. Not tested.
 // 11/29/19 DJG Fix PERQ T2 format to ignore sector data trailing byte
 // 10/25/19 DJG Added PERQ T2 format
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
@@ -402,6 +403,7 @@ typedef struct field_l {
       // Type of field,
       // FIELD_FILL fills the specified number of bytes with value
       // FIELD_A1 writes the A1 header/data mark code. Only 1 byte valid.
+      // FIELD_C0 writes the C0 header/data mark code. Only 1 byte valid.
       // FIELD_CYL, HEAD, SECTOR, LBA write the current cylinder, head, sector,
       //   or logical block address. Valid for byte of bit fields.
       // FIELD_HDR_CRC and FIELD_DATA_CRC write the check word. The
@@ -410,7 +412,7 @@ typedef struct field_l {
       // byte for CRC (check data) calculation. The default
       // includes the all the data from sector start flag byte (a1 etc) to 
       // the CRC.
-   enum {FIELD_FILL, FIELD_A1, FIELD_CYL, FIELD_HEAD, FIELD_SECTOR,
+   enum {FIELD_FILL, FIELD_A1, FIELD_C0, FIELD_CYL, FIELD_HEAD, FIELD_SECTOR,
       FIELD_LBA, FIELD_HDR_CRC, FIELD_DATA_CRC, FIELD_SECTOR_DATA, 
       FIELD_MARK_CRC_START, FIELD_MARK_CRC_END,
       FIELD_BAD_SECTOR,
@@ -424,7 +426,7 @@ typedef struct field_l {
       // OP_SET writes the data to the field, OP_XOR exclusive or's it
       // with the current contents, OP_REVERSE reverses the bits then does
       // an OP_SET.
-   enum {OP_SET, OP_XOR, OP_REVERSE} op;
+   enum {OP_SET, OP_XOR, OP_REVERSE, OP_REVERSE_XOR} op;
       // If bit_list is null is is the byte from start of field.
       // If bit_list is not null this is the length of the field in bits.
    int byte_offset_bit_len;
@@ -1547,6 +1549,73 @@ DEF_EXTERN TRK_L trk_xerox_8010[]
 }
 #endif
 ;
+
+DEF_EXTERN TRK_L trk_perq_t2[] 
+#ifdef DEF_DATA
+ = 
+{ { 158, TRK_FILL, 0x00, NULL },
+  { 16, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {22, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              // sector mark
+              {1, FIELD_C0, 0xC0, OP_SET, 0, NULL},
+              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              // Sync
+              {1, FIELD_FILL, 0x0f, OP_SET, 14, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
+              // Upper 4 bits in upper 4 bits of byte 1, lower 8 bits in
+              // byte 0
+              {0, FIELD_CYL, 0x00, OP_REVERSE_XOR, 12, 
+                 // This is reversed to match the bit reversing
+                 (BIT_L []) {
+                    {120, 8},
+                    {132, 4},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_REVERSE_XOR, 16, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_REVERSE, 17, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 18, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 19, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 21, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {35, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {14, FIELD_FILL, 0x00, OP_SET, 0, NULL},
+              // Sync
+              {1, FIELD_FILL, 0x0f, OP_SET, 14, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
+              {16, FIELD_SECTOR_METADATA, 0x00, OP_REVERSE, 15, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 31, NULL},
+              {2, FIELD_FILL, 0x00, OP_SET, 33, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {575, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {14, FIELD_FILL, 0x00, OP_SET, 0, NULL},
+              // Sync
+              {1, FIELD_FILL, 0x0f, OP_SET, 14, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_REVERSE, 15, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 527, NULL},
+              {46, FIELD_FILL, 0x00, OP_SET, 529, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {-1, 0, 0, NULL},
+     }
+   },
+   {148, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
 
 typedef struct {
@@ -2190,7 +2259,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
-         1, 0, NULL, 512, 16, 0, 5209,
+         1, 1, trk_perq_t2, 512, 16, 0, 5209,
          16, 0,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
          0, 0, 0
