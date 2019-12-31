@@ -87,13 +87,13 @@ static inline float filter(float v, float *delay)
 //
 //      sync 0xf0 
 //      byte 0 low cylinder
-//      byte 1 head in low 4 bits
-//      byte 2 sector in low 4 bits
+//      byte 1 head in low 4 bits. Upper 4 bits of cyl in upper 4 bits
+//      byte 2 sector
 //      byte 3 0
 //      byte 4-5 CRC
 //	...
 //      sync 0xf0
-//      16 bytes of tag
+//      16 bytes of metadata
 //      2 byte crc
 //      ...
 //      sync 0xf0

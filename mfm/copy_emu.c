@@ -27,6 +27,12 @@ int main() {
    emu_file_seek_track(out_fd, xfer_cyl, xfer_head, &emu_out_file_info);
    emu_file_read_track_bits(out_fd, &emu_out_file_info, words2, ARRAYSIZE(words2),
      &cyl, &head); 
+for (i = 0; i < 4000; i++) {
+   if (words[i] != words2[i]) {
+      printf("Diff %d %x %x\n", i, words[i], words2[i]);
+   }
+}
+words[1038] = words2[1038];
    emu_file_seek_track(out_fd, xfer_cyl, xfer_head, &emu_out_file_info);
    emu_file_write_track_bits(out_fd, words, ARRAYSIZE(words), xfer_cyl,
       xfer_head, emu_out_file_info.track_data_size_bytes); 
@@ -35,12 +41,12 @@ int main() {
    emu_file_close(out_fd, 0);
 
    out = fopen("/tmp/good_track", "w");
-   for (i = 0; i < emu_out_file_info.track_data_size_bytes / 8; i++) {
+   for (i = 0; i < emu_out_file_info.track_data_size_bytes / 4; i++) {
       fprintf(out, "%08x\n",words2[i]);
    }
    fclose(out);
    out = fopen("/tmp/bad_track", "w");
-   for (i = 0; i < emu_out_file_info.track_data_size_bytes / 8; i++) {
+   for (i = 0; i < emu_out_file_info.track_data_size_bytes / 4; i++) {
       fprintf(out, "%08x\n",words[i]);
    }
    fclose(out);
