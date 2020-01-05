@@ -37,6 +37,8 @@
 
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 //
+// 01/05/20 DJG Removed debug to prevent rare emu shutdown when data
+//              not ready in time to pru0.
 // 05/19/17 DJG Fixed comment.
 // 04/30/16 DJG Increased WRITE_READ_TIME and NEW_READ_TIME to prevent abort
 //    during OS install on 3b2. TODO: Need to investigate why these
@@ -415,11 +417,14 @@ bitloop:
       // Wrap if needed
    AND      PRU1_BUF_OFFSET, PRU1_BUF_OFFSET, SHARED_PWM_READ_MASK   
    XOUT     10, PRU1_BUF_STATE, 4          // Send our offset
-   QBBC     noerr, r0, 24
-   LBCO     r2, CONST_PRURAM, PRU1_BAD_PATTERN_COUNT, 4
-   ADD      r2, r2, 1
-   SBCO     r2, CONST_PRURAM, PRU1_BAD_PATTERN_COUNT, 4
-noerr:
+// PRU0 timeded out vary rarely at halt before filled: Instead of increasing
+// start delay this code which isn't really needed removed. Could also set data
+// available when 2/3 full to avoid increasing it at expense of more code.
+//   QBBC     noerr, r0, 24
+//   LBCO     r2, CONST_PRURAM, PRU1_BAD_PATTERN_COUNT, 4
+//   ADD      r2, r2, 1
+//   SBCO     r2, CONST_PRURAM, PRU1_BAD_PATTERN_COUNT, 4
+//noerr:
    LSR      r4, r0, 28           // Get shift count
 
       // Here we shift WORD1, WORD2 by r4. If we use up all bits in WORD2
