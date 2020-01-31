@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 01/29/20 DJG Added support for 4th head bit for 3B1/UNIXPC
 // 07/05/19 DJG Improved 3 bit head field handling
 // 06/20/19 DJG Removed lines of code that were accidently left for adding 
 //    alternate tracks for ISBC_214_*
@@ -964,6 +965,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          bad_block = (bytes[3] & 0x80) >> 7;
 
          sector_status.sector = bytes[4];
+         // 3B1 with P5.1 stores 4th head bit in bit 5 of sector number field.
+         if (drive_params->controller == CONTROLLER_WD_3B1) {
+            sector_status.head = sector_status.head | ((sector_status.sector & 0xe0) >> 2);
+            sector_status.sector &= 0x1f;
+         }
 
          if (cyl_high == -1) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",

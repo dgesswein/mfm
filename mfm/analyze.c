@@ -7,8 +7,10 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/25/20 DJG Give more time after seek for track0 to change to prevent
+//    seek analyze failures with RD54 drive
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
-//    match forma
+//    match format
 // 06/19/19 DJG Added missing /n to error message
 // 06/08/19 DJG Don't say disk is RLL if secondary period couldn't be
 //    determined.
@@ -738,6 +740,8 @@ static int analyze_seek(DRIVE_PARAMS *drive_params) {
    // track 0.
    drive_step(drive_params->step_speed, seek, 
            DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
+   // Give time for track0 to change before we check
+   usleep(1000);
    if (drive_at_track0()) {
       msg(MSG_INFO, "Drive still at track 0 after seek\n");
       rc = 1;
@@ -746,6 +750,8 @@ static int analyze_seek(DRIVE_PARAMS *drive_params) {
          drive_step(DRIVE_STEP_SLOW, -1, 
             DRIVE_STEP_UPDATE_CYL, DRIVE_STEP_FATAL_ERR);
          if (i == seek) {
+            // Give time for track0 to change before we check
+            usleep(1000);
             if (!drive_at_track0()) {
                msg(MSG_INFO, "Drive didn't reach track 0 testing %s seek\n",
                   step_speed_text(drive_params->step_speed));
