@@ -19,6 +19,10 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 02/20/20 DJG Improved selection of track to keep for emulator file when 
+//    retries done.
+//    Prevent ignore_seek_errors from being set when generating emulator
+//    file since wrong cylinder data will be written.
 // 11/22/19 DJG Fixed unintended clearing of last_status which caused bad
 //    data to be written to emu file when seek error
 // 10/25/19 DJG Added PERQ T2 format
@@ -624,6 +628,12 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    last_cyl = -1;
    last_lba_addr = -1;
    memset(cyl_found, 0, sizeof(cyl_found));
+
+   if (drive_params->emulation_output && drive_params->ignore_seek_errors) {
+      msg(MSG_ERR, "Ignore seek errors is invalid if generating emulation file. option turned off\n");
+      drive_params->ignore_seek_errors = 0;
+   }
+
 
    if (write_files && drive_params->emulation_filename != NULL &&
          drive_params->emulation_output == 1) {
@@ -1426,24 +1436,28 @@ void update_emu_track_words(DRIVE_PARAMS * drive_params,
    // determine which to use.
    if (sector_status_list != NULL) {
       for (i = 0; i < drive_params->num_sectors; i++) {
-         // Last status is the one for the last track read
-         if (sector_status_list[i].last_status & SECT_BAD_DATA) {
-            last_weight += 1;
-         } else if (!(sector_status_list[i].last_status & SECT_BAD_HEADER)) {
-            if (sector_status_list[i].last_status & SECT_ECC_RECOVERED) {
-               last_weight += 9;
-            } else {
-               last_weight += 10;
+         if (!(sector_status_list[i].last_status & SECT_WRONG_CYL)) {
+            // Last status is the one for the last track read
+            if (sector_status_list[i].last_status & SECT_BAD_DATA) {
+               last_weight += 1;
+            } else if (!(sector_status_list[i].last_status & SECT_BAD_HEADER)) {
+               if (sector_status_list[i].last_status & SECT_ECC_RECOVERED) {
+                  last_weight += 9;
+               } else {
+                  last_weight += 10;
+               }
             }
          }
-         // This is the best status for all the reads of the track
-         if (sector_status_list[i].status & SECT_BAD_DATA) {
-            best_weight += 1;
-         } else if (!(sector_status_list[i].status & SECT_BAD_HEADER)) {
-            if (sector_status_list[i].status & SECT_ECC_RECOVERED) {
-               best_weight += 9;
-            } else {
-               best_weight += 10;
+         if (!(sector_status_list[i].status & SECT_WRONG_CYL)) {
+            // This is the best status for all the reads of the track
+            if (sector_status_list[i].status & SECT_BAD_DATA) {
+               best_weight += 1;
+            } else if (!(sector_status_list[i].status & SECT_BAD_HEADER)) {
+               if (sector_status_list[i].status & SECT_ECC_RECOVERED) {
+                  best_weight += 9;
+               } else {
+                  best_weight += 10;
+               }
             }
          }
       }

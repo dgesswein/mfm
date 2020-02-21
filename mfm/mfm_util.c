@@ -176,7 +176,7 @@ int main (int argc, char *argv[])
          }
       }
    }
-   // In analyze requested get drive parameters.
+   // If analyze requested get drive parameters.
    if (drive_params.analyze && 
          (drive_params.transitions_filename != NULL || 
                drive_params.emulation_filename != NULL)) {
