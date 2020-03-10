@@ -8,7 +8,7 @@
 // This file is part of MFM disk utilities.
 //
 // 03/09/20 DJG Fix finding number of heads for LBA disk where
-                selecting for example non existing head 4 gives head 0 data
+//    selecting for example non existing head 4 gives head 0 data
 // 01/25/20 DJG Give more time after seek for track0 to change to prevent
 //    seek analyze failures with RD54 drive
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
