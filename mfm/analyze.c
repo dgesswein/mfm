@@ -7,6 +7,8 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/09/20 DJG Fix finding number of heads for LBA disk where
+                selecting for example non existing head 4 gives head 0 data
 // 01/25/20 DJG Give more time after seek for track0 to change to prevent
 //    seek analyze failures with RD54 drive
 // 10/05/19 DJG Fixes to detect when CONT_MODEL controller doesn't really
@@ -80,6 +82,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <math.h>
+#include <limits.h>
 
 #include "msg.h"
 #include "crc_ecc.h"
@@ -580,6 +583,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
    int max_sector, min_sector, last_good_head;
    int i;
    SECTOR_DECODE_STATUS status;
+   int last_min_lba = 0;
 
    // TODD, this should also detect the WD controllers that support 16 heads but only
     // put 0-7 in the header.
@@ -592,6 +596,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
     for (head = 0; head < MAX_HEAD && !head_mismatch; head++) {
        int found_bad_header;
        int err_count = 0;
+       int min_lba = INT_MAX;
 
        msg_mask_hold = msg_set_err_mask(decode_errors);
        // Try to get a good read. sector_status_list will be the best from
@@ -678,17 +683,33 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
              }
              max_sector = MAX(max_sector, sector_status_list[i].sector);
              min_sector = MIN(min_sector, sector_status_list[i].sector);
-             if (sector_status_list[i].head == head) {
-                last_good_head = head;
-             } else {
-                if (!head_mismatch) {
-                   msg(MSG_INFO, "Selected head %d found %d, last good head found %d\n",
-                         head, sector_status_list[i].head, last_good_head);
+             if (mfm_controller_info[drive_params->controller].analyze_type == CINFO_LBA) {
+                // If LBA address found is lower than minimum on previous head
+                // this head doesn't exist
+                if (sector_status_list[i].lba_addr < min_lba) {
+                   min_lba = sector_status_list[i].lba_addr;
+                }
+                if (sector_status_list[i].lba_addr >= last_min_lba) {
+                   last_good_head = head;
+                } else if (!head_mismatch) {
+                   msg(MSG_INFO, "Selected head %d found out of series LBA address, last good head found %d\n",
+                         head, last_good_head);
                    head_mismatch = 1;
+                }
+             } else {
+                if (sector_status_list[i].head == head) {
+                   last_good_head = head;
+                } else {
+                   if (!head_mismatch) {
+                      msg(MSG_INFO, "Selected head %d found %d, last good head found %d\n",
+                         head, sector_status_list[i].head, last_good_head);
+                      head_mismatch = 1;
+                   }
                 }
              }
           }
        }
+       last_min_lba = min_lba;
     }
     // If we had a read error but got some good error warn. If nothing readable
     // assume we were trying to read an invalid head
