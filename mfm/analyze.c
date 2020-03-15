@@ -7,6 +7,7 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/15/20 DJG Give margin in LBA head check
 // 03/09/20 DJG Fix finding number of heads for LBA disk where
 //    selecting for example non existing head 4 gives head 0 data
 // 01/25/20 DJG Give more time after seek for track0 to change to prevent
@@ -684,12 +685,13 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
              max_sector = MAX(max_sector, sector_status_list[i].sector);
              min_sector = MIN(min_sector, sector_status_list[i].sector);
              if (mfm_controller_info[drive_params->controller].analyze_type == CINFO_LBA) {
-                // If LBA address found is lower than minimum on previous head
-                // this head doesn't exist
                 if (sector_status_list[i].lba_addr < min_lba) {
                    min_lba = sector_status_list[i].lba_addr;
                 }
-                if (sector_status_list[i].lba_addr >= last_min_lba) {
+                // If LBA address found is lower than minimum on previous head
+                // this head doesn't exist. -2 in case of read error so we
+                // missed some sectors
+                if (sector_status_list[i].lba_addr >= last_min_lba - 2) {
                    last_good_head = head;
                 } else if (!head_mismatch) {
                    msg(MSG_INFO, "Selected head %d found out of series LBA address, last good head found %d\n",

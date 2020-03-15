@@ -9,6 +9,7 @@
 // Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/15/20 DJG Fix fix for emulation_output set when file not specified
 // 03/09/20 DJG Fix emulation_output set when file not specified
 // 10/25/19 DJG Set drive_params->metadata_bytes
 // 10/05/19 DJG Print format first in command line. When controller defines
@@ -660,7 +661,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
          case 'm':
             drive_params->emulation_filename = optarg;
             // Caller will correct if file is actually input.
-            drive_params->emulation_output = 0; 
+            drive_params->emulation_output = 1; 
             break;
          case 'd':
             drive_params->drive = atoi(optarg);

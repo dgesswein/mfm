@@ -630,7 +630,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    memset(cyl_found, 0, sizeof(cyl_found));
 
    if (drive_params->emulation_output && drive_params->ignore_seek_errors) {
-      msg(MSG_ERR, "Ignore seek errors is invalid if generating emulation file. option turned off\n");
+      msg(MSG_ERR, "Ignore seek errors is invalid if generating emulation file. Option turned off\n");
       drive_params->ignore_seek_errors = 0;
    }
 
