@@ -17,6 +17,7 @@
 // Copyright 2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 06/19/2020 DJG Change PWM word format to speed up pru code
 // 04/15/2019 DJG Added support for RPM set on command line
 // 04/14/2019 DJG Added print
 // 03/22/2019 DJG Added REV C support
@@ -149,13 +150,11 @@ time_t start_time;
 // could generate the waveform for all four bits instead since the
 // next bit should be a 1. I don't in case it is a zero.
 // 
-// Bits 31-28 are how many bits to remove from data. This is the MFM
+// Bits 31-24 are how many bits to remove from data. This is the MFM
 //   clock and data bits we will shift off, not anything to do with the
 //   data bits encoded by the MFM encoding.
 //   The bits we remove were choosen to make sure that the left over
 //   bits aren't a pattern we can't encode.
-// Bits 27-25 unused
-// bit  24 is flag for illegal bit pattern found
 // Bits 23-16 are duration of 1. 0 is no one. (PWM ACMP)
 // Bits 15-0 is period to next bit time. (PWM APRD)
 // Period values are one less than actual period generated.
@@ -804,7 +803,7 @@ int main(int argc, char *argv[])
    table_rec_t rec = bit_table[idx++];
    
    while (rec.bitcount > 0) {
-      uint32_t bits = (rec.bitcount<<28) | (rec.error_flag<<24) | ((rec.leading_bit*bit_period)<<16) | ((rec.bitcount*bit_period)-1);
+      uint32_t bits = (rec.bitcount<<24) | ((rec.leading_bit*bit_period)<<16) | ((rec.bitcount*bit_period)-1);
       pru_write_word(MEM_PRU1_DATA, ram_offset, bits);
       ram_offset += PRU_WORD_SIZE_BYTES;
       rec = bit_table[idx++];

@@ -147,6 +147,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 06/19/20 DJG Changed format of PWM word to speed up PRU 1
 // 04/14/19 DJG Added comment
 // 03/22/19 DJG Added Board REV C support
 // 05/19/17 DJG Changed seek so it will set cylinder to zero if greater than
@@ -629,7 +630,7 @@ read:
    ADD      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, 4 
    AND      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, SHARED_PWM_READ_MASK   
    QBEQ     end_track, PWM_WORD, 0         // Time 0 marks end of data
-   LSR      r3, PWM_WORD, 28               // Save bit count for loadit:
+   MOV      r3, PWM_WORD.b3                // Save bit count for loadit:
    MOV      PWM_WORD.b3, 0                 // Clear count
       // Send our read offset into shared memory to PRU 1 and get its write offset
    XOUT     10, PRU0_BUF_STATE, 4

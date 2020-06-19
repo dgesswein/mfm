@@ -37,6 +37,8 @@
 
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 //
+// 06/19/20 DJG Changed data format to remove one more instruction to
+//              prevent same issue as 01/05/20
 // 01/05/20 DJG Removed debug to prevent rare emu shutdown when data
 //              not ready in time to pru0.
 // 05/19/17 DJG Fixed comment.
@@ -425,19 +427,17 @@ bitloop:
 //   ADD      r2, r2, 1
 //   SBCO     r2, CONST_PRURAM, PRU1_BAD_PATTERN_COUNT, 4
 //noerr:
-   LSR      r4, r0, 28           // Get shift count
-
-      // Here we shift WORD1, WORD2 by r4. If we use up all bits in WORD2
+      // Here we shift WORD1, WORD2 by r0.b3. If we use up all bits in WORD2
       // we read another word into WORD2 and possibly shift it to correct
       // position.
-   LSL      WORD1, WORD1, r4
+   LSL      WORD1, WORD1, r0.b3
       // This entry is used to move bits from WORD2 after read into WORD1
 shift_word2:
-   SUB      r0, CONST_32, r4
-   LSR      r2, WORD2, r0                // High bits to move to WORD1
+   SUB      r4, CONST_32, r0.b3
+   LSR      r2, WORD2, r4                // High bits to move to WORD1
    OR       WORD1, WORD1, r2
-   LSL      WORD2, WORD2, r4             // And move next bits to top
-   SUB      BIT_COUNT, BIT_COUNT, r4
+   LSL      WORD2, WORD2, r0.b3          // And move next bits to top
+   SUB      BIT_COUNT, BIT_COUNT, r0.b3
    QBBC     waitfree, BIT_COUNT, BIT_COUNT_MSB // Branch if bits left in WORD1
    SUB      WORDS_LEFT, WORDS_LEFT, 1
    QBEQ     finished, WORDS_LEFT, 0      // Branch if no words left
@@ -451,7 +451,7 @@ read_next_word:
       // fix the bits that didn't get shifted into WORD1
    QBEQ     waitfree_setbit_count, BIT_COUNT, 255
       // Number of bits we need to shift into WORD1
-   XOR      r4, BIT_COUNT, 255
+   XOR      r0.b3, BIT_COUNT, 255
    MOV      BIT_COUNT, 31                // 32 bits to process
    JMP      shift_word2
 waitfree_setbit_count:
