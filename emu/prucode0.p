@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 07/17/20 DJG Changed from PWM word queue need to be full at start to
+//     >= full - 2 
 // 06/19/20 DJG Changed format of PWM word to speed up PRU 1
 // 04/14/19 DJG Added comment
 // 03/22/19 DJG Added Board REV C support
@@ -613,6 +615,17 @@ no_time_err:
       // Verify queue filled
    XIN      10, PRU1_BUF_STATE, 4              
    QBEQ     filled, PRU1_STATE, STATE_READ_FILLED
+      // Not filled state. Make sure we have at least
+      // buffer size - 2 words queued
+   SUB      r0, PRU1_BUF_OFFSET, PRU0_BUF_OFFSET
+   QBBS     wrap, r0, 31
+   QBEQ     wrap, r0, 0
+   JMP      chkfilled
+wrap:
+      // Fix count if circular buffers wrapped or full
+   ADD      r0, r0, SHARED_PWM_READ_MASK+1
+chkfilled:
+   QBLT     filled, r0, SHARED_PWM_READ_MASK-2
    MOV      r24, (1 << GPIO1_TEST)
    MOV      r25, GPIO1 | GPIO_SETDATAOUT
    SBBO     r24, r25, 0, 4

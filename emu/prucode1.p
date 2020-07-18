@@ -85,6 +85,7 @@
 // cmd.h if looking for free registers.
 
    // Value 32
+   // May be able to be replaced by RSB with normal constant if needed
 #define CONST_32        r7.b3
 #define NEXT_DMA_WCOUNT r7.w0 
 #define NEXT_DMA_WCOUNT_MSB 15
