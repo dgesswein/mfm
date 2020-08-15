@@ -698,7 +698,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      bytes 4-5 16 bit CRC
 //   Data
 //      byte 0 0xa1
-//      byte 1 0xb0 upper 4 bits, low 4 bits lower 4 bits of cylinder
+//      byte 1 0xb0
 //      Sector data for sector size
 //      16 bit CRC/ECC code
 //

@@ -37,6 +37,11 @@
 
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 //
+// 08/09/20 DJG Changed NEW_READ_TIME to prevent abort on Whitechappel computer
+//   with BeagleBone black. DMA is taking a long time on rare occasions.
+//   unclear on why this is much worse other than machine was doing a lot of
+//   disk IO for a long period of time. It was a number of hours between
+//   failures.
 // 06/19/20 DJG Changed data format to remove one more instruction to
 //              prevent same issue as 01/05/20
 // 01/05/20 DJG Removed debug to prevent rare emu shutdown when data
@@ -139,10 +144,10 @@
    // Time in PRU clocks from write end to output read data
 #define WRITE_READ_TIME 3100/5
    // Time from read time requested to bits we generate
-   // 8.7 microseconds in PRU clocks. This allows for completing DMA
+   // 9.55 microseconds in PRU clocks. This allows for completing DMA
    // If this is increased MAX_TIME_OFFSET IN prucode0.p will need to
    // be increased.
-#define NEW_READ_TIME 8700/5
+#define NEW_READ_TIME 9600/5
 
 
 START:
@@ -410,7 +415,6 @@ noshift:
       // emulation.
    CLR      WORD1, 30
 
-// TODO This is a little slow, ~150 ns/output word 200ns is limit
 bitloop:
    LSR      r0, WORD1, 28                  // Get upper 4 bits of MFM data
    LSL      r0, r0, 2                      // Make byte address of word

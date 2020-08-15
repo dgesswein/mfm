@@ -19,6 +19,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 08/15/20 DJG If we are ignoring seek errors write sector data if good always
 // 02/20/20 DJG Improved selection of track to keep for emulator file when 
 //    retries done.
 //    Prevent ignore_seek_errors from being set when generating emulator
@@ -985,10 +986,12 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
          update = 1;
       }
       // If previous had ECC correction and current correction is less then update
-      if (sector_status_list[sect_rel0].ecc_span_corrected_data > 0 &&
+      if ((sector_status_list[sect_rel0].ecc_span_corrected_data > 0 &&
              (sector_status->ecc_span_corrected_data == 0 ||
              sector_status->ecc_span_corrected_data <
-             sector_status_list[sect_rel0].ecc_span_corrected_data) ) {
+             sector_status_list[sect_rel0].ecc_span_corrected_data)) ||
+           (drive_params->ignore_seek_errors && 
+             sector_status->cyl != sector_status_list[sect_rel0].cyl )) {
          update = 1;
       }
    }

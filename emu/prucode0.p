@@ -147,6 +147,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 08/09/20 DJG Ajusted MAX_TIME_OFFSET to match prucode1.p NEW_READ_TIME
 // 07/17/20 DJG Changed from PWM word queue need to be full at start to
 //     >= full - 2 
 // 06/19/20 DJG Changed format of PWM word to speed up PRU 1
@@ -261,7 +262,7 @@
 
    // Maximum time offset between bit time from PRU 1 and time counter
    //  8 microseconds in PRU clocks
-#define MAX_TIME_OFFSET 8500/5
+#define MAX_TIME_OFFSET 9600/5
 
 START:
    MOV      RZERO, 0
@@ -625,7 +626,7 @@ wrap:
       // Fix count if circular buffers wrapped or full
    ADD      r0, r0, SHARED_PWM_READ_MASK+1
 chkfilled:
-   QBLT     filled, r0, SHARED_PWM_READ_MASK-2
+   QBLT     filled, r0, SHARED_PWM_READ_MASK-8
    MOV      r24, (1 << GPIO1_TEST)
    MOV      r25, GPIO1 | GPIO_SETDATAOUT
    SBBO     r24, r25, 0, 4

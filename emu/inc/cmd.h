@@ -138,7 +138,7 @@
 
 #define PRU_WORD_SIZE_BYTES 4
 
-   // Location bit lookup table stored
+   // Location bit lookup table stored. To 0xbf, 16 4 byte entries
 #define PRU1_BIT_TABLE               0x80
 
 // Maximum size of cylinder buffer.
