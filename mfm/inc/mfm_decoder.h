@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 09/21/21 DJG Added controller SM_1810_512B
 // 12/31/19 DJG Added PERQ T2 ext2emu support. Not tested.
 // 11/29/19 DJG Fix PERQ T2 format to ignore sector data trailing byte
 // 10/25/19 DJG Added PERQ T2 format
@@ -165,6 +166,7 @@ typedef struct {
       CONTROLLER_WANG_2275_B,
       CONTROLLER_IBM_5288,
       CONTROLLER_EDAX_PV9900,
+      CONTROLLER_SM_1810_512B, 
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -1912,6 +1914,17 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      // Data CRC is really initial value 0 xor of final value of 0xffffffff.
+      // Code doesn't do final xor so initial value is equivalent.
+      {"SM_1810_512B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 16, 0, 5209,
+         0, 0,
+         {0xed800493,0xa00805,32,5},{0x03affc1d,0xa00805,32,5}, CONT_MODEL,
          0, 0, 0
       },
       {"OMTI_5510",            256, 10000000,      0,

@@ -14,6 +14,8 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 09/21/20 DJG Added controller SM_1810_512B and fixed SYMBOLICS_3640
+//   incorrectly decoding data
 // 01/29/20 DJG Added support for 4th head bit for 3B1/UNIXPC
 // 07/05/19 DJG Improved 3 bit head field handling
 // 06/20/19 DJG Removed lines of code that were accidently left for adding 
@@ -118,6 +120,13 @@
 // For data this is the write splice area where you get corrupted data that
 // may look like a sector start byte.
 #define DATA_IGNORE_BYTES 10
+
+// This reverses the bit ordering in a byte. The controller writes
+// the header data LSB first not the normal MSB first.
+static unsigned char rev_lookup[16] = {
+   0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
+   0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf };
+#define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[n>>4])
 
 // Type II PLL. Here so it will inline. Converted from continuous time
 // by bilinear transformation. Coefficients adjusted to work best with
@@ -562,6 +571,30 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xd9
+//      Sector data for sector size
+//      CRC/ECC code
+//
+//   CONTROLLER_SM-1810
+//      Soviet clone. Source stated clone of iSBC 214. Much closer to
+//         iSBC 215.
+//      https://github.com/dgesswein/mfm/issues/35
+//
+//   6 byte header + 4 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 (Flag not set in example images so not verified)
+//         3-0 high cyl
+//         5-4 sector size 00 = 128, 01 = 256, 10 = 512, 11 = 1024
+//         7-6 flag 00 = data track, 01 = assigned alternate
+//                  10 = defective, 11 = invalid
+//         No example of alternate so not tested
+//      byte 3 low 8 bits of cylinder
+//      byte 4 sector number
+//      byte 5 head number
+//      bytes 6-9 32 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xfd
 //      Sector data for sector size
 //      CRC/ECC code
 //
@@ -1218,12 +1251,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          // check the various unknow bits so if they change we can see what
          // they represent.
          uint8_t header_start[] = {0xa1,0x5a,0x96,0x0e,0x0e,0x9e,0x01};
-         // This reverses the bit ordering in a byte. The controller writes
-         // the header data LSB first not the normal MSB first.
-         static unsigned char rev_lookup[16] = {
-            0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
-            0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf };
-         #define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[n>>4])
 
          sector_status.cyl = (REV_BYTE(bytes[8]) >> 4) | (REV_BYTE(bytes[9]) << 4);
          sector_status.head = mfm_fix_head(drive_params, exp_head, (REV_BYTE(bytes[7]) >> 6) | ((REV_BYTE(bytes[8]) & 0x3) << 2));
@@ -1346,6 +1373,20 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          alt_assigned = (bytes[1] & 0xc0) == 0x80;
 
          if (bytes[1]  != 0x19) {
+            msg(MSG_INFO, "Invalid header id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SM_1810_512B) {
+         sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5]);
+         sector_size = 128 << ((bytes[2] & 0x30) >> 4);
+         sector_status.sector = bytes[4];
+         is_alternate = (bytes[1] & 0xc0) == 0x40;
+         alt_assigned = (bytes[1] & 0xc0) == 0x80;
+
+         if (bytes[1]  != 0xfe) {
             msg(MSG_INFO, "Invalid header id bytes %02x on cyl %d,%d head %d,%d sector %d\n",
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
@@ -1528,8 +1569,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
-         id_byte_expected = 0xe0;
+         id_byte_expected = 0xf0;
          id_byte_index = 1;
+         for (int i = 1; i < total_bytes; i++) {
+            bytes[i] = REV_BYTE(bytes[i]);
+         }
       } else if (drive_params->controller == CONTROLLER_UNKNOWN1) {
          id_byte_expected = sector_status.sector;
       } else if (drive_params->controller == CONTROLLER_WANG_2275) {
@@ -1560,7 +1604,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
            drive_params->controller == CONTROLLER_ISBC_215_1024B ||
            drive_params->controller == CONTROLLER_ISBC_214_256B ||
            drive_params->controller == CONTROLLER_ISBC_214_512B ||
-           drive_params->controller == CONTROLLER_ISBC_214_1024B)
+           drive_params->controller == CONTROLLER_ISBC_214_1024B ||
+           drive_params->controller == CONTROLLER_SM_1810_512B)
            && alt_assigned) {
          // For defective tracks each sectors has repeating 4 byte sequence
          // Alt cyl low, alt cyl high, alt head, 0x00. Entire track is always
@@ -1865,7 +1910,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                decoded_word = 0;
                decoded_bit_cntr = 0;
             }
-         } else if (state == MARK_DATA1) {
+         } else if (state == MARK_DATA1) { // SYMBOLICS_3640
             if ((tot_raw_bit_cntr - header_raw_bit_count) > 530 && 
                   ((raw_word & 0xf) == 0x9)) {
                state = PROCESS_DATA;
@@ -1885,7 +1930,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   exit(1);
                }
                // Resync decoding to the mark
-               raw_bit_cntr = 0;
+               raw_bit_cntr = 10;
                decoded_word = 0;
                decoded_bit_cntr = 0;
                if (header_raw_bit_count != 0) {

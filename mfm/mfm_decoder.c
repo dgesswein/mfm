@@ -19,6 +19,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 09/21/20 DJG Added controller SM_1810_512B
 // 08/15/20 DJG If we are ignoring seek errors write sector data if good always
 // 02/20/20 DJG Improved selection of track to keep for emulator file when 
 //    retries done.
@@ -525,6 +526,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
+         drive_params->controller == CONTROLLER_SM_1810_512B ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_MORROW_MD11 ||
          drive_params->controller == CONTROLLER_UNKNOWN1 ||
@@ -1306,6 +1308,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
+            drive_params->controller == CONTROLLER_SM_1810_512B ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_MORROW_MD11 ||
             drive_params->controller == CONTROLLER_UNKNOWN1 ||
