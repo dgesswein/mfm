@@ -58,6 +58,7 @@
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <inttypes.h>
 #include <getopt.h>
 #include <stdarg.h>

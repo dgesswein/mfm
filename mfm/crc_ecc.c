@@ -25,6 +25,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 #include <string.h>
+#include <strings.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

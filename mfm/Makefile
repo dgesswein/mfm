@@ -35,7 +35,7 @@ INCLUDES = $(addprefix $(INCDIR)/, analyze.h cmd.h crc_ecc.h deltas_read.h \
 	drive.h emu_tran_file.h mfm_decoder.h msg.h parse_cmdline.h \
 	pru_setup.h version.h)
 
-CC = gcc
+CC = c99
 
 FP_ABI = 
 #Rev B angstrom require softfp
@@ -65,7 +65,7 @@ ifeq ($(UNAME_S), armv7l)
 	   
 endif
 
-CFLAGS = $(EXTRA_DEFINE) $(INCL_PATH) -O3 -g -Wall -D_FILE_OFFSET_BITS=64
+CFLAGS = $(EXTRA_DEFINE) $(INCL_PATH) -O3 -g -Wall -D_FILE_OFFSET_BITS=64 -D_XOPEN_SOURCE=600
 
 all : $(PRU) $(PRU2) mfm_util ext2emu mfm_write mfm_read
 pru : $(PRU) $(PRU2)
