@@ -14,6 +14,8 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/16/20 DJG Added SHUGART_SA1400 controller
+// 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/20 DJG Added controller SM_1810_512B and fixed SYMBOLICS_3640
 //   incorrectly decoding data
 // 01/29/20 DJG Added support for 4th head bit for 3B1/UNIXPC
@@ -278,9 +280,32 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 4 sector number
 //      byte 5 unknown, 2 for sample I have
 //      byte 6-7 CRC
+//
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xfb
+//      Sector data for sector size
+//      ECC code (4 byte)
+//
+//   CONTROLLER_SHUGART_1610
+//   Manual at http://www.pdp8online.com/mfm/status.shtml. Search 1610
+//   Example BB_SA1610_ST225.emu
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder low
+//      byte 3 Bit 7 X, cylinder high 6-4 bits, bit 3 Y 3 bits head
+//         X Y
+//         0 0 Good track
+//         0 1 Alternate track
+//         1 0 Bad track
+//         1 1 Track Alternated
+//         Alternate handled not currently handled.
+//      byte 4 sector number
+//      byte 5-6 CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8 (documentation says 0xfb but disk has 0xf8)
 //      Sector data for sector size
 //      ECC code (4 byte)
 //
@@ -808,6 +833,44 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      ECC code (4 byte)
 //
+//   CONTROLLER_UNKNOWN2
+//   Unknown what machine drive was used with. Drive was only low level
+//   formatted.
+//   Example SA1004_1.trans
+//   6 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0x0b
+//      byte 2 Lower 8 bits of cylinder
+//      byte 3 Upper 8 bits of cylinder. Just a guess, drive was 256 cylinder
+//         so field was always 0
+//      byte 4 head
+//      byte 5 sector number
+//      bytes 6-7 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0x0d
+//      Sector data for sector size
+//      CRC/ECC code
+//
+//   CONTROLLER_SHUGART_SA1400
+//   From General Processor Model T (T10). Controller is labeled Data Technology
+//   without obvious part number. Board looks to match the SA1400 brochure
+//   http://www.bitsavers.org/pdf/shugart/SA14xx/
+//   Example sa1004_raw_data.
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 Lower 8 bits of cylinder. Drive only had 256 cylinders
+//      byte 3 Head
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size. Bytes are inverted.
+//      CRC/ECC code
+//      
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -833,7 +896,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
    static int sector_size;
    // Non zero if sector is a bad block, has alternate track assigned,
    // or is an alternate track
-   static int bad_block, alt_assigned, is_alternate;
+   static int bad_block, alt_assigned, is_alternate, alt_assigned_handled;
    static SECTOR_STATUS sector_status;
    // 0 after first sector marked spare/bad found. Only used for Adaptec 
    static int first_spare_bad_sector = 1;
@@ -841,6 +904,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
    if (*state == PROCESS_HEADER) {
       // Clear these since not used by all formats
       alt_assigned = 0;
+      alt_assigned_handled = 0;
       is_alternate = 0;
       bad_block = 0;
 
@@ -888,6 +952,33 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_UNKNOWN2) {
+         sector_status.cyl = bytes[3]<< 8;
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4]);
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+
+         sector_status.sector = bytes[5];
+         if (bytes[1] != 0x0b) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SHUGART_SA1400) {
+         sector_status.cyl = bytes[2];
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+
+         sector_status.sector = bytes[4];
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else if (drive_params->controller == CONTROLLER_DEC_RQDX3 &&
           !IsOutermostCylinder(drive_params, exp_cyl)) {
             // The last cylinder is in normal WD format. It has 256
@@ -919,6 +1010,23 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             msg(MSG_INFO, "Header Byte 5 not 2, byte %02x on cyl %d head %d sector %d\n",
                   bytes[5], sector_status.cyl, sector_status.head, sector_status.sector);
          }
+
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SHUGART_1610) {
+         sector_status.cyl = (bytes[3] & 0x70) << 4;
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0x7);
+         sector_status.sector = bytes[4];
+         sector_size = drive_params->sector_size;
+         int flag = ((bytes[3] & 0x80) >> 6) | ((bytes[3] & 0x8) >> 3);
+         bad_block = (flag == 2);
+         alt_assigned = (flag == 3);
+         is_alternate = (flag == 1);
 
          if (bytes[1] != 0xfe) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
@@ -1574,8 +1682,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          for (int i = 1; i < total_bytes; i++) {
             bytes[i] = REV_BYTE(bytes[i]);
          }
+      } else if (drive_params->controller == CONTROLLER_SHUGART_SA1400) {
+         for (int i = 2; i < total_bytes; i++) {
+            bytes[i] = ~bytes[i];
+         }
       } else if (drive_params->controller == CONTROLLER_UNKNOWN1) {
          id_byte_expected = sector_status.sector;
+      } else if (drive_params->controller == CONTROLLER_UNKNOWN2) {
+         id_byte_expected = 0x0d;
       } else if (drive_params->controller == CONTROLLER_WANG_2275) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
@@ -1634,12 +1748,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             msg(MSG_ERR,"Unable to find alternate cylinder cyl %d head %d\n",
                sector_status.cyl, sector_status.head);
          }
+         alt_assigned_handled = 1;
       }
       if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
          msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
             (bytes[2] << 8) + bytes[3], bytes[4]);
           mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
             sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
+         alt_assigned_handled = 1;
       }
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
@@ -1660,6 +1776,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
          }
+      }
+      if (alt_assigned && !alt_assigned_handled) {
+         msg(MSG_INFO,"Assigned alternet cylinder not corrected on cyl %d, head %d, sector %d\n",
+               sector_status.cyl, sector_status.head, sector_status.sector);
       }
       *state = MARK_ID;
    }

@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 10/08/20 DJG Added OP_XOR for sector data. Changed a couple of error messages
 // 12/31/19 DJG Allow additional special encoded bytes
 // 08/23/19 DJG Fixed typo and print format.
 // 07/19/19 DJG Added ext2emu support for Xerox 8010
@@ -641,11 +642,21 @@ static void process_field(DRIVE_PARAMS *drive_params,
          break;
          case FIELD_SECTOR_DATA:
             if (field_def[ndx].len_bytes != drive_params->sector_size) {
-               msg(MSG_FATAL, "Sector length mismatch\n");
+               msg(MSG_FATAL, "Sector length mismatch %d %d\n",
+                   field_def[ndx].len_bytes, drive_params->sector_size);
                exit(1);
             }
-            get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
-               length - field_def[ndx].byte_offset_bit_len);
+            if (field_def[ndx].op == OP_XOR) {
+               uint8_t buf[length - field_def[ndx].byte_offset_bit_len];
+               int start = field_def[ndx].byte_offset_bit_len;
+               get_data(drive_params, buf, length - start);
+               for (i = start; i < start + field_def[ndx].len_bytes; i++) {
+                  track[i] ^= buf[i - start];
+               }
+            } else {
+               get_data(drive_params, &track[field_def[ndx].byte_offset_bit_len],
+                  length - field_def[ndx].byte_offset_bit_len);
+            }
             if (field_def[ndx].op == OP_REVERSE) {
                int start = field_def[ndx].byte_offset_bit_len;
                for (i = start; i < start + field_def[ndx].len_bytes; i++) {
@@ -656,7 +667,8 @@ static void process_field(DRIVE_PARAMS *drive_params,
          break;
          case FIELD_SECTOR_METADATA:
             if (field_def[ndx].len_bytes != drive_params->metadata_bytes) {
-               msg(MSG_FATAL, "Sector length mismatch\n");
+               msg(MSG_FATAL, "Sector length mismatch metadata %d %d\n",
+                  field_def[ndx].len_bytes, drive_params->metadata_bytes);
                exit(1);
             }
             get_metadata(drive_params, &track[field_def[ndx].byte_offset_bit_len],
@@ -834,7 +846,7 @@ static int process_track(DRIVE_PARAMS *drive_params,
          case TRK_FIELD:
             new_start = start + track_def[ndx].count;
             if (new_start >= length) {
-               msg(MSG_FATAL, "Track overflow field\n");
+               msg(MSG_FATAL, "Track overflow field %d,%d\n", new_start, length);
                exit(1);
             }
                // Fill the field with the specified value then

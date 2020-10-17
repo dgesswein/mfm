@@ -1,4 +1,6 @@
 #define PRINT_SPACING 0
+#define DUMP_HEADER 0
+#define DUMP_DATA 0
 // These are the general routines for supporting MFM decoders.
 // Call mfm_decode_setup once before trying to decode a disk
 // call mfm_init_sector_status_list before decoding each track
@@ -19,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/16/20 DJG Added SHUGART_SA1400 controller
+// 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/20 DJG Added controller SM_1810_512B
 // 08/15/20 DJG If we are ignoring seek errors write sector data if good always
 // 02/20/20 DJG Improved selection of track to keep for emulator file when 
@@ -530,7 +534,10 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_MORROW_MD11 ||
          drive_params->controller == CONTROLLER_UNKNOWN1 ||
+         drive_params->controller == CONTROLLER_UNKNOWN2 ||
+         drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+         drive_params->controller == CONTROLLER_SHUGART_1610 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
          drive_params->controller == CONTROLLER_DTC_520_512B ||
@@ -1251,11 +1258,12 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    char *name;
 
    if (*state == PROCESS_HEADER) {
-#if 0
+#if DUMP_HEADER
       static int dump_fd = 0;
       static int first = 1;
       if (first) {
-         printf("Dumping for %d bytes\n",bytes_crc_len);
+         printf("Dumping for %d bytes crc len %d\n",bytes_crc_len, 
+           drive_params->header_crc.length/8);
          first = 0;
       }
       if  (dump_fd == 0) {
@@ -1269,11 +1277,12 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
       name = "header";
    } else {
-#if 0
+#if DUMP_DATA
       static int dump_fd = 0;
       static int first = 1;
       if (first) {
-         printf("Dumping for %d bytes\n", bytes_crc_len);
+         printf("Dumping for %d bytes crc len %d\n",bytes_crc_len, 
+           drive_params->header_crc.length/8);
          first = 0;
       }
       if  (dump_fd == 0) {
@@ -1312,7 +1321,10 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_MORROW_MD11 ||
             drive_params->controller == CONTROLLER_UNKNOWN1 ||
+            drive_params->controller == CONTROLLER_UNKNOWN2 ||
+            drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+            drive_params->controller == CONTROLLER_SHUGART_1610 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||
             drive_params->controller == CONTROLLER_DTC_520_512B ||

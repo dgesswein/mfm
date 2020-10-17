@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/16/20 DJG Added SHUGART_SA1400 controller. 
+// 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/21 DJG Added controller SM_1810_512B
 // 12/31/19 DJG Added PERQ T2 ext2emu support. Not tested.
 // 11/29/19 DJG Fix PERQ T2 format to ignore sector data trailing byte
@@ -166,12 +168,15 @@ typedef struct {
       CONTROLLER_WANG_2275_B,
       CONTROLLER_IBM_5288,
       CONTROLLER_EDAX_PV9900,
+      CONTROLLER_SHUGART_1610,
+      CONTROLLER_SHUGART_SA1400,
       CONTROLLER_SM_1810_512B, 
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
       CONTROLLER_MORROW_MD11,
       CONTROLLER_UNKNOWN1,
+      CONTROLLER_UNKNOWN2,
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_IBM_3174,
       CONTROLLER_SEAGATE_ST11M,
@@ -310,13 +315,19 @@ DEF_EXTERN struct {
   {0x140a0445, 32, 5},
   {0x140a0445000101ll, 56, 22}, // From WD42C22C datasheet, not tested
   {0x0104c981, 32, 5},
-  {0x24409, 24, 0},
-  {0x3e4012, 24, 0}, // WANG 2275
+  // The Shugart SA1400 that uses this polynomial says it does 4 bit correct.
+  // That seems to have excessive false corrects when more errors that can be
+  // corrected so went with 2 bit correct which has 43-141 miscorrects 
+  // per 100000 for data with more errors than can be corrected.
+  {0x24409, 24, 2},
+  {0x3e4012, 24, 0}, // WANG 2275. Not a valid ECC code so max correct 0
   {0x88211, 24, 0}, // ROHM_PBX
   // Adaptec bad block on Maxtor XT-2190
   {0x41044185, 32, 5},
   // MVME320 controller
   {0x10210191, 32, 5},
+  // Shugart 1610
+  {0x10183031, 32, 5},
   // Nixdorf 
   {0x8222f0804bda23ll, 56, 22}
   // DQ604 Not added to search since more likely to cause false
@@ -1618,6 +1629,104 @@ DEF_EXTERN TRK_L trk_perq_t2[]
 }
 #endif
 ;
+
+DEF_EXTERN TRK_L trk_shugart_1610[] 
+#ifdef DEF_DATA
+ = 
+{ { 26, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 0, NULL},
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // Upper 3 bits in bits 6-4 of byte 3, lower 8 bits in
+              // byte 2. All tracks marked good track
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 // List is starting from the high bit. Low bit to write to, length
+                 (BIT_L []) {
+                    { 28, 3},
+                    { 16, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 0, NULL},
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {45, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {209, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_shugart_1400[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {8, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // Upper 3 bits in bits 6-4 of byte 3, lower 8 bits in
+              // byte 2. All tracks marked good track
+              {1, FIELD_CYL, 0x00, OP_SET, 2, 0, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {3, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {261, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {256, FIELD_FILL, 0xff, OP_SET, 2, NULL},
+              // Data is inverted. Fill with 1's then XOR in data
+              {256, FIELD_SECTOR_DATA, 0x00, OP_XOR, 2, NULL},
+              {3, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {17, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {354, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
 
 typedef struct {
@@ -1795,7 +1904,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
-         {0,0xa00805,32,0},{0,0xa00805,32,0}, CONT_ANALIZE,
+         {0,0xa00805,32,5},{0,0xa00805,32,5}, CONT_ANALIZE,
          0, 0, 0
       },
       {"DTC",             256, 10000000,      0,
@@ -1916,6 +2025,26 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
          0, 0, 0
       },
+      {"SHUGART_1610",          512, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_shugart_1610, 512, 17, 0, 5209,
+         0, 0,
+         //{0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         {0xffff,0x1021,16,0},{0xffffffff,0x10183031,32,5}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"SHUGART_SA1400",            256, 8680000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_shugart_1400, 256, 32, 0, 5209,
+         0, 0,
+         {0x0,0x24409,24,2},{0x0,0x24409,24,2}, CONT_MODEL,
+         0, 0, 0
+      },
+      // OMTI_5200 uses initial value 0x409e10aa for data
       // Data CRC is really initial value 0 xor of final value of 0xffffffff.
       // Code doesn't do final xor so initial value is equivalent.
       {"SM_1810_512B",      128, 10000000,      0,
@@ -1969,10 +2098,18 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_MODEL,
          0, 0, 0
       },
-// OMTI_5200 uses initial value 0x409e10aa for data
+      {"Unknown2",            256, 8680000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 1, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       {"DEC_RQDX3",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
