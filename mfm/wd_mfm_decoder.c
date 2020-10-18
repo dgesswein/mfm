@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/18/20 DJG Added alternate cylinder support for SHUGART_1610
 // 10/16/20 DJG Added SHUGART_SA1400 controller
 // 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/20 DJG Added controller SM_1810_512B and fixed SYMBOLICS_3640
@@ -299,7 +300,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //         0 0 Good track
 //         0 1 Alternate track
 //         1 0 Bad track
-//         1 1 Track Alternated
+//         1 1 Track Alternated. Cylinder & head are of alternate track assigned
 //         Alternate handled not currently handled.
 //      byte 4 sector number
 //      byte 5-6 CRC
@@ -1026,7 +1027,23 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          int flag = ((bytes[3] & 0x80) >> 6) | ((bytes[3] & 0x8) >> 3);
          bad_block = (flag == 2);
          alt_assigned = (flag == 3);
+         if (alt_assigned) {
+            // header has cyl and head of alternate track. Return cyl and
+            // head of expected track to avoid error messages. Alt track
+            // handling will swap the extracted data in the end.
+            mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head,
+              sector_status.cyl, sector_status.head);
+            sector_status.cyl = exp_cyl;
+            sector_status.head = exp_head;
+            alt_assigned_handled = 1;
+         }
          is_alternate = (flag == 1);
+         if (is_alternate) {
+            // header has cyl and head of track alternate of. Return cyl and
+            // head of expected track.
+            sector_status.cyl = exp_cyl;
+            sector_status.head = exp_head;
+         }
 
          if (bytes[1] != 0xfe) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
@@ -1778,7 +1795,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       }
       if (alt_assigned && !alt_assigned_handled) {
-         msg(MSG_INFO,"Assigned alternet cylinder not corrected on cyl %d, head %d, sector %d\n",
+         msg(MSG_INFO,"Assigned alternate cylinder not corrected on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
       *state = MARK_ID;

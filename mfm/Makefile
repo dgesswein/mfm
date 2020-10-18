@@ -37,6 +37,8 @@ INCLUDES = $(addprefix $(INCDIR)/, analyze.h cmd.h crc_ecc.h deltas_read.h \
 
 CC = c99
 
+CPP = c++
+
 FP_ABI = 
 #Rev B angstrom require softfp
 ifneq ($(wildcard /usr/lib/arm-angstrom-linux-gnueabi),)
@@ -46,9 +48,9 @@ endif
 # If local copy of PRU package exists use it. Currently the
 # package isn't provided for Angstrom and doesn't work for Debian
 PRU_PACKAGE_PATH = ../am335x_pru_package-master
-PASM = pasm
 LIB_PATH =
 INCL_PATH = -I $(INCDIR)/ -I /usr/include/libiberty/
+PASM = pasm
 ifneq ($(wildcard $(PRU_PACKAGE_PATH)),)
    $(info Using local copy of am335x_pru_package)
    PASM = $(PRU_PACKAGE_PATH)/pru_sw/utils/pasm
@@ -62,12 +64,16 @@ EXTRA_DEFINE =
 ifeq ($(UNAME_S), armv7l)
         EXTRA_DEFINE = -mcpu=cortex-a8 -mfpu=vfpv3 $(FP_ABI) \
         -ffast-math -Ofast
-	   
+else
+	GOT_PASM := $(shell $(PASM) --version 2>/dev/null)
+	ifndef GOT_PASM
+		PASM = echo pasm
+	endif
 endif
 
 CFLAGS = $(EXTRA_DEFINE) $(INCL_PATH) -O3 -g -Wall -D_FILE_OFFSET_BITS=64 -D_XOPEN_SOURCE=600
 
-all : $(PRU) $(PRU2) mfm_util ext2emu mfm_write mfm_read
+all : $(PRU) $(PRU2) mfm_util ext2emu find_crc_info mfm_write mfm_read
 pru : $(PRU) $(PRU2)
 
 mfm_read :  $(OBJECTS)
@@ -78,6 +84,9 @@ ext2emu : mfm_util
 	ln -s mfm_util ext2emu
 mfm_write :  $(OBJECTS3)
 	$(CC)  $(OBJECTS3)  -Wl,-rpath=$(LIB_PATH) $(LIB_PATH:%=-L %) $(LIBRARIES:%=-l%) -o $@
+
+find_crc_info : find_crc_info.cpp
+	$(CPP) -O3 -std=c++0x -Wall $< -o $@
 
 clean :
 	rm -rf $(OBJDIR)/*.o *.bin mfm_read mfm_util core *~

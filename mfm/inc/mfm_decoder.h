@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/17/20 DJG increased maximum ECC correction length to 2 for 24 bit
+//    polynomial and 7 or 8 for 32 bit polynomial.
 // 10/16/20 DJG Added SHUGART_SA1400 controller. 
 // 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/21 DJG Added controller SM_1810_512B
@@ -308,26 +310,31 @@ DEF_EXTERN struct {
   {0, 32, 0},
   // Length 8 for Wang header checksum
   {0, 8, 0},
-  {0x00a00805, 32, 5},
+  // This seemed to have more fall corrects than other 32 bit polynomials with
+  // more errors than can be corrected. 7 gives 3-42 per 100000
+  // Some controllers use 11 bit correct with 32 bit polynomials.
+  {0x00a00805, 32, 7}, 
   // Don't move this without fixing the Northstar reference
   {0x1021, 16, 0},
   {0x8005, 16, 0},
-  {0x140a0445, 32, 5},
+  // The rest of the 32 bit polynomials with 8 bit correct get 5-19 false 
+  // corrects per 100000 when more errors than can be corrected.
+  {0x140a0445, 32, 8},
   {0x140a0445000101ll, 56, 22}, // From WD42C22C datasheet, not tested
-  {0x0104c981, 32, 5},
+  {0x0104c981, 32, 8},
   // The Shugart SA1400 that uses this polynomial says it does 4 bit correct.
   // That seems to have excessive false corrects when more errors that can be
   // corrected so went with 2 bit correct which has 43-141 miscorrects 
   // per 100000 for data with more errors than can be corrected.
   {0x24409, 24, 2},
   {0x3e4012, 24, 0}, // WANG 2275. Not a valid ECC code so max correct 0
-  {0x88211, 24, 0}, // ROHM_PBX
+  {0x88211, 24, 2}, // ROHM_PBX
   // Adaptec bad block on Maxtor XT-2190
-  {0x41044185, 32, 5},
+  {0x41044185, 32, 8},
   // MVME320 controller
-  {0x10210191, 32, 5},
+  {0x10210191, 32, 8},
   // Shugart 1610
-  {0x10183031, 32, 5},
+  {0x10183031, 32, 8},
   // Nixdorf 
   {0x8222f0804bda23ll, 56, 22}
   // DQ604 Not added to search since more likely to cause false
@@ -1697,7 +1704,7 @@ DEF_EXTERN TRK_L trk_shugart_1400[]
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
               // Upper 3 bits in bits 6-4 of byte 3, lower 8 bits in
               // byte 2. All tracks marked good track
-              {1, FIELD_CYL, 0x00, OP_SET, 2, 0, NULL},
+              {1, FIELD_CYL, 0x00, OP_SET, 2, NULL},
               {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
               {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
               {3, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
@@ -1841,7 +1848,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC214_128b, 128, 54, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_214_256B",      128, 10000000,      0,
@@ -1850,7 +1857,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC214_256b, 256, 32, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_214_512B",      128, 10000000,      0,
@@ -1859,7 +1866,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC214_512b, 512, 17, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_214_1024B",      128, 10000000,      0,
@@ -1868,7 +1875,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC214_1024b, 1024, 9, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,5}, CONT_MODEL,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"NIXDORF_8870",         256, 10000000,      0, 
@@ -1904,7 +1911,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
-         {0,0xa00805,32,5},{0,0xa00805,32,5}, CONT_ANALIZE,
+         {0,0xa00805,32,7},{0,0xa00805,32,7}, CONT_ANALIZE,
          0, 0, 0
       },
       {"DTC",             256, 10000000,      0,
@@ -1913,7 +1920,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_pc_512b, 512, 17, 0, 5209,
          0, 0,
-         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
+         {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
          0, 0, 0
       },
       {"DTC_520_256B",             256, 10000000,      0,
@@ -1922,7 +1929,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_520_256b, 256, 33, 0, 5209,
          0, 0,
-         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
+         {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
          0, 0, 0
       },
       {"DTC_520_512B",             512, 10000000,      0,
@@ -1931,7 +1938,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_dtc_520_512b, 512, 18, 0, 5209,
          0, 0,
-         {0,0x24409,24,0},{0,0x24409,24,0}, CONT_MODEL,
+         {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
          0, 0, 0
       },
       {"MacBottom",            256, 10000000,      0,
@@ -1986,7 +1993,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
-         {0x920d65c0,0x140a0445,32,5},{0xef26129d,0x140a0445,32,5}, CONT_MODEL,
+         {0x920d65c0,0x140a0445,32,8},{0xef26129d,0x140a0445,32,8}, CONT_MODEL,
          8700, 770, 350
       },
       {"WANG_2275",              256, 10000000,      0, 
@@ -2031,8 +2038,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_shugart_1610, 512, 17, 0, 5209,
          0, 0,
-         //{0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
-         {0xffff,0x1021,16,0},{0xffffffff,0x10183031,32,5}, CONT_MODEL,
+         {0xffff,0x1021,16,0},{0xffffffff,0x10183031,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"SHUGART_SA1400",            256, 8680000,      0,
@@ -2053,7 +2059,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
-         {0xed800493,0xa00805,32,5},{0x03affc1d,0xa00805,32,5}, CONT_MODEL,
+         {0xed800493,0xa00805,32,7},{0x03affc1d,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
       {"OMTI_5510",            256, 10000000,      0,
@@ -2062,7 +2068,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         { 0x2605fb9c,0x104c981,32,8},{0xd4d7ca20,0x104c981,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Xerox_6085",           256, 10000000,      0,
@@ -2071,7 +2077,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          20, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         { 0x2605fb9c,0x104c981,32,8},{0xd4d7ca20,0x104c981,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Telenex_Autoscope",           256, 10000000,      0,
@@ -2080,7 +2086,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         { 0x2605fb9c,0x104c981,32,8},{0xd4d7ca20,0x104c981,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Morrow_MD11",            1024, 10000000,      0,
@@ -2089,7 +2095,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 1024, 9, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_ANALIZE,
+         { 0x2605fb9c,0x104c981,32,8},{0xd4d7ca20,0x104c981,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Unknown1",            256, 10000000,      0,
@@ -2098,7 +2104,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         { 0x2605fb9c,0x104c981,32,5},{0xd4d7ca20,0x104c981,32,5}, CONT_MODEL,
+         { 0x2605fb9c,0x104c981,32,8},{0xd4d7ca20,0x104c981,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"Unknown2",            256, 8680000,      0,
@@ -2134,7 +2140,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
          0, 0,
-         {0x0,0x41044185,32,5},{0x0,0x41044185,32,5}, CONT_ANALIZE,
+         {0x0,0x41044185,32,8},{0x0,0x41044185,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Intel_iSBC_215_128B",      128, 10000000,      0,
@@ -2143,7 +2149,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC215_128b, 128, 54, 0, 5209,
          0, 0,
-         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         {0xed800493,0xa00805,32,7},{0xbe87fbf4,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_215_256B",      128, 10000000,      0,
@@ -2152,7 +2158,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC215_256b, 256, 31, 0, 5209,
          0, 0,
-         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         {0xed800493,0xa00805,32,7},{0xbe87fbf4,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_215_512B",      128, 10000000,      0,
@@ -2161,7 +2167,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC215_512b, 512, 17, 0, 5209,
          0, 0,
-         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         {0xed800493,0xa00805,32,7},{0xbe87fbf4,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_215_1024B",      128, 10000000,      0,
@@ -2170,7 +2176,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC215_1024b, 1024, 9, 0, 5209,
          0, 0,
-         {0xed800493,0xa00805,32,5},{0xbe87fbf4,0xa00805,32,5}, CONT_MODEL,
+         {0xed800493,0xa00805,32,7},{0xbe87fbf4,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
 // Quantum Q20#0 Xerox Star drive
@@ -2191,7 +2197,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          6, 1, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 1, 5209,
          0, 0,
-         {0xffff,0x1021,16,0}, {0, 0x88211, 24, 0}, CONT_MODEL,
+         {0xffff,0x1021,16,0}, {0, 0x88211, 24, 2}, CONT_MODEL,
          0, 0, 0
       },
 //TODO, this won't analyze properly
@@ -2210,7 +2216,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          7, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_mvme320, 256, 32, 1, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,5}, CONT_ANALIZE,
+         {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Symbolics_3620",       256, 10000000,      0, 
@@ -2229,7 +2235,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          10, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         {0x6e958e56,0x140a0445,32,5},{0xcf2105e0,0x140a0445,32,5}, CONT_MODEL,
+         {0x6e958e56,0x140a0445,32,8},{0xcf2105e0,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"Symbolics_3640",       256, 10000000,      0, 
@@ -2238,7 +2244,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
          0, 0,
-         {0x0,0x0,1,0},{0x0,0xa00805,32,5}, CONT_MODEL,
+         {0x0,0x0,1,0},{0x0,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
 // This format is detected by special case code so it doesn't need to
@@ -2382,7 +2388,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 256, 32, 0, 5209,
 // Should be model after data filled in
          0, 20,
-         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE,
+         {0x0,0x104c981,32,8},{0x0,0x104c981,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Vector4_ST506",             256, 10000000,  300000,
@@ -2392,7 +2398,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 256, 32, 0, 5209,
 // Should be model after data filled in
          0, 20,
-         {0x0,0x104c981,32,5},{0x0,0x104c981,32,5}, CONT_ANALIZE,
+         {0x0,0x104c981,32,8},{0x0,0x104c981,32,8}, CONT_ANALIZE,
          0, 0, 0
       },
       {"Saga_Fox",             256, 10000000,  330000,

@@ -21,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/17/20 DJG Pass correct byte range to ecc correction routine. Error
+//    didn't seem to cause problem.
 // 10/16/20 DJG Added SHUGART_SA1400 controller
 // 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/20 DJG Added controller SM_1810_512B
@@ -698,6 +700,8 @@ static void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
    ALT_INFO *alt_info = drive_params->alt_llist;
    void *ptr_hold;
 
+   msg(MSG_INFO,"Applying alternate sector information\n");
+
    while (alt_info != NULL) { 
       uint8_t bad_data[alt_info->length];
       uint8_t good_data[alt_info->length];
@@ -1215,7 +1219,7 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
       // If ECC correction enabled then perform correction up to length
       // specified
       if (crc_info.ecc_max_span != 0 && perform_ecc) {
-         *ecc_span = ecc64(bytes, bytes_crc_len, crc, &crc_info);
+         *ecc_span = ecc64(&bytes[start], bytes_crc_len-start, crc, &crc_info);
          // TODO: This includes SECT_SPARE_BAD ECC corrections in the
          // final value printed. We don't have the info to fix here
          if (*ecc_span != 0) {
