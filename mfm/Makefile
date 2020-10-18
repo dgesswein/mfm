@@ -38,6 +38,11 @@ INCLUDES = $(addprefix $(INCDIR)/, analyze.h cmd.h crc_ecc.h deltas_read.h \
 CC = c99
 
 CPP = c++
+GOT_CPP := $(shell $(CPP) --version 2>/dev/null)
+ifndef GOT_CPP
+$(info no c++ compiler found, CRC support program not built)
+	CPP = echo c++
+endif
 
 FP_ABI = 
 #Rev B angstrom require softfp
@@ -67,6 +72,7 @@ ifeq ($(UNAME_S), armv7l)
 else
 	GOT_PASM := $(shell $(PASM) --version 2>/dev/null)
 	ifndef GOT_PASM
+$(info no pasm found, PRU programs not built)
 		PASM = echo pasm
 	endif
 endif
