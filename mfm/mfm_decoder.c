@@ -700,7 +700,9 @@ static void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
    ALT_INFO *alt_info = drive_params->alt_llist;
    void *ptr_hold;
 
-   msg(MSG_INFO,"Applying alternate sector information\n");
+   if (alt_info != NULL) {
+      msg(MSG_INFO,"Applying alternate sector information\n");
+   }
 
    while (alt_info != NULL) { 
       uint8_t bad_data[alt_info->length];
