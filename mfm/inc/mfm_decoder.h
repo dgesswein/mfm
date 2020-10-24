@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/24/20 DJG Added MYARC_HFDC controller and ext2emu support for SM_1810_512B
 // 10/17/20 DJG increased maximum ECC correction length to 2 for 24 bit
 //    polynomial and 7 or 8 for 32 bit polynomial.
 // 10/16/20 DJG Added SHUGART_SA1400 controller. 
@@ -180,6 +181,7 @@ typedef struct {
       CONTROLLER_UNKNOWN1,
       CONTROLLER_UNKNOWN2,
       CONTROLLER_DEC_RQDX3, 
+      CONTROLLER_MYARC_HFDC, 
       CONTROLLER_IBM_3174,
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_ISBC_215_128B,
@@ -974,6 +976,63 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
 }
 #endif
 ;
+
+// From hand written notes 20201020_225628.jpg slightly adjusted to
+// match disk image
+DEF_EXTERN TRK_L trk_sm_1810[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 16, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              // Sector size 512. All tracks data, alternate not supported
+              {1, FIELD_FILL, 0x20, OP_SET, 2, NULL},
+              // Upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {16, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {4, TRK_FILL, 0x00, NULL},
+        {24, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {1059, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 
 // From http://www.mirrorservice.org/sites/www.bitsavers.org/pdf/sms/asic/OMTI_5050_Programmable_Data_Sequencer_Jun86.pdf
 // Appendix A
@@ -2057,7 +2116,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 512, 16, 0, 5209,
+         0, 1, trk_sm_1810, 512, 16, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,7},{0x03affc1d,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
@@ -2123,6 +2182,17 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      // ext2emu not supported since it used deleted data 0xf8 on some
+      // sectors which we currently don't have a good way to handle
+      {"MYARC_HFDC",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0
       },
       {"IBM_3174",            256, 10000000,      0,

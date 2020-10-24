@@ -1,3 +1,5 @@
+#define GENERATE_HISTOGRAM 0
+
 // This module analyzes the disk format
 // Call analyze_disk to perform the analysis
 //
@@ -161,7 +163,7 @@ static void analyze_rate(DRIVE_PARAMS *drive_params, int cyl, int head,
           histogram[deltas[i]]++;
        }
     }
-#if 0
+#if GENERATE_HISTOGRAM
     for (i = 0; i < ARRAYSIZE(histogram); i++) {
       printf("%d, %d\n", i, histogram[i]);
     }

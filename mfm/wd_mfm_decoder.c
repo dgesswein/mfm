@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/24/20 DJG Added MYARC_HFDC controller
 // 10/18/20 DJG Added alternate cylinder support for SHUGART_1610
 // 10/16/20 DJG Added SHUGART_SA1400 controller
 // 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
@@ -285,6 +286,23 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xfb
+//      Sector data for sector size
+//      ECC code (4 byte)
+//
+//   CONTROLLER_MYARC_HFDC
+//   No manual found describing low level format
+//   6 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe ^ upper 2? bits of cylinder
+//      byte 2 cylinder low
+//      byte 3 cylinder high in upper 4? bits, low 4 bits head
+//      byte 4 sector number
+//      byte 5 unknown, 1 for sample I have
+//      byte 6-7 CRC
+//
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xfb or 0xf8
 //      Sector data for sector size
 //      ECC code (4 byte)
 //
@@ -602,7 +620,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //   CONTROLLER_SM-1810
 //      Soviet clone. Source stated clone of iSBC 214. Much closer to
-//         iSBC 215.
+//         iSBC 215. Byte 2 fields not all verified.
 //      https://github.com/dgesswein/mfm/issues/35
 //
 //   6 byte header + 4 byte CRC
@@ -620,7 +638,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      bytes 6-9 32 bit CRC
 //   Data
 //      byte 0 0xa1
-//      byte 1 0xfd
+//      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
 //
@@ -1013,6 +1031,43 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
 
          if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_MYARC_HFDC) {
+            // The last cylinder is in normal WD format. It has 256
+            // byte sectors with a different polynomial so this fixes getting
+            // the wrong cylinder which causes problems with reading. It still
+            // won't be considered error free due to CRC error. TODO:
+            // handle multiple formats for a disk so the entire disk can
+            // be read without error
+         sector_status.cyl = (bytes[3] & 0xf0) << 4;
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
+         sector_status.sector = bytes[4];
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+         // TODO: Figure out a better way to deal with sector number invalid
+         // when bad block.
+         bad_block = (sector_status.sector == 255);
+         if (bad_block) {
+            sector_status.status |= SECT_BAD_SECTOR_NUMBER | SECT_SPARE_BAD;
+            // TODO: Print added here since count not properly updated due
+            // to not knowing sector number
+            msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
+               sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+         // Don't know what's in this byte. Print a message so it can be
+         // investigated if not the 1 seen previously.
+         if (bytes[5] != 0x1) {
+            sector_status.status |= SECT_ANALYZE_ERROR;
+            msg(MSG_INFO, "Header Byte 5 not 1, byte %02x on cyl %d head %d sector %d\n",
+                  bytes[5], sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+
+         if (bytes[1] != (0xfe ^ (sector_status.cyl >> 8))) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
@@ -1665,7 +1720,13 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
 
       sector_status.status |= init_status;
 
-      if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
+      if (drive_params->controller == CONTROLLER_MYARC_HFDC) {
+         if (bytes[1] == 0xf8) {
+            id_byte_expected = 0xf8;
+         } else {
+            id_byte_expected = 0xfb;
+         }
+      } else if (drive_params->controller == CONTROLLER_MYARC_HFDC) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_IBM_3174) {
          id_byte_expected = 0xfb;

@@ -21,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/18/20 DJG Made cylinders & head printed in Mismatch cyl error same order
+//    as other messages.
 // 10/17/20 DJG Pass correct byte range to ecc correction routine. Error
 //    didn't seem to cause problem.
 // 10/16/20 DJG Added SHUGART_SA1400 controller
@@ -539,6 +541,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_UNKNOWN2 ||
          drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+         drive_params->controller == CONTROLLER_MYARC_HFDC ||
          drive_params->controller == CONTROLLER_SHUGART_1610 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
@@ -841,7 +844,7 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
           (sector_status->status & SECT_BAD_HEADER)) {
 
          msg(MSG_ERR,"Mismatch cyl %d,%d head %d,%d index %d\n",
-            sector_status->cyl, exp_cyl, sector_status->head, exp_head,
+            exp_cyl, sector_status->cyl, exp_head, sector_status->head,
             *sector_index);
          sector_status->status |= ANALYZE_WRONG_FORMAT;
          sector_status->status |= SECT_WRONG_CYL;
@@ -1330,6 +1333,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_UNKNOWN2 ||
             drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+            drive_params->controller == CONTROLLER_MYARC_HFDC ||
             drive_params->controller == CONTROLLER_SHUGART_1610 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||
