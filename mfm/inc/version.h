@@ -1,1 +1,1 @@
-#define VERSION "2.23"
+#define VERSION "2.24"

@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/26/20 DJG ext2emu support for MYARC_HFDC controller
 // 10/24/20 DJG Added MYARC_HFDC controller and ext2emu support for SM_1810_512B
 // 10/17/20 DJG increased maximum ECC correction length to 2 for 24 bit
 //    polynomial and 7 or 8 for 32 bit polynomial.
@@ -1793,6 +1794,72 @@ DEF_EXTERN TRK_L trk_shugart_1400[]
 }
 #endif
 ;
+
+// Mixture of datasheet and formatter gap lengths adjusted with actual
+// file. Not sure if really correct. The pad at the end seems a little
+// low.
+DEF_EXTERN TRK_L trk_myarc_hfdc[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {8, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Put head in lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Put upper 3 bits of cyl in bits 6-4
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 25, 3},
+                    { 32, 8}, // Dump the rest of the bits where it will be overwritten
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              // 4 byte ECC, Sector size 256
+              {1, FIELD_FILL, 0x01, OP_SET, 5, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x4e, NULL},
+        {13, TRK_FILL, 0x00, NULL},
+        {262, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {15, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {258, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
 
 typedef struct {
@@ -2190,7 +2257,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 256, 32, 0, 5209,
+         0, 1, trk_myarc_hfdc, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,8}, CONT_MODEL,
          0, 0, 0

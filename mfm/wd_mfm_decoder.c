@@ -631,6 +631,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Soviet clone. Source stated clone of iSBC 214. Much closer to
 //         iSBC 215. Byte 2 fields not all verified.
 //      https://github.com/dgesswein/mfm/issues/35
+//      Format
+//      https://user-images.githubusercontent.com/39098890/97402224-3e8daa80-1903-11eb-90c0-8c81abeccd40.jpg
 //
 //   6 byte header + 4 byte CRC
 //      byte 0 0xa1
