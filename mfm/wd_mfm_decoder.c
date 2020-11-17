@@ -368,6 +368,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_A310_PODULE. Same as MACBOTTOM except what bytes in CRC and
+//      sector length. Uses HD63463 controller chip
 //      
 //   CONTROLLER_ADAPTEC
 //      6 byte header + 4 byte CRC
@@ -1342,7 +1345,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_MACBOTTOM) {
+      } else if (drive_params->controller == CONTROLLER_MACBOTTOM ||
+             drive_params->controller == CONTROLLER_ACORN_A310_PODULE) {
          sector_status.cyl = bytes[2] | (bytes[1] << 8);
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
          sector_status.sector = bytes[4];

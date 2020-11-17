@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2020-03-15T22:05:38.559952293"/>
+	<meta name="changed" content="2020-11-11T08:09:49.385923825"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -51,9 +51,9 @@ to 4.
 emulation bit data to. No file created if not specified</p>
 <p style="margin-bottom: 0in">--extracted_data_file  -e filename</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
-decoded data to. No file created if not specified. If drive has
-metadata for the sectors it will be extracted to filename.metadata.
-Currently only Xerox 6085 has metadata</p>
+decoded data to. No file created if not specified. Data is always in
+logical sector order. Interleave is removed. If drive has metadata
+for the sectors it will be extracted to filename.metadata.</p>
 <p style="margin-bottom: 0in">--format  -f WD_1006 | OMTI_5510 | 
 DEC_RQDX3 | Xebec_104786</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
@@ -96,11 +96,9 @@ header of transition and emulation file for information about image.
 mfm_util will display.</p>
 <p style="margin-bottom: 0in">--recovery -R</p>
 <p style="margin-left: 0.49in; margin-bottom: 0in">Enables microstep
-drive recovery mode. Some drives support this mode for read error
-recovery if a jumper is installed. Some Seagate drives have this
-capability and possibly other manufacturers. It may require a jumper
-to be installed on the drive to enable. For Seagate drives see
-<a href="ftp://ftp.seagate.com/techsuppt/mfm/">ftp://ftp.seagate.com/techsuppt/mfm/</a>.</p>
+drive recovery mode. Some drives support this mode for error recovery
+if a jumper is installed. Some Seagate drives have this capability
+and others might also. <a href="ftp://ftp.seagate.com/techsuppt/mfm/">ftp://ftp.seagate.com/techsuppt/mfm/</a></p>
 <p style="margin-bottom: 0in">--retries  -r #[,#]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Select number of
 retries on read errors. Only valid for read command. The optional

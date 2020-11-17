@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 11/13/20 DJG Added CONTROLLER_ACORN_A310_PODULE
 // 10/26/20 DJG ext2emu support for MYARC_HFDC controller
 // 10/24/20 DJG Added MYARC_HFDC controller and ext2emu support for SM_1810_512B
 // 10/17/20 DJG increased maximum ECC correction length to 2 for 24 bit
@@ -163,6 +164,7 @@ typedef struct {
       CONTROLLER_DTC_520_256B, 
       CONTROLLER_DTC_520_512B, 
       CONTROLLER_MACBOTTOM, 
+      CONTROLLER_ACORN_A310_PODULE, 
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_ALTOS_586,
       CONTROLLER_ATT_3B2,
@@ -1860,6 +1862,47 @@ DEF_EXTERN TRK_L trk_myarc_hfdc[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_acorn_a310_podule[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {16, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x4e, NULL},
+        {16, TRK_FILL, 0x00, NULL},
+        {262, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {17, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {162, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
 
 typedef struct {
@@ -2074,6 +2117,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALIZE,
+         0, 0, 0
+      },
+      {"Acorn_A310_podule",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_acorn_a310_podule, 256, 32, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0x0,0xa00805,32,7}, CONT_MODEL,
          0, 0, 0
       },
       // Also DEC professional 350 & 380

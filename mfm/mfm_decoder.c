@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/13/20 DJG Added CONTROLLER_ACORN_A310_PODULE
 // 10/18/20 DJG Made cylinders & head printed in Mismatch cyl error same order
 //    as other messages.
 // 10/17/20 DJG Pass correct byte range to ecc correction routine. Error
@@ -548,6 +549,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DTC_520_512B ||
          drive_params->controller == CONTROLLER_DTC_520_256B ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
+         drive_params->controller == CONTROLLER_ACORN_A310_PODULE ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_DG_MV2000 ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
@@ -1340,6 +1342,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DTC_520_512B ||
             drive_params->controller == CONTROLLER_DTC_520_256B ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
+            drive_params->controller == CONTROLLER_ACORN_A310_PODULE ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_DG_MV2000 ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
