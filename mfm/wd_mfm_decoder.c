@@ -2192,7 +2192,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         SECTOR_DECODE_STATUS init_status = 0;
 
                         // Don't perform ECC corrections. They can be
-                        // false corrections when not sector actually header.
+                        // false corrections when not actually sector header.
                         mfm_crc_bytes(drive_params, bytes, 
                            header_bytes_crc_len, PROCESS_HEADER, &crc, 
                            &ecc_span, &init_status, 0);

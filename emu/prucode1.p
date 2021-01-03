@@ -37,6 +37,9 @@
 
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 //
+// 01/03/21 DJG Changed handling of keeping read data in sync during
+//   write. Clocks were far enough off on Convergent AWS that caused abort
+//   due to DMA data out of sync.
 // 08/09/20 DJG Changed NEW_READ_TIME to prevent abort on Whitechappel computer
 //   with BeagleBone black. DMA is taking a long time on rare occasions.
 //   unclear on why this is much worse other than machine was doing a lot of
@@ -100,7 +103,9 @@
 #define DDR_OFFSET    r10
    // Words in DDR memory left to process in track
 #define WORDS_LEFT    r11
-// r12 unused
+   // Count bit time during write to keep read data in sync so we
+   // can switch to it at end of write
+#define BIT_TIME_COUNT r12.w0
    // Address in PRU RAM DMA buffer
 #define BUF_ADDR      r13
    // Current data word processing from DDR
@@ -567,6 +572,7 @@ do_write:
    SBBO    r0, DRIVE_DATA, PRU1_DRIVE0_TRK_DIRTY, 4
       // Get bit location write starts from and tell PRU 0 we are ready
    XIN     10, TRACK_BIT, 4
+   MOV     BIT_TIME_COUNT, 0
    MOV     PRU1_STATE, STATE_WRITE_WAIT
    MOV     PRU1_BUF_OFFSET, 0         // Set to start of buffer
    XOUT    10, PRU1_BUF_STATE, 4
@@ -609,6 +615,7 @@ delta_loop:
       // Get word, stop if zero. Update offset in buffer
    LBCO    r4, CONST_PRUSHAREDRAM, PRU1_BUF_OFFSET, 4
    QBEQ    write_done, r4, 0
+   ADD     BIT_TIME_COUNT, BIT_TIME_COUNT, r4
    ADD     PRU1_BUF_OFFSET, PRU1_BUF_OFFSET, 4
    AND     PRU1_BUF_OFFSET, PRU1_BUF_OFFSET, SHARED_DELTAS_WRITE_MASK
    XOUT    10, PRU1_BUF_STATE, 4
@@ -646,9 +653,19 @@ just_write:
    SBBO    WORD2, DDR_ADDR, DDR_OFFSET, 4  // Store word
    ADD     DDR_OFFSET, DDR_OFFSET, 4       // Point to next
    SUB     WORDS_LEFT, WORDS_LEFT, 1
+   
    // Save return address before we do another call
    MOV     RETREG.w2, RETREG.w0
+chk_update:
+   // Get bit count for 32 bit word. We want the DMA to follow the
+   // actual rotation time, not the MFM data bit time. This prevents
+   // abort when clocks slightly off on long write.
+   LSL     r0, BIT_PRU_CLOCKS, 5
+   QBGT    no_update, BIT_TIME_COUNT, r0
+   SUB     BIT_TIME_COUNT, BIT_TIME_COUNT, r0
    CALL    update_dma
+   JMP     chk_update
+no_update:
    MOV     RETREG.w0, RETREG.w2
    QBNE    write_ret, WORDS_LEFT, 0        // Branch if more words in track
    MOV     DDR_OFFSET, TRACK_OFFSET        // Wrap to beginning of track

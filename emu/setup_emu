@@ -19,9 +19,9 @@ if [ $REV == '0' ]; then
    echo emu:00C0 > $CAPE
    # 31 drive1 select/recovery, 51 write fault(C)
    # 60 emulation xcvr en
-   pins_low="31 51 60"
-   # 14,30(C) drive selected LEDS
    # 48 testing(C)
+   pins_low="31 48 51 60"
+   # 14,30(C) drive selected LEDS
    # 50 mfm read xcvr en
    pins_high="14 30 50"
 else

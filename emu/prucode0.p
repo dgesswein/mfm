@@ -700,13 +700,13 @@ end_track:
       // Starting a new track at the beginning. Reset time and counters to
       // beginning.
    MOV      TRACK_BIT, 0
- LBBO     r1, CYCLE_CNTR, 0, 4
-SBCO r1, CONST_PRURAM, 0xf0, 4
- MOV     r2, 165000*20
- // Verify simulated RPM <= 3636. This is old debugging check that probably
- // no longer needed.
- QBLE     clrok, r1, r2
-halt
+   LBBO     r1, CYCLE_CNTR, 0, 4
+   SBCO r1, CONST_PRURAM, 0xf0, 4
+   MOV     r2, 165000*20
+   // Verify simulated RPM <= 3636. This is old debugging check that probably
+   // no longer needed.
+   QBLE     clrok, r1, r2
+   HALT
 clrok:
 #ifdef ignore
    MOV      r24, (1 << GPIO1_TEST)
