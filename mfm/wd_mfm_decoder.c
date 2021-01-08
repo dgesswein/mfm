@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 01/07/21 DJG Added RQDX2 format
 // 10/25/20 DJG Fix regression in DEC_RQDX3. Make MYARC_HDFC implementation
 //    match chip datasheet.
 // 10/24/20 DJG Added MYARC_HFDC controller
@@ -178,6 +179,12 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_RQDX2
+//      Same as WD_1006 execpt data byte 1 is 0xfb on later cylinders
+//      Last cylinder is 16 sector instead of 18 sector and has different
+//      sector size value. Code changed to ignore sector size. Two missing
+//      sectors will be reported as error
 //
 //   CONTROLLER ISBC_214_128 ISBC_214_256 ISBC_214_512 ISBC_214_1024
 //   http://www.bitsavers.org/pdf/intel/iSBC/134910-001_iSBC_214_Peripheral_Controller_Subsystem_Hardware_Reference_Manual_Aug_85.pdf
@@ -1156,6 +1163,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_RQDX2 || 
             drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
@@ -1173,7 +1181,11 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[2];
 
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
-         sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
+         if (drive_params->controller == CONTROLLER_RQDX2) {
+            sector_size = 512;
+         } else {
+            sector_size = sector_size_lookup[(bytes[3] & 0x60) >> 5];
+         } 
          bad_block = (bytes[3] & 0x80) >> 7;
 
          sector_status.sector = bytes[4];
@@ -1721,6 +1733,12 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       sector_status.status |= init_status;
 
       if (drive_params->controller == CONTROLLER_MYARC_HFDC) {
+         if (bytes[1] == 0xf8) {
+            id_byte_expected = 0xf8;
+         } else {
+            id_byte_expected = 0xfb;
+         }
+      } else if (drive_params->controller == CONTROLLER_RQDX2) {
          if (bytes[1] == 0xf8) {
             id_byte_expected = 0xf8;
          } else {

@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 01/07/21 DJG Added RQDX2 format
 // 11/13/20 DJG Added CONTROLLER_ACORN_A310_PODULE
 // 10/18/20 DJG Made cylinders & head printed in Mismatch cyl error same order
 //    as other messages.
@@ -527,6 +528,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    }
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
+         drive_params->controller == CONTROLLER_RQDX2 ||
          drive_params->controller == CONTROLLER_ISBC_214_128B ||
          drive_params->controller == CONTROLLER_ISBC_214_256B ||
          drive_params->controller == CONTROLLER_ISBC_214_512B ||
@@ -1320,6 +1322,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_RQDX2 ||
             drive_params->controller == CONTROLLER_ISBC_214_128B ||
             drive_params->controller == CONTROLLER_ISBC_214_256B ||
             drive_params->controller == CONTROLLER_ISBC_214_512B ||

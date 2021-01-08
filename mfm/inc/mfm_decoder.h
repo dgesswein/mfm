@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 01/07/21 DJG Added RQDX2 format
 // 12/11/20 DJG Found false ECC correction so reduced ECC correction length
 // 11/13/20 DJG Added CONTROLLER_ACORN_A310_PODULE
 // 10/26/20 DJG ext2emu support for MYARC_HFDC controller
@@ -153,6 +154,7 @@ typedef struct {
       CONTROLLER_NEWBURYDATA,
       CONTROLLER_ALTOS,
       CONTROLLER_WD_1006, 
+      CONTROLLER_RQDX2, 
       CONTROLLER_ISBC_214_128B,
       CONTROLLER_ISBC_214_256B,
       CONTROLLER_ISBC_214_512B,
@@ -2013,6 +2015,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         0, 0, 0
+      },
+      {"RQDX2",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 18, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"Intel_iSBC_214_128B",      128, 10000000,      0,
