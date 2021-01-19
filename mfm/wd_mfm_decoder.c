@@ -411,7 +411,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //
-//   CONTROLLER_Elektronika 85?, Russian DECpro 350 clone. 
+//   CONTROLLER_ELEKTRONIKA_85, Russian DECpro 350 clone. 
 //   From Russian documentation it probably only used cyl9 bit and doesn't
 //   support larger disks. 
 //   5 byte header + 2 byte CRC

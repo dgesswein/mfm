@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 01/18/21 DJG Only print valid formats for ext2emu
 // 10/08/20 DJG Added OP_XOR for sector data. Changed a couple of error messages
 // 12/31/19 DJG Allow additional special encoded bytes
 // 08/23/19 DJG Fixed typo and print format.
@@ -27,7 +28,7 @@
 // 10/24/14 DJG Changes necessary due to addition of mfm_emu write buffer
 //     using decode options stored in header, and minor reformatting
 //
-// Copyright 2019 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -98,7 +99,7 @@ int main (int argc, char *argv[])
 
    // If they specified a transitions or emulation file get options that 
    // were stored in it.
-   parse_cmdline(argc, argv, &drive_params, "tm", 1, 1, 1);
+   parse_cmdline(argc, argv, &drive_params, "tm", 1, 1, 1, 0);
    if (drive_params.transitions_filename != NULL ||
          drive_params.emulation_filename != NULL) {
       char **tran_argv, **targs;
@@ -145,7 +146,7 @@ int main (int argc, char *argv[])
          // Allow the arj options from stored command line, we will ignore
          // them in drive_params. Don't make errors fatal in case bad
          // option gets in header
-         parse_cmdline(tran_argc, tran_argv, &drive_params, "", 0, 0, 1);
+         parse_cmdline(tran_argc, tran_argv, &drive_params, "", 0, 0, 1, 0);
        
          free(cmdline);
       }
@@ -153,7 +154,7 @@ int main (int argc, char *argv[])
 
    // Now parse the full command line. This allows overriding options that
    // were in the transition file header.
-   parse_cmdline(argc, argv, &drive_params, "Mrd", 0, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "Mrd", 0, 0, 0, 0);
    // Save final parameters
    drive_params.cmdline = parse_print_cmdline(&drive_params, 0, 0);
 
@@ -957,7 +958,7 @@ void ext2emu(int argc, char *argv[])
    int calc_size;
    CONTROLLER *controller;
 
-   parse_cmdline(argc, argv, &drive_params, "sgjdlu3rabt", 1, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "sgjdlu3rabt", 1, 0, 0, 1);
 
    parse_validate_options_listed(&drive_params, "hcemf");
 

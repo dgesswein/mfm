@@ -6,9 +6,10 @@
 // Call parse_validate_options to perform some validation on options that
 //   both mfm_util and mfm_read need
 //
-// Copyright 2019 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/18/21 DJG Only print valid formats for ext2emu
 // 03/15/20 DJG Fix fix for emulation_output set when file not specified
 // 03/09/20 DJG Fix emulation_output set when file not specified
 // 10/25/19 DJG Set drive_params->metadata_bytes
@@ -256,15 +257,20 @@ void parse_set_drive_params_from_controller(DRIVE_PARAMS *drive_params,
 //
 // arg: Controller string
 // ignore_invalid_option: Don't print if controller is invalid
+// drive_params: Drive parameters structure 
+// params_set: Returns if parameters set from CONT_MODEL
+// track_layout_format_only: True if we only allow formats that have
+//    track_layout set
 // return: Controller number
 static int parse_controller(char *arg, int ignore_invalid_options,
-      DRIVE_PARAMS *drive_params, int *params_set) {
+      DRIVE_PARAMS *drive_params, int *params_set, int track_layout_format_only) {
    int i;
    int controller = -1;
+#define VALID_CONTROLLER(i) (!track_layout_format_only || mfm_controller_info[i].track_layout != NULL)
 
    *params_set = 0;
    for (i = 0; mfm_controller_info[i].name != NULL; i++) {
-      if (strcasecmp(mfm_controller_info[i].name, arg) == 0) {
+      if (strcasecmp(mfm_controller_info[i].name, arg) == 0 && VALID_CONTROLLER(i)) {
          controller = i;
       }
    }
@@ -274,7 +280,9 @@ static int parse_controller(char *arg, int ignore_invalid_options,
       } else {
          msg(MSG_FATAL, "Unknown controller %s. Choices are\n",arg);
          for (i = 0; mfm_controller_info[i].name != NULL; i++) {
-            msg(MSG_FATAL,"%s\n",mfm_controller_info[i].name);
+            if (VALID_CONTROLLER(i)) {
+               msg(MSG_FATAL,"%s\n",mfm_controller_info[i].name);
+            }
          }
          exit(1);
       }
@@ -483,7 +491,7 @@ static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:w:I";
 // ignore_invalid_options: Don't exit if option is not known
 void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params, 
     char *delete_options, int initialize, int only_deleted,
-    int ignore_invalid_options)
+    int ignore_invalid_options, int track_layout_format_only)
 {
    int rc;
    // Loop counters
@@ -616,7 +624,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'f':
             drive_params->controller = parse_controller(optarg, 
-               ignore_invalid_options, drive_params, &params_set);
+               ignore_invalid_options, drive_params, &params_set, track_layout_format_only);
             // If not valid don't clear option set bit
             if (drive_params->controller == -1) {
                drive_params->opt_mask &= ~(1 << options_index);

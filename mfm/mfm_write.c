@@ -2,7 +2,7 @@
 // attempt to handle bad locations on the disk. It does not have
 // proper command line processing. Edit main. 
 //
-// Copyright 2016 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -18,6 +18,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 01/18/21 DJG Updated function call
 // 03/22/19 DJG Added REV C support
 // 03/14/19 DJG Set PRU clock rate. Needed for SA1000 support
 // 03/09/18 DJG Use drive specified on command line
@@ -154,7 +155,7 @@ int main(int argc, char *argv[])
    board_initialize();
 
    // Find out what we should do
-   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0, 0);
    //parse_validate_options(&drive_params, 1);
    drive_params.write_precomp_cyl = 512;
    drive_params.early_precomp_ns = 10;

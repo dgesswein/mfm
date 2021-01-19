@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 01/18/21 DJG Add ext2emu support for Elektronika_85
 // 01/07/21 DJG Added RQDX2 format
 // 12/11/20 DJG Found false ECC correction so reduced ECC correction length
 // 11/13/20 DJG Added CONTROLLER_ACORN_A310_PODULE
@@ -981,6 +982,59 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
      }
    },
    {143, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_ELEKTROKIKA_85[] 
+#ifdef DEF_DATA
+ = 
+{ { 2, TRK_FILL, 0x00, NULL },
+  { 16, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {17, TRK_FILL, 0x00, NULL},
+        {532, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0x80, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {16, FIELD_FILL, 0x00, OP_SET, 514, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 530, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {38, TRK_FILL, 0x55, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {672, TRK_FILL, 0x55, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -2148,9 +2202,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         16, 1, NULL, 0, 0, 0, 5209,
+         16, 1, trk_ELEKTROKIKA_85, 512, 16, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"Altos_586",              256, 10000000,      0, 

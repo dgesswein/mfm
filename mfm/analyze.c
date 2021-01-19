@@ -9,6 +9,8 @@
 // Copyright 2018 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/17/21 DJG Made match logic for MODEL controllers pick one with closest
+//    number of sectors to expected. RQDX2 was matching WD_3B1.
 // 03/15/20 DJG Give margin in LBA head check
 // 03/09/20 DJG Fix finding number of heads for LBA disk where
 //    selecting for example non existing head 4 gives head 0 data
@@ -213,6 +215,8 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
    // Number of matching formats and what formats matched
    int matches = 0;
    int match_list[50];
+   int best_match = 0;
+   int best_match_count = 999;
 
    drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
@@ -271,15 +275,22 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
 //printf("%s not match %d good %d\n", mfm_controller_info[cont].name, not_match, good_data_count);
       if (!not_match && good_data_count >= ceil(drive_params->num_sectors * 2 / 3.0) &&
              matches < ARRAYSIZE(match_list)) {
-         match_list[matches++] = cont;
-         msg(MSG_INFO, "Found matching format %s:\n", 
-            mfm_controller_info[cont].name);
+         int diff = good_data_count - drive_params->num_sectors;
+
+         match_list[matches] = cont;
+         msg(MSG_INFO, "Found matching format %s: good count difference %d\n", 
+            mfm_controller_info[cont].name, diff);
+         if (abs(diff) < best_match_count) {
+            best_match_count = abs(diff);
+            best_match = matches;
+         }
+         matches++;
       }
    }
 
    // If we found at least one match set drive parameters to first match
    if (matches >= 1) {
-      parse_set_drive_params_from_controller(drive_params, match_list[0]);
+      parse_set_drive_params_from_controller(drive_params, match_list[best_match]);
    }
    return matches;
 }
@@ -986,7 +997,7 @@ int analyze_format(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
       rc = analyze_model(drive_params, cyl, head, deltas, max_deltas);
    }
    if (rc > 1) {
-      msg(MSG_ERR, "Multiple matching formats found, using first\n");
+      msg(MSG_ERR, "Multiple matching formats found, using best\n");
    }
    if (rc >= 1) {
       DRIVE_PARAMS drive_params_hold;
