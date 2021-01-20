@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 01/20/21 DJG Fixed call
 // 07/07/19 DJG Turn off recovery line when exiting
 // 03/22/19 DJG Added REV C support
 // 04/20/18 DJG Fixed previous change to work properly with analyze
@@ -177,7 +178,7 @@ int main(int argc, char *argv[])
    board_initialize();
 
    // Find out what we should do
-   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0, 0);
    parse_validate_options(&drive_params, 1);
 
    // If they specified a file name then we read the disk
