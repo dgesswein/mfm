@@ -58,8 +58,10 @@
 #define PRU0_HEAD_SELECT_GLITCH_VALUE 0x3c
 #define PRU0_HEAD_SELECT_GLITCH_COUNT 0x40
    // Decoded head and raw bits from GPIO register. See PRU0_DRIVE#_CUR_CYL
-   // for current cylinder
+   // for current cylinder. Bad head is non zero if CUR_HEAD is not valid
+   // for drive. Both are two bytes and BAD_HEAD must be high
 #define PRU0_CUR_HEAD                0x48
+#define PRU0_BAD_HEAD                0x4a
 #define PRU0_CUR_SELECT_HEAD         0x4c
    // Time in 200 MHz clocks from ARM interrupt to data returned
 #define PRU0_SEEK_TIME               0x50

@@ -414,6 +414,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   CONTROLLER_ELEKTRONIKA_85, Russian DECpro 350 clone. 
 //   From Russian documentation it probably only used cyl9 bit and doesn't
 //   support larger disks. 
+//   DEC documenation http://www.bitsavers.org/pdf/dec/pdp11/pro3xx/XT_Hardware_Handbook_1982.pdf
 //   5 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
@@ -425,6 +426,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 0 0xa1
 //      byte 1 0x80
 //      Sector data for sector size
+//      1 byte backup revision (only zero seen). 
+//      15 bytes reserved (only zero seen)
+//      This code doesn't to anything with these 16 bytes other than checked
+//      by CRC.
 //      CRC/ECC code
 //
 //   CONTROLLER_SYMBOLICS_3620, Symbolics 3620.

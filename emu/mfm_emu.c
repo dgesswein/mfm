@@ -14,9 +14,11 @@
 // to let it fetch the next cylinder.
 //
 
-// Copyright 2019 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/24/2021 DJG Make stdout nonblocking to prevent prints from blocking
+//    emulation. Initialize data to send when invalid head selected.
 // 06/19/2020 DJG Change PWM word format to speed up pru code
 // 04/15/2019 DJG Added support for RPM set on command line
 // 04/14/2019 DJG Added print
@@ -442,6 +444,11 @@ static void *emu_proc(void *arg)
             cyl_size[i]);
          exit(1);
       }
+      // Set last track MFM data to 0x55 so we have transitions on invalid 
+      // head. 
+      memset(data[i], 0x55 , track_size[i]);
+      pru_write_mem(MEM_DDR, data[i], track_size[i], i*DDR_DRIVE_BUFFER_MAX_SIZE +
+         15 * track_size[i]);
    }
 
    while (!done) {
@@ -858,7 +865,7 @@ int main(int argc, char *argv[])
 
    if (pthread_create(&write_thread, NULL, &emu_proc_write, &drive_params)
       != 0) {
-      msg(MSG_FATAL, "Unable to create read thread\n");
+      msg(MSG_FATAL, "Unable to create write thread\n");
       exit(1);
    }
 
@@ -901,6 +908,11 @@ int main(int argc, char *argv[])
       {PRU_TEST3, MEM_PRU1_DATA, "1:test 3 %x\n", 123},
       {PRU_TEST4, MEM_PRU1_DATA, "1:test 4 %x\n", 123}
    };
+
+   // Set stdout to non blocking to prevent backed up prints from messing
+   // up emulation
+   fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL) | O_NONBLOCK);
+
    while (1) {
       uint32_t a;
 #if 1

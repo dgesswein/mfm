@@ -1,6 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 02/15/21 DJG Added ext2emu support for CONVERGENT_AWS
+// 02/01/21 DJG Adjusted trk_ELEKTROKIKA_85 to match documentation on format
+//    found.
 // 01/18/21 DJG Add ext2emu support for Elektronika_85
 // 01/07/21 DJG Added RQDX2 format
 // 12/11/20 DJG Found false ECC correction so reduced ECC correction length
@@ -987,6 +990,62 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_convergent_aws[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x00, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 2, NULL},
+              // Put head in bits 7-4 of byte 2
+              {1, FIELD_HEAD, 0x00, OP_XOR, 4,
+                 (BIT_L []) {
+                    { 16, 4},
+                    { -1, -1},
+                 }
+              },
+              // Cyl in upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {19, TRK_FILL, 0x00, NULL},
+        {260, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {19, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {195, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 DEF_EXTERN TRK_L trk_ELEKTROKIKA_85[] 
 #ifdef DEF_DATA
  = 
@@ -1017,7 +1076,7 @@ DEF_EXTERN TRK_L trk_ELEKTROKIKA_85[]
               {-1, 0, 0, 0, 0, NULL}
            }
         },
-        {17, TRK_FILL, 0x00, NULL},
+        {15, TRK_FILL, 0x00, NULL},
         {532, TRK_FIELD, 0x00, 
            (FIELD_L []) {
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
@@ -1030,7 +1089,7 @@ DEF_EXTERN TRK_L trk_ELEKTROKIKA_85[]
            }
         },
         {2, TRK_FILL, 0x00, NULL},
-        {38, TRK_FILL, 0x55, NULL},
+        {40, TRK_FILL, 0x55, NULL},
         {-1, 0, 0, NULL},
      }
    },
@@ -2225,13 +2284,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
          0, 0, 0
       },
-      {"CONVERGENT_AWS",       256, 10000000, 460000, 
+      {"CONVERGENT_AWS",       256, 10000000, 0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, trk_convergent_aws, 256, 32, 1, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         {0x0,0x1021,16,0},{0x0,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"CONVERGENT_AWS_SA1000",       512, 8680000, 0, 

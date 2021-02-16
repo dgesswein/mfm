@@ -350,7 +350,8 @@ drive_0:
       // Calculate start of track by multiply head by track size in bytes
       // and add in header size to get start address of data
       // Get current head from PRU 0
-   LBCO     r29, CONST_PRURAM_OTHER, PRU0_CUR_HEAD, 4
+   MOV      r29, 0              // Clear word, only w0 loaded below
+   LBCO     r29, CONST_PRURAM_OTHER, PRU0_CUR_HEAD, 2
    MOV      r28, TRACK_BYTES
    LBBO     r0, DRIVE_DATA, PRU1_DRIVE0_TRACK_HEADER_BYTES, 4 
    ADD      DDR_OFFSET, DDR_OFFSET,  r0  // Point after header
@@ -567,8 +568,8 @@ no_dma:
 do_write:
       // Mark data dirty so ARM can write it to disk.
    LBBO    r0, DRIVE_DATA, PRU1_DRIVE0_TRK_DIRTY, 4
-   LBCO    r1, CONST_PRURAM_OTHER, PRU0_CUR_HEAD, 4
-   SET     r0, r0, r1
+   LBCO    r1.w0, CONST_PRURAM_OTHER, PRU0_CUR_HEAD, 2
+   SET     r0, r0, r1.w0
    SBBO    r0, DRIVE_DATA, PRU1_DRIVE0_TRK_DIRTY, 4
       // Get bit location write starts from and tell PRU 0 we are ready
    XIN     10, TRACK_BIT, 4
@@ -650,10 +651,13 @@ write_word:
    AND     r0, r0, WORD1                   // Clear bits we wish to change
    OR      WORD2, WORD2, r0                // And put them in
 just_write:
+   // If selected head is bad then don't actully write
+   LBCO    r0.w0, CONST_PRURAM_OTHER, PRU0_BAD_HEAD, 2
+   QBNE    nowrite, r0.w0, 0
    SBBO    WORD2, DDR_ADDR, DDR_OFFSET, 4  // Store word
+nowrite:   
    ADD     DDR_OFFSET, DDR_OFFSET, 4       // Point to next
    SUB     WORDS_LEFT, WORDS_LEFT, 1
-   
    // Save return address before we do another call
    MOV     RETREG.w2, RETREG.w0
 chk_update:

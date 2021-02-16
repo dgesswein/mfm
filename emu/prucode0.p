@@ -147,6 +147,9 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 01/28/20 DJG Ignore write with illegal head and output data in head entry 15
+//   location when reading. Head 15  is be pattern we want for when illegal
+//   head is selected. If disk has 16 heads entry 15 will be real data.
 // 08/09/20 DJG Ajusted MAX_TIME_OFFSET to match prucode1.p NEW_READ_TIME
 // 07/17/20 DJG Changed from PWM word queue need to be full at start to
 //     >= full - 2 
@@ -353,7 +356,8 @@ START:
    SBCO     RZERO, CONST_PRURAM, PRU0_DRIVE1_CUR_CYL, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_DRIVE0_LAST_ARM_CYL, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_DRIVE1_LAST_ARM_CYL, 4
-   SBCO     RZERO, CONST_PRURAM, PRU0_CUR_HEAD, 4
+   SBCO     RZERO, CONST_PRURAM, PRU0_CUR_HEAD, 2
+   SBCO     RZERO, CONST_PRURAM, PRU0_BAD_HEAD, 2
    SBCO     RZERO, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_RQUEUE_UNDERRUN, 4
    SBCO     RZERO, CONST_PRURAM, PRU0_WQUEUE_OVERRUN, 4
@@ -1265,8 +1269,11 @@ nowrite:
    LBBO     r25, DRIVE_DATA, PRU0_DRIVE0_NUM_HEAD, 4
    SUB      r25, r25, 1                      // Convert to maximum value
    QBLE     storeh1, r25, r24
-   MOV      r24, r25                         // Greater than max so set to max
+      // Greater than max so set head to 15. If drive has less than 15 heads
+      // head 15 data will be dummy data. Mark as bad head
+   MOV      r24, 0x1000f                         
 storeh1:
+      // This writes CUR_HEAD and CUR_BAD_HEAD
    SBCO     r24, CONST_PRURAM, PRU0_CUR_HEAD, 4
    LBCO     r24, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
    RET
