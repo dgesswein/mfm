@@ -146,6 +146,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 02/22/21 DJG Stop write when index seen to prevent overwriting beginning of
+//     track on drives with > 3600 RPM
 // 03/22/19 DJG Added REV C support
 // 01/22/16 DJG Make sure write going inactive is checked when all
 //     capture registers used. High frequency noise? casued problem.
@@ -226,9 +228,7 @@
    // Register value 0
 #define RZERO        r19
 
-   // r20 is currently selected drive data memory pointer, Defined
-   // as DRIVE_DATA in cmd.h
-   // Value is 0 for drive 0, 4 for drive 1, and 1 if no drive is selected
+   // r20 hold for last r31 value
 
    // Minimum space left in queue from/to PRU 1. Only set if 
    // MEASURE_QUEUE_FULL read/write defined
@@ -412,7 +412,8 @@ wait_start_time:
    LBCO     r3, CONST_PRURAM, PRU0_START_TIME_CLOCKS, 4
 wait_start_loop:
    LBBO     r0, CYCLE_CNTR, 0, 4
-   QBLT     wait_start_loop, r3, r0   // Try again if we haven't timed out
+   QBLT     wait_start_loop, r3, r0 // Try again if we haven't timed out
+   MOV      r20, r31                // Initialize last index state
       // Turn on write
    SET      r30, R30_WRITE_GATE
 
@@ -427,6 +428,11 @@ read:
    ADD      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, 4 
    AND      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, SHARED_PWM_READ_MASK   
    QBEQ     end_track, PWM_WORD, 0         // Time 0 marks end of data
+   // If we see falling edge of index stop write
+   QBBS     indexhigh, r31, R31_INDEX_BIT     // Continue if high
+   QBBS     end_track, r20, R31_INDEX_BIT     // Stop if last high
+indexhigh:
+   MOV      r20, r31
    LSR      r3, PWM_WORD, 28               // Save bit count for loadit:
    MOV      PWM_WORD.b3, 0                 // Clear count
       // Send our read offset into shared memory to PRU 1 and get its write offset

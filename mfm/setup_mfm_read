@@ -14,9 +14,9 @@ echo in > /sys/class/gpio/gpio61/direction
 REV=`cat /sys/class/gpio/gpio61/value`
 if [ $REV == '0' ]; then
    echo Rev C Board
-   /usr/bin/dtc -O dtb -o emu-00C0.dtbo -b 0 -@ mfm_read-00C0.dts
-   cp emu-00C0.dtbo /lib/firmware
-   echo emu:00C0 > $CAPE
+   /usr/bin/dtc -O dtb -o mfm_read-00C0.dtbo -b 0 -@ mfm_read-00C0.dts
+   cp mfm_read-00C0.dtbo /lib/firmware
+   echo mfm_read:00C0 > $CAPE
    # Set inactive 31 recovery 46,15,26,27 Drive select, 110 write
    # 50 read transceiver enable, low enabled
    pins_low="31 46 15 26 27 110 50"
@@ -29,9 +29,9 @@ if [ $REV == '0' ]; then
    # 60 emulation xcvr en 48 testing(C)
    pins_high="8 9 10 11 14 30 44 60"
 else
-   /usr/bin/dtc -O dtb -o emu-00A0.dtbo -b 0 -@ mfm_read-00A0.dts
-   cp emu-00A0.dtbo /lib/firmware
-   echo emu:00A0 > $CAPE
+   /usr/bin/dtc -O dtb -o mfm_read-00A0.dtbo -b 0 -@ mfm_read-00A0.dts
+   cp mfm_read-00A0.dtbo /lib/firmware
+   echo mfm_read:00A0 > $CAPE
    # Set inactive 22,23,26,27 Drive select, 31 recovery, 110 write
    # 50 read transceiver enable, low enabled
    pins_low="22 23 26 27 31 110 50"

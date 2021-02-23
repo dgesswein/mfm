@@ -10,8 +10,6 @@
 #define PRU0_STATE      r9.b3
 #define PRU0_BUF_STATE  r9
 #define TRACK_BIT       r18
-// 0 for first drive, 4 for second to access variables that depend on selected drive
-#define DRIVE_DATA      r20
 
 #define STATE_IDLE         1
 #define STATE_READ         2
