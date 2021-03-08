@@ -17,6 +17,8 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/07/2021 DJG Fix buffer size calculation. Few words at end of track
+//    could be overwritten with buffer overflow.
 // 01/24/2021 DJG Make stdout nonblocking to prevent prints from blocking
 //    emulation. Initialize data to send when invalid head selected.
 // 06/19/2020 DJG Change PWM word format to speed up pru code
@@ -769,7 +771,8 @@ int main(int argc, char *argv[])
       pru_write_word(MEM_PRU1_DATA,PRU1_DRIVE0_TRACK_DATA_BYTES +
          i*PRU_WORD_SIZE_BYTES, curr_info->track_data_size_bytes);
       if (curr_info->track_data_size_bytes > max_buffer) {
-         max_buffer = curr_info->track_data_size_bytes;
+         max_buffer = curr_info->track_data_size_bytes + 
+            curr_info->track_header_size_bytes;
       }
 
       int track_time = lround(curr_info->track_data_size_bytes * 8.0 * 

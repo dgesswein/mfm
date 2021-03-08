@@ -469,7 +469,7 @@ void emu_file_write_track_bits(int fd, uint32_t *words, int num_words,
       value = head;
       emu_file_write(fd, &value, sizeof(value));
       // Cylinder -1 is end of file marker so don't write data. Otherwise
-      // pad with zero or truncate if longer than track_bytes.
+      // pad with fill pattern or truncate if longer than track_bytes.
       if (cyl != -1) {
          uint32_t fill;
          // Fill with valid MFM pattern

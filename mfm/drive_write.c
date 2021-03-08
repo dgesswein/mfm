@@ -3,7 +3,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
-// Copyright 2016 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 03/07/21 DJG Only pad end if non zero
 // 06/30/17 DJG Use emulator file number of heads, not command line.
 //
 #include <stdio.h>
@@ -81,13 +82,16 @@ void drive_write_disk(DRIVE_PARAMS *drive_params)
          msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       emu_file_read_cyl(drive_params->emu_fd,
          drive_params->emu_file_info, cyl, data,  cyl_size);
-//TODO need to handle this better either in emulator or here. Also
-//need to handle truncating when index seen or filling until index
+//TODO need to handle this better either in emulator or here.
+// May not be needed now that files are no longer padded with zeros.
 { int n;
 for (n = 0; n < drive_params->emu_file_info->num_head; n++) {
    int *d = (int *) data;
+   int index = track_size/4 - 1 + n * track_size/4;
    // No transitions at end of write will cause emulator to fail
-   d[track_size/4 - 1 + n * track_size/4] = 0x55555555;
+   if (d[index] == 0) {
+      d[index] = 0x55555555;
+   }
 }
 }
       pru_write_mem(MEM_DDR, data, cyl_size, 0);

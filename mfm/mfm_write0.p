@@ -146,6 +146,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/07/21 DJG Continue writing to end of track if end of data seen before 
+//     index. Stop write data when turning off write.
 // 02/22/21 DJG Stop write when index seen to prevent overwriting beginning of
 //     track on drives with > 3600 RPM
 // 03/22/19 DJG Added REV C support
@@ -182,7 +184,7 @@
 // 09/06/14 DJG Fixed deadlock between shutting down and seeking to
 //   next cylinder.
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -427,7 +429,7 @@ read:
       // Increment and wrap if needed 
    ADD      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, 4 
    AND      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, SHARED_PWM_READ_MASK   
-   QBEQ     end_track, PWM_WORD, 0         // Time 0 marks end of data
+   QBEQ     end_data, PWM_WORD, 0         // Time 0 marks end of data
    // If we see falling edge of index stop write
    QBBS     indexhigh, r31, R31_INDEX_BIT     // Continue if high
    QBBS     end_track, r20, R31_INDEX_BIT     // Stop if last high
@@ -476,8 +478,13 @@ loadit:
       // word we see in read should be a zero which will reset
    ADD      TRACK_BIT, TRACK_BIT, r3          // Update bit count
    JMP      read
+      // Write last pattern till end of track
+end_data:
+   QBBC     end_track, r31, R31_INDEX_BIT     // Low, stop
+   JMP      end_data
 end_track:
       // Stop write
+   SBCO     RZERO, CONST_ECAP, CAP2, 4  // Turn off data
    CLR      r30, R30_WRITE_GATE  
    MOV      PRU0_STATE, STATE_READ_DONE
    XOUT     10, PRU0_BUF_STATE, 4
