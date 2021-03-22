@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 03/21/21 DJG Added initial value for OMTI 20D controller 256 byte sectors
 // 02/15/21 DJG Added ext2emu support for CONVERGENT_AWS
 // 02/01/21 DJG Adjusted trk_ELEKTROKIKA_85 to match documentation on format
 //    found.
@@ -373,6 +374,8 @@ DEF_EXTERN struct {
  = 
    {{-1, 0}, {-1, 0xffffffffffffffffll}, {32, 0x2605fb9c}, {32, 0xd4d7ca20},
      {32, 0x409e10aa},
+     // 256 byte OMTI
+     {32, 0xe2277da8},
      // This is 532 byte sector OMTI. Above are other OMTI. They likely are
      // compensating for something OMTI is doing to the CRC like below
      // TODO: Would be good to find out what. File sun_remarketing/kalok*
@@ -2368,6 +2371,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0xed800493,0xa00805,32,4},{0x03affc1d,0xa00805,32,4}, CONT_MODEL,
          0, 0, 0
       },
+      // For 20D controller 256 byte sectors polynomial is 0xe2277da8,0x104c981,32,6
       {"OMTI_5510",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,

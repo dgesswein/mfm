@@ -224,8 +224,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 4 bits 7-5 head 4-0 sector
 //      CRC/ECC code
 //
-//   CONTROLLER_OMTI_5510
+//   CONTROLLER_OMTI_5510 (Also 20D)
 //   Manual http://bitsavers.trailing-edge.com/pdf/sms/pc/
+//   20D image omti_20d.tran/zip
 //   6 byte header + 4 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe

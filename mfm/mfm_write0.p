@@ -146,6 +146,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/20/21 Fix race condition on sampling index.
 // 03/07/21 DJG Continue writing to end of track if end of data seen before 
 //     index. Stop write data when turning off write.
 // 02/22/21 DJG Stop write when index seen to prevent overwriting beginning of
@@ -431,10 +432,11 @@ read:
    AND      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, SHARED_PWM_READ_MASK   
    QBEQ     end_data, PWM_WORD, 0         // Time 0 marks end of data
    // If we see falling edge of index stop write
-   QBBS     indexhigh, r31, R31_INDEX_BIT     // Continue if high
-   QBBS     end_track, r20, R31_INDEX_BIT     // Stop if last high
+   MOV      r0, r31     // sample R31 to get consistent data for checks
+   QBBS     indexhigh, r0, R31_INDEX_BIT     // Continue if high
+   QBBS     end_track, r20, R31_INDEX_BIT    // Stop if last high
 indexhigh:
-   MOV      r20, r31
+   MOV      r20, r0
    LSR      r3, PWM_WORD, 28               // Save bit count for loadit:
    MOV      PWM_WORD.b3, 0                 // Clear count
       // Send our read offset into shared memory to PRU 1 and get its write offset
