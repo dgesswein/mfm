@@ -4,12 +4,14 @@
 // Call parse_print_cmdline to print drive parameter information in command
 //   line format
 //
+// 05/13/2021 DJG Add --fill to set value used to fill emulator data for 
+//    --initialize
 // 04/15/19 DJG Added RPM option
 // 01/04/15 DJG Changed buffer to pool, added begin_time and rate options.
 // 11/09/14 DJG Added command option to set number of buffers and max delay
 //    added note and options command line options.
 //
-// Copyright 2019 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -66,6 +68,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          {"note", 1, NULL, 'n'},
          {"options", 1, NULL, 'o'},
          {"rpm", 1, NULL, 'R'},
+         {"fill", 1, NULL, 'F'},
          {NULL, 0, NULL, 0}
    };
    char short_options[] = "f:d:h:c:r:b:ip:q:vn:o:R:";
@@ -85,6 +88,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
    drive_params->buffer_count = 75;
    drive_params->buffer_max_time = .6;
    drive_params->sample_rate_hz = 10000000;
+   drive_params->fill = 0xaa;
 
    //drive_params->initialize and ->num_drives need to be zero
 
@@ -158,6 +162,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          break;
       case 'R':
          drive_params->rpm = strtoul(optarg, NULL, 0);
+         break;
+      case 'F':
+         drive_params->fill = strtoul(optarg, NULL, 0);
          break;
       case '?':
          exit(1);

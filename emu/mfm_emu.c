@@ -17,6 +17,10 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 05/13/2021 DJG Improved messages. Add --fill to set value used to fill
+//    emulator data for --initialize. Cromemco can't format disk with default,
+//    0 works.
+// 04/09/2021 DJG Fix printing drive select for REV C boards.
 // 03/07/2021 DJG Fix buffer size calculation. Few words at end of track
 //    could be overwritten with buffer overflow.
 // 01/24/2021 DJG Make stdout nonblocking to prevent prints from blocking
@@ -395,6 +399,39 @@ void send_PRU_cyl_data(DRIVE_PARAMS *drive_params, int drive, int cyl,
    pru_write_mem(MEM_DDR, data, cyl_size, drive*DDR_DRIVE_BUFFER_MAX_SIZE);
 }
 
+// Returns 1 if changed since last call
+int get_sel_head(int *sel, int *head, int *write_err) {
+   uint32_t b;
+   static uint32_t last_sel = 0xffffffff;
+   static uint32_t last_head = 0xffffffff;
+   int changed = 0;
+
+   b = pru_read_word(MEM_PRU0_DATA,PRU0_CUR_SELECT_HEAD);
+   *write_err = (b & (1 << CUR_SELECT_HEAD_WRITE_ERR));
+
+   if (board_get_revision() == 0) {
+      *sel = (((b >> 22) & 0x3) | ((b >> 24) & 0xc)) ^ 0xf;
+      *head = ((b >> 2) & 0xf) ^ 0xf;
+   } else if (board_get_revision() == 1) {
+      *sel = ((b >> 22) & 0x3)  ^ 0x3;
+      *head = ((b >> 8) & 0xf) ^ 0xf;
+   } else {
+      *head = ((b >> 8) & 0xf) ^ 0xf;
+      b = pru_read_word(MEM_PRU0_DATA,PRU0_R31);
+      *sel = (((b >> (R31_SEL2_BIT - 1)) & 0x2) | ((b >> R31_SEL1_BIT) & 0x1)) ^ 0x3;
+   }
+
+   if (*head != last_head || *sel != last_sel) {
+      changed = 1; 
+   }
+   last_sel = *sel;
+   last_head = *head;
+
+   return changed;
+}
+
+// Main routine. 
+
 // This thread writes a cylinder of data to the shared DDR memory for the
 // PRU's. It waits for an interrupt, writes the buffer back to disk if dirty,
 // then reads the next cylinder of data. The data to write is sent through
@@ -417,8 +454,6 @@ static void *emu_proc(void *arg)
    int new_cyl[MAX_DRIVES] = {0,0};
    // Buffer for the drive data
    uint8_t *data[MAX_DRIVES];
-   // PRU register to decode for debug
-   uint32_t b;
    // How long we took to respond to PRU request for next cylinder
    double seek_time, max_seek_time = 0;
    // How long we should delay
@@ -487,16 +522,9 @@ static void *emu_proc(void *arg)
          if (new_cyl[i] == -1) {
             done = 1;
          }
-         b = pru_read_word(MEM_PRU0_DATA,PRU0_CUR_SELECT_HEAD);
          if (cyl[i] != new_cyl[i]) {
-            int sel, head;
-            if (board_get_revision() == 0) {
-               sel = (((b >> 22) & 0x3) | ((b >> 24) & 0xc)) ^ 0xf;
-               head = ((b >> 2) & 0xf) ^ 0xf;
-            } else {
-               sel = ((b >> 22) & 0x3)  ^ 0x3;
-               head = ((b >> 8) & 0xf) ^ 0xf;
-            }
+            int sel, head, write_err;
+            get_sel_head(&sel, &head, &write_err);
 
             msg(MSG_INFO,"  Drive %d Cyl %d->%d select %d, head %d dirty %x\n",
                i, cyl[i], new_cyl[i], sel, head, dirty);
@@ -629,7 +657,6 @@ void check_select_input()
    close(fd[i]);
 } 
 
-// Main routine. 
 int main(int argc, char *argv[])
 {
    // Size of shared memory in bytes
@@ -678,12 +705,10 @@ int main(int argc, char *argv[])
       }
       msg(MSG_INFO, "Emulated drive RPM %d\n", drive_params.rpm);
       // Calculate round number of words for track based on rotation rate
-      // and bit rate
+      // and bit rate. track_size is in bytes
       track_size = ceil(1.0/(drive_params.rpm/60.0) * drive_params.sample_rate_hz / 8 / 4)*4;
       data = calloc(1,track_size);
-      for (i = 0; i < track_size / sizeof(data[0]); i++) {
-         data[i] = 0xaaaaaaaa;
-      }
+      memset(data, drive_params.fill, track_size);
       drive_params.fd[0] = emu_file_write_header(drive_params.filename[0],
          drive_params.num_cyl, drive_params.num_head, drive_params.cmdline,
          drive_params.note, drive_params.sample_rate_hz, 
@@ -744,10 +769,10 @@ int main(int argc, char *argv[])
             curr_info->note);
       }
 
-      msg(MSG_INFO,"Drive %d num cyl %d num head %d track len %d\n", i,
+      msg(MSG_INFO,"Drive %d num cyl %d num head %d track len %d begin_time %d\n", i,
          curr_info->num_cyl, 
          curr_info->num_head,
-         curr_info->track_data_size_bytes);
+         curr_info->track_data_size_bytes, curr_info->start_time_ns);
 
       if (sample_rate_hz == 0) {
          sample_rate_hz = curr_info->sample_rate_hz;
@@ -789,7 +814,7 @@ int main(int argc, char *argv[])
          index_end = lround(200e-6 * pru_clock_hz);
       }
       if (last_index_start != 0xffffffff && index_start != last_index_start) {
-         msg(MSG_FATAL, "Emulation files must all agree on start time\n");
+         msg(MSG_FATAL, "Emulation files must all agree on begin_time\n");
          exit(1);
       }
       last_index_start = index_start;
@@ -928,26 +953,18 @@ int main(int argc, char *argv[])
       } 
 #endif
 #if 1
-      static uint32_t b, sel, head, last_b = 0xffffffff;
-      static int first_time = 1;
-      b = pru_read_word(MEM_PRU0_DATA,PRU0_CUR_SELECT_HEAD);
-      if (board_get_revision() == 0) {
-         sel = (((b >> 22) & 0x3) | ((b >> 24) & 0xc)) ^ 0xf;
-         head = ((b >> 2) & 0xf) ^ 0xf;
-      } else {
-         sel = ((b >> 22) & 0x3)  ^ 0x3;
-         head = ((b >> 8) & 0xf) ^ 0xf;
-      }
-      if (b != last_b) {
+      int sel, head, write_err;
+      
+      if (get_sel_head(&sel, &head, &write_err)) {
          msg(MSG_INFO, "select %d head %d\n", sel, head);
-         last_b = b;
+      } 
+      if (write_err) {
+         static int first_time = 1;
          if (first_time) {
             first_time = 0;
-            if (b & (1 << CUR_SELECT_HEAD_WRITE_ERR)) {
-               msg(MSG_ERR, "**Write and step are active, is J2 cable reversed?**\n");
-            }
+            msg(MSG_ERR, "**Write and step are active, is J2 cable reversed?**\n");
          }
-      } 
+      }
 #endif
       if (pru_get_halt(0) || pru_get_halt(1)) {
          for (i = 0; i < 2; i++) {

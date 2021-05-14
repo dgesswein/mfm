@@ -147,7 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
-// 01/28/20 DJG Ignore write with illegal head and output data in head entry 15
+// 04/09/21 DJG Pass select state to C code for printing on REV C boards.
+// 01/28/21 DJG Ignore write with illegal head and output data in head entry 15
 //   location when reading. Head 15  is be pattern we want for when illegal
 //   head is selected. If disk has 16 heads entry 15 will be real data.
 // 08/09/20 DJG Ajusted MAX_TIME_OFFSET to match prucode1.p NEW_READ_TIME
@@ -194,7 +195,7 @@
 // 09/06/14 DJG Fixed deadlock between shutting down and seeking to
 //   next cylinder.
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -426,7 +427,9 @@ wait_initial_cmd:
    SBBO     RZERO, CYCLE_CNTR, 0, 4
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4
    LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
-   QBNE     EXIT, r1, 0
+   QBEQ     noexit, r1, 0
+   JMP      EXIT        // Out of ranage of relative jump
+noexit:
    LBCO     r1, CONST_PRURAM, PRU0_CMD, 4 
    QBEQ     mfm_setup, r1, CMD_START
    JMP      wait_initial_cmd
@@ -706,12 +709,17 @@ end_track:
    MOV      TRACK_BIT, 0
    LBBO     r1, CYCLE_CNTR, 0, 4
    SBCO r1, CONST_PRURAM, 0xf0, 4
-   MOV     r2, 165000*20
+#ifdef REVC
+      // Update select state for C code to print.
+   SBCO     r31, CONST_PRURAM, PRU0_R31, 4
+#endif
+
+   //MOV     r2, 165000*20
    // Verify simulated RPM <= 3636. This is old debugging check that probably
    // no longer needed.
-   QBLE     clrok, r1, r2
-   HALT
-clrok:
+   //QBLE     clrok, r1, r2
+   //HALT
+   //clrok:
 #ifdef ignore
    MOV      r24, (1 << GPIO1_TEST)
    MOV      r25, GPIO1 | GPIO_SETDATAOUT
@@ -834,6 +842,10 @@ waitsel:
    QBEQ     handle_start, r1, CMD_START  // And start, update seek time
       // Keep track of drive rotation while waiting
    CALL     check_rotation             
+#ifdef REVC
+      // Update select state for C code to print.
+   SBCO     r31, CONST_PRURAM, PRU0_R31, 4
+#endif
       // Are we selected?
    QBBC     select, r31, R31_SEL1_BIT
    QBBC     select, r31, R31_SEL2_BIT
@@ -1276,6 +1288,10 @@ storeh1:
       // This writes CUR_HEAD and CUR_BAD_HEAD
    SBCO     r24, CONST_PRURAM, PRU0_CUR_HEAD, 4
    LBCO     r24, CONST_PRURAM, PRU0_CUR_SELECT_HEAD, 4
+#ifdef REVC
+      // Update select state for C code to print.
+   SBCO     r31, CONST_PRURAM, PRU0_R31, 4
+#endif
    RET
 
       // Capture write data from the controller.

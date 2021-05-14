@@ -34,6 +34,7 @@ typedef struct {
    uint32_t sample_rate_hz;	// MFM clock and data bit rate
    uint32_t rpm;                // Drive RPM. 0 if not set.
    uint32_t start_time_ns;	// Time to shift start of reading from index
+   uint8_t fill;                // Fill to use with initialize
 } DRIVE_PARAMS;
 char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print);
 void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params);

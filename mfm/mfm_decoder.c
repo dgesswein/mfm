@@ -900,9 +900,9 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
    //  would be good.
    int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
    if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
-      msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d\n",
+      msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d phys sector %d\n",
          sect_rel0, drive_params->num_sectors-1, sector_status->sector,
-         sector_status->cyl,sector_status->head);
+         sector_status->cyl,sector_status->head, *sector_index);
       sector_status->status |= SECT_BAD_HEADER;
       sector_status->status |= ANALYZE_WRONG_FORMAT;
    } else if (sector_status->head > drive_params->num_head) {
