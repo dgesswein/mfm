@@ -33,7 +33,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
    = {
      {"Default", CONTROLLER_DEFAULT},
      {"Cromemco", CONTROLLER_CROMEMCO},
-     {NULL, 0}}
+     {NULL, 0}
 }
 #endif
 ;
