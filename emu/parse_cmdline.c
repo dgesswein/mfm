@@ -4,6 +4,8 @@
 // Call parse_print_cmdline to print drive parameter information in command
 //   line format
 //
+// 05/17/2021 DJG removed --fill and optional argument after --initialize
+//    with controller type
 // 05/13/2021 DJG Add --fill to set value used to fill emulator data for 
 //    --initialize
 // 04/15/19 DJG Added RPM option
@@ -36,7 +38,9 @@
 
 #include "msg.h"
 #include "emu_tran_file.h"
+#define DEF_DATA
 #include "parse_cmdline.h"
+#undef DEF_DATA
 #include "version.h"
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -44,6 +48,7 @@
 static void parse_drive_list(char *arg, DRIVE_PARAMS *drive_params);
 static void parse_buffer_list(char *arg, DRIVE_PARAMS *drive_params);
 static void parse_filename_list(char *arg, DRIVE_PARAMS *drive_params);
+static int parse_controller(char *arg);
 
 // Main routine for parsing command lines
 //
@@ -61,7 +66,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          {"cylinders", 1, NULL, 'c'},
          {"rate", 1, NULL, 'r'},
          {"begin_time", 1, NULL, 'b'},
-         {"initialize", 0, NULL, 'i'},
+         {"initialize", 2, NULL, 'i'},
          {"pool", 1, NULL, 'p'},
          {"quiet", 1, NULL, 'q'},
          {"version", 0, NULL, 'v'},
@@ -71,7 +76,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          {"fill", 1, NULL, 'F'},
          {NULL, 0, NULL, 0}
    };
-   char short_options[] = "f:d:h:c:r:b:ip:q:vn:o:R:F:";
+   char short_options[] = "f:d:h:c:r:b:i::p:q:vn:o:R:";
    int rc;
    // Loop counters
    int i;
@@ -88,7 +93,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
    drive_params->buffer_count = 75;
    drive_params->buffer_max_time = .6;
    drive_params->sample_rate_hz = 10000000;
-   drive_params->fill = 0xaa;
 
    //drive_params->initialize and ->num_drives need to be zero
 
@@ -137,7 +141,11 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          parse_drive_list(optarg, drive_params);
          break;
       case 'i':
-         drive_params->initialize = 1;
+         if (optarg != NULL) {
+            drive_params->initialize = parse_controller(optarg);
+         } else {
+            drive_params->initialize = CONTROLLER_DEFAULT;
+         }
          break;
       case 'b':
          drive_params->start_time_ns = strtoul(optarg, NULL, 0);
@@ -162,9 +170,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          break;
       case 'R':
          drive_params->rpm = strtoul(optarg, NULL, 0);
-         break;
-      case 'F':
-         drive_params->fill = strtoul(optarg, NULL, 0);
          break;
       case '?':
          exit(1);
@@ -370,4 +375,29 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print) {
       msg(MSG_INFO_SUMMARY, "Command line to generate file:\n%s\n", cmdline);
    }
    return cmdline;
+}
+
+// Parse controller value (track/sector header format). The formats are named
+// after the controller that wrote the format. Multiple controllers may use
+// the same format.
+//
+// arg: Controller string
+// return: Controller number
+static int parse_controller(char *arg) {
+   int i;
+   int controller = -1;
+
+   for (i = 0; mfm_controller_info[i].name != NULL; i++) {
+      if (strcasecmp(mfm_controller_info[i].name, arg) == 0) {
+         controller = mfm_controller_info[i].value;
+      }
+   }
+   if (controller == -1) {
+      msg(MSG_FATAL, "Unknown controller for initialize %s. Choices are\n",arg);
+      for (i = 0; mfm_controller_info[i].name != NULL; i++) {
+         msg(MSG_FATAL,"%s\n",mfm_controller_info[i].name);
+      }
+      exit(1);
+   }
+   return controller;
 }

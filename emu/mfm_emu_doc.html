@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2021-05-13T20:54:01.615476995"/>
+	<meta name="changed" content="2021-05-17T20:43:30.133927592"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -39,16 +39,16 @@ specified uses J1. The second uses J6.</p>
 <p style="margin-bottom: 0in">--file -f filename[,filename]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Emulation filename.
 First filename corresponds to first drive number specified.</p>
-<p style="margin-bottom: 0in">--fill value. Default value is decmial.
-Use leading 0x for hex. Default is 0xaa. Cromemco needs 0 for format
-to work.</p>
 <p style="margin-bottom: 0in">--heads  -h #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
 heads. Only needed if initialize specified.</p>
-<p style="margin-bottom: 0in">--initialize -i</p>
+<p style="margin-bottom: 0in">--initialize[=controller]
+-i[controller]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">If given
 create/overwrite specified file with empty data. Heads and cylinders
-must be specified.</p>
+must be specified. Takes optional argument controller which current
+valid values of Cromemco and Default. Cromemco needs special format
+for STDC controller to format image. Controller is case insensitive.</p>
 <p style="margin-bottom: 0in">--note -n “string”</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Description to
 store in the emulation file. Only used if initialize specified.</p>

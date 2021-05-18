@@ -16,7 +16,8 @@
 
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
-//
+// 05/17/2021 DJG Removed --fill and added optional argument after --initialize
+//    for Cromemco
 // 05/13/2021 DJG Improved messages. Add --fill to set value used to fill
 //    emulator data for --initialize. Cromemco can't format disk with default,
 //    0 works.
@@ -708,7 +709,13 @@ int main(int argc, char *argv[])
       // and bit rate. track_size is in bytes
       track_size = ceil(1.0/(drive_params.rpm/60.0) * drive_params.sample_rate_hz / 8 / 4)*4;
       data = calloc(1,track_size);
-      memset(data, drive_params.fill, track_size);
+      if (drive_params.initialize == CONTROLLER_CROMEMCO) {
+         // STDC controller hangs trying to format with all 0xaa. Ok with
+         // first word 0xaaaaaaaa and rest 0
+         data[0] = 0xaaaaaaaa;
+      } else {
+         memset(data, 0xaa, track_size);
+      }
       drive_params.fd[0] = emu_file_write_header(drive_params.filename[0],
          drive_params.num_cyl, drive_params.num_head, drive_params.cmdline,
          drive_params.note, drive_params.sample_rate_hz, 
