@@ -6,7 +6,7 @@
 	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2020-11-11T08:09:49.385923825"/>
+	<meta name="changed" content="2021-08-21T22:36:07.437871014"/>
 	<style type="text/css">
 		@page { margin: 0.79in }
 		p { margin-bottom: 0.08in }
@@ -28,7 +28,7 @@ command options.</p>
 <p style="margin-left: 0.49in; margin-bottom: 0in">Analyze disk
 format. If cylinder and head is specified it will analyze the
 specified track for header format. No spaces can be in the optional
-parameters. --analyze=10,4</p>
+parameters. --analyze=10,4. Cyl and head numbering start from 0.</p>
 <p style="margin-bottom: 0in">--begin_time -b #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
 nanoseconds to delay from index to start reading track</p>
@@ -54,13 +54,12 @@ emulation bit data to. No file created if not specified</p>
 decoded data to. No file created if not specified. Data is always in
 logical sector order. Interleave is removed. If drive has metadata
 for the sectors it will be extracted to filename.metadata.</p>
-<p style="margin-bottom: 0in">--format  -f WD_1006 | OMTI_5510 | 
-DEC_RQDX3 | Xebec_104786</p>
+<p style="margin-bottom: 0in">--format  -f format</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
-Not all formats listed. Use --format help to list all currently
-supported formats. Some formats will also set  header_crc, data_crc,
-sectors, and sector_length. Parameters specified after format will
-override values.</p>
+Use --format help to list all currently supported formats. Some
+formats will also set  header_crc, data_crc, sectors, and
+sector_length. Parameters specified after format will override
+values.</p>
 <p style="margin-bottom: 0in">--head_3bit  -3</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Selects header 3
 bit head encoding used by WD 1003 controller. Default is 4 bit. This
@@ -72,7 +71,7 @@ parameters for the sector header. Initial value, polynomial,
 polynomial length, maximum ECC span.</p>
 <p style="margin-bottom: 0in">--heads  -h #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
-heads.T his may be specified with --analyze to force more heads to be
+heads. This may be specified with --analyze to force more heads to be
 read if analyze determines the wrong number. Retries will not be
 performed on the extra heads.</p>
 <p style="margin-bottom: 0in">--ignore_seek_errors -I</p>
@@ -89,7 +88,8 @@ read one track it will not correct determine which sectors were read
 without error.</p>
 <p style="margin-bottom: 0in">--interleave  -i # | #,#,#,#,...</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The logical sector
-numbers from header in physical sector order or the interleave value</p>
+numbers from header in physical sector order or the interleave value.
+Normally not specified.</p>
 <p style="margin-bottom: 0in">--note -n “string”</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">String is stored in
 header of transition and emulation file for information about image.
@@ -109,7 +109,8 @@ track and back. Default 50,4.</p>
 area length in bytes. Default is 512.</p>
 <p style="margin-bottom: 0in">--sectors  -s #[,#]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
-sectors per track, lowest sector number.</p>
+sectors per track, lowest sector number. Lowest sector number is
+normally 0 or 1 depending on the controller.</p>
 <p style="margin-bottom: 0in">--track_words -w #</p>
 <p style="margin-left: 0.49in; margin-bottom: 0in">The number of 32
 bit words of track data to use for emulator file. If this parameter

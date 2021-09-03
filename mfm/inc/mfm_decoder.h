@@ -1,6 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 09/03/21 DJG Added SUPERBRAIN
+// 08/27/21 DJG Added DSD_5217_512B
+// 05/27/21 DJG Added TEKTRONIX_6130
 // 03/21/21 DJG Added initial value for OMTI 20D controller 256 byte sectors
 // 02/15/21 DJG Added ext2emu support for CONVERGENT_AWS
 // 02/01/21 DJG Adjusted trk_ELEKTROKIKA_85 to match documentation on format
@@ -158,12 +161,14 @@ typedef struct {
    enum {CONTROLLER_NONE,
       CONTROLLER_NEWBURYDATA,
       CONTROLLER_ALTOS,
+      CONTROLLER_SUPERBRAIN,
       CONTROLLER_WD_1006, 
       CONTROLLER_RQDX2, 
       CONTROLLER_ISBC_214_128B,
       CONTROLLER_ISBC_214_256B,
       CONTROLLER_ISBC_214_512B,
       CONTROLLER_ISBC_214_1024B,
+      CONTROLLER_TEKTRONIX_6130,
       CONTROLLER_NIXDORF_8870, 
       CONTROLLER_TANDY_8MEG, 
       CONTROLLER_WD_3B1,
@@ -185,6 +190,7 @@ typedef struct {
       CONTROLLER_SHUGART_1610,
       CONTROLLER_SHUGART_SA1400,
       CONTROLLER_SM_1810_512B, 
+      CONTROLLER_DSD_5217_512B, 
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
@@ -216,7 +222,8 @@ typedef struct {
       CONTROLLER_XEBEC_104527_512B, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
-      CONTROLLER_CORVUS_H, CONTROLLER_NORTHSTAR_ADVANTAGE,
+      CONTROLLER_CORVUS_H, 
+      CONTROLLER_NORTHSTAR_ADVANTAGE,
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
       CONTROLLER_VECTOR4_ST506,
@@ -351,6 +358,8 @@ DEF_EXTERN struct {
   {0x10210191, 32, 6},
   // Shugart 1610
   {0x10183031, 32, 6},
+  // DSD 5217
+  {0x00105187, 32, 6},
   // Nixdorf 
   {0x8222f0804bda23ll, 56, 22}
   // DQ604 Not added to search since more likely to cause false
@@ -993,6 +1002,62 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_tektronix_6130[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 54, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next bit. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 128
+              {1, FIELD_FILL, 0x60, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {15, TRK_FILL, 0x00, NULL},
+        {134, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {128, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 130, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {15, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {251, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+
 DEF_EXTERN TRK_L trk_convergent_aws[] 
 #ifdef DEF_DATA
  = 
@@ -1153,6 +1218,59 @@ DEF_EXTERN TRK_L trk_sm_1810[]
      }
    },
    {1059, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// From http://www.bitsavers.org/pdf/dsd/5215_5217/040040-01_5215_UG_Apr84.pdf
+DEF_EXTERN TRK_L trk_DSD_5217_512B[] 
+#ifdef DEF_DATA
+ = 
+{ { 7, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // Sector size 512. All tracks data, alternate not supported
+              {1, FIELD_FILL, 0x20, OP_SET, 2, NULL},
+              // Upper 4 bits in low 4 bits of byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 20, 4},
+                    { 24, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        // 3 after header and 12 before data field
+        {3, TRK_FILL, 0x4e, NULL},
+        {6, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfb, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {44, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {330, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -2076,7 +2194,6 @@ typedef struct {
 
       // Check information
    CRC_INFO write_header_crc, write_data_crc;
-
       // Analize is use full search on this format. Model is use
       // the specific data only.
       // TODO: Analize should search model for specific models before
@@ -2122,6 +2239,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x551a,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Superbrain",  256, 10000000, 230000,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly),
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 1, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+// Should be model after data filled in
+         0, 33,
+         {0,0x1021,16,0},{0,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"WD_1006",              256, 10000000,      0, 
@@ -2174,6 +2301,17 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC214_1024b, 1024, 9, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
+         0, 0, 0
+      },
+      // TODO: Analyize currently can't separate this from Intel_iSBC_214_512B
+      // since only different for heads >= 8
+      {"Tektronix_6130",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_tektronix_6130, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0
@@ -2369,6 +2507,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_sm_1810, 512, 16, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0x03affc1d,0xa00805,32,4}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"DSD_5217_512B",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_DSD_5217_512B, 512, 17, 0, 5209,
+         0, 0,
+         {0xffffffff,0x105187,32,6},{0xffffffff,0x105187,32,6}, CONT_MODEL,
          0, 0, 0
       },
       // For 20D controller 256 byte sectors polynomial is 0xe2277da8,0x104c981,32,6
@@ -2850,10 +2997,12 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
 // Define states for processing the data. MARK_ID is looking for the 0xa1 byte
 // before a header and MARK_DATA is same for the data portion of the sector.
 // MARK_DATA1 is looking for special Symbolics 3640 mark code.
+// MARK_DATA2 is looking for special ROHM PBX mark code.
+// DATA_SYNC2 is looking for SUPERBRAIN
 // PROCESS_HEADER is processing the header bytes and PROCESS_DATA processing
 // the data bytes. HEADER_SYNC and DATA_SYNC are looking for the one bit to sync to
 // in CONTROLLER_XEBEC_104786. Not all decoders use all states.
-typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, MARK_DATA2, HEADER_SYNC, HEADER_SYNC2, DATA_SYNC, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
+typedef enum { MARK_ID, MARK_DATA, MARK_DATA1, MARK_DATA2, HEADER_SYNC, HEADER_SYNC2, DATA_SYNC, DATA_SYNC2, PROCESS_HEADER, PROCESS_HEADER2, PROCESS_DATA
 } STATE_TYPE;
 
 SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params, uint8_t bytes[],

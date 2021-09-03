@@ -1,4 +1,4 @@
-// This routine decodes NorthStar formated disks. 
+// This routine decodes NorthStar formated disks and other with similar format. 
 // Track format information 
 //   http://www.classiccmp.org/dunfield/miscpm/advtech.pdf (pg 3-47)
 // The format is 187 0xff, 3 0x55, 40 0xff at start of track.
@@ -16,6 +16,7 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 09/03/21 DJG Added CONTROLLER_SUPERBRAIN
 // 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate
 // 04/21/17 DJG Added parameter to mfm_check_header_values and added
@@ -61,8 +62,6 @@
 #include "msg.h"
 #include "deltas_read.h"
 
-// 45 bytes plus extra to get past and junk from overwriting
-#define DATA_TRAILER_BYTES 55
 
 // Type II PLL. Here so it will inline. Converted from continuous time
 // by bilinear transformation. Coefficients adjusted to work best with
@@ -98,6 +97,21 @@ static inline float filter(float v, float *delay)
 //      16 bit checksum of data
 //      16 bit complement of checksum of data
 //      
+//   CONTROLLER_SUPERBRAIN
+//    superbrain2.trans
+//    Not Northstar but seemed to match this logic the best of the decoders.
+//    SuperFive disk system. No documentation on format.
+//    Sector start by time and mfm patttern 0xa89
+//    4 byte header + 2 checksum bytes
+//       byte 0 0xfe
+//       byte 1 cylinder
+//       byte 2 head
+//       byte 3 sector
+//       bytes 4-5 CRC
+//    Data
+//        byte 0 0xf8
+//        256 bytes data
+//        2 byte crc
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -117,21 +131,47 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_ECC_RECOVERED;
       }
 
-      sector_status.cyl = bytes[1] | (((int) bytes[0] & 0xf0) << 4);
-      sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0xf);
-      sector_status.sector = bytes[0] & 0xf;
-      // Don't know how/if these are encoded in header
-      sector_size = drive_params->sector_size;
-      bad_block = 0;
-      msg(MSG_DEBUG,
-         "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
-            exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
-            sector_status.sector, sector_size, bad_block);
+      if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
+	 sector_status.cyl = bytes[1] | (((int) bytes[0] & 0xf0) << 4);
+	 sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0xf);
+	 sector_status.sector = bytes[0] & 0xf;
+	 // Don't know how/if these are encoded in header
+	 sector_size = drive_params->sector_size;
+	 bad_block = 0;
+	 msg(MSG_DEBUG,
+	    "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
+	       exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
+	       sector_status.sector, sector_size, bad_block);
 
-      mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
-            seek_difference, &sector_status, drive_params, sector_status_list);
+	 mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
+	       seek_difference, &sector_status, drive_params, sector_status_list);
 
-      *state = DATA_SYNC;
+	 *state = DATA_SYNC;
+      } else if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
+	 sector_status.cyl = bytes[1];
+	 sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2]);
+	 sector_status.sector = bytes[3];
+	 // Don't know how/if these are encoded in header
+	 sector_size = drive_params->sector_size;
+	 bad_block = 0;
+
+         if (bytes[0] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[0], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+
+
+	 msg(MSG_DEBUG,
+	    "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
+	       exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
+	       sector_status.sector, sector_size, bad_block);
+
+	 mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
+	       seek_difference, &sector_status, drive_params, sector_status_list);
+
+	 *state = DATA_SYNC2;
+      }
    } else if (*state == PROCESS_DATA) {
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
@@ -140,6 +180,15 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_ECC_RECOVERED;
       }
       sector_status.ecc_span_corrected_data = ecc_span;
+
+      if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
+         if (bytes[0] != 0xf8) {
+            msg(MSG_INFO, "Invalid data id byte %02x on cyl %d head %d sector %d\n",
+               bytes[0], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_DATA;
+         }
+      }
+
    
       if (!(sector_status.status & SECT_BAD_HEADER)) {
          if (mfm_write_sector(&bytes[0], drive_params, &sector_status,
@@ -226,9 +275,18 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // Count all the raw bits for emulation file
    int all_raw_bits_count = 0;
    // Time to look for next header. This should be in beginning of 0 words
-   int next_header_time = 74000;
+   int next_header_time = 0;
    // First address mark time in ns 
    int first_addr_mark_ns = 0;
+
+   if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
+      next_header_time = 74000;
+   } else if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
+      next_header_time = 55000;
+   } else {
+      msg(MSG_FATAL,"northstart_mfm_decoder got unknwon controller %d\n", 
+         drive_params->controller);
+   }
 
    // Adjust time for when data capture started
    next_header_time -= drive_params->start_time_ns / CLOCKS_TO_NS;
@@ -283,8 +341,9 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          tot_raw_bit_cntr += int_bit_pos;
          raw_bit_cntr += int_bit_pos;
 
+//printf("Raw %08x %d %d %d %d\n", raw_word, state, sync_count, track_time, next_header_time);
          // Are we looking for a mark code?
-         if ((state == MARK_ID)) {
+         if (state == MARK_ID) {
             // These patterns are MFM encoded all zeros or all ones.
             // We are looking for zeros so we assume they are zeros.
             if (track_time > next_header_time && 
@@ -306,13 +365,26 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             }
          // We need to wait for the one bit to resynchronize.
          } else if (state == HEADER_SYNC) {
-            if ((raw_word & 0xf) == 0x9) {
-//printf("Sync %d,%d cyl %d head %d sect %d\n",tot_raw_bit_cntr, (track_time * 5 + drive_params->start_time_ns)/100, cyl, head, sector_index);
+            int found = 0;
+            if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE && (raw_word & 0xf) == 0x9) {
+               raw_bit_cntr = 0;
+               found = 1;
+            } else if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
+               //Better preventing false syncs but misses some with data
+               //errors
+               //if ((raw_word & 0xfff) == 0xa89) {
+               if ((raw_word & 0xf) == 0x9) {
+                  sync_count = 0;
+                  raw_bit_cntr = 2;
+                  found = 1;
+               }
+            }
+            if (found) {
+//printf("Sync %d,%d cyl %d head %d sect %d\n",tot_raw_bit_cntr, (track_time * 5 + drive_params->start_time_ns)/101, cyl, head, sector_index);
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
                // Time next header should start at
-               raw_bit_cntr = 0;
                decoded_word = 0;
                decoded_bit_cntr = 0;
                state = PROCESS_HEADER;
@@ -349,6 +421,43 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                exit(1);
             }
             byte_cntr = 0;
+         } else if (state == DATA_SYNC2) {
+            int found = 0;
+            if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
+               if (raw_word == 0x55555555 || raw_word == 0xaaaaaaaa) {
+                  sync_count++;
+               }
+               //if ((raw_word & 0xfff) == 0xa89 && sync_count > 80) {
+               if ((raw_word & 0xf) == 0x9 && sync_count > 80) {
+		  raw_bit_cntr = 2;
+		  found = 1;
+               }
+            }
+            if (found) {
+               sync_count = 0;
+	       decoded_word = 0;
+	       decoded_bit_cntr = 0;
+	       state = PROCESS_DATA;
+   //printf("Start data %d\n",tot_raw_bit_cntr);
+	       mfm_mark_data_location(all_raw_bits_count, 0, tot_raw_bit_cntr);
+	       // Figure out the length of data we should look for
+	       bytes_crc_len = mfm_controller_info[drive_params->controller].data_header_bytes +
+		   mfm_controller_info[drive_params->controller].data_trailer_bytes +
+
+		   drive_params->sector_size +
+		   drive_params->data_crc.length / 8;
+	       bytes_needed = bytes_crc_len;
+	       // Must read enough extra bytes to ensure we send last 32
+	       // bit word to mfm_save_raw_word
+	       bytes_needed += 2;
+
+	       if (bytes_needed >= sizeof(bytes)) {
+		  printf("Too many bytes needed %d\n",bytes_needed);
+		  exit(1);
+	       }
+               byte_cntr = 0;
+            }
+ 
          } else { // PROCESS_HEADER or PROCESS_DATA
             int entry_state = state;
             // If we have enough bits to decode do so. Stop if state changes
@@ -374,7 +483,12 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                      // Look after the fill bytes. 8 is byte to bits, 40 is
                      // 200 MHz clocks per data bit (5 MHz for data bit,
                      // 10 for clock and data bit)
-                     next_header_time = track_time + DATA_TRAILER_BYTES * 8 * 40; 
+                     if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
+                        // 45 bytes plus extra to get past any junk from overwriting
+                        next_header_time = track_time + 55 * 8 * 40; 
+                     } else if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
+                        next_header_time = track_time + 5 * 8 * 40; 
+                     }
                   }
                   decoded_bit_cntr = 0;
                }

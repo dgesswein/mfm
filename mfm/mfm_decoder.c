@@ -21,6 +21,9 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 09/03/21 DJG Added SUPERBRAIN format, Fixed message
+// 08/27/21 DJG Added DSD_5217_512B format
+// 05/27/21 DJG Added TEKTRONIX_6130 format
 // 01/07/21 DJG Added RQDX2 format
 // 11/13/20 DJG Added CONTROLLER_ACORN_A310_PODULE
 // 10/18/20 DJG Made cylinders & head printed in Mismatch cyl error same order
@@ -533,11 +536,13 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ISBC_214_256B ||
          drive_params->controller == CONTROLLER_ISBC_214_512B ||
          drive_params->controller == CONTROLLER_ISBC_214_1024B ||
+         drive_params->controller == CONTROLLER_TEKTRONIX_6130 ||
          drive_params->controller == CONTROLLER_NIXDORF_8870 ||
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
          drive_params->controller == CONTROLLER_SM_1810_512B ||
+         drive_params->controller == CONTROLLER_DSD_5217_512B ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
          drive_params->controller == CONTROLLER_MORROW_MD11 ||
          drive_params->controller == CONTROLLER_UNKNOWN1 ||
@@ -600,7 +605,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SAGA_FOX)  {
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
-   } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE)  {
+   } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
+        drive_params->controller == CONTROLLER_SUPERBRAIN)  {
       rc = northstar_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_PERQ_T2)  {
@@ -1295,7 +1301,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       static int first = 1;
       if (first) {
          printf("Dumping for %d bytes crc len %d\n",bytes_crc_len, 
-           drive_params->header_crc.length/8);
+           drive_params->data_crc.length/8);
          first = 0;
       }
       if  (dump_fd == 0) {
@@ -1327,11 +1333,13 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ISBC_214_256B ||
             drive_params->controller == CONTROLLER_ISBC_214_512B ||
             drive_params->controller == CONTROLLER_ISBC_214_1024B ||
+            drive_params->controller == CONTROLLER_TEKTRONIX_6130 ||
             drive_params->controller == CONTROLLER_NIXDORF_8870 ||
             drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
             drive_params->controller == CONTROLLER_SM_1810_512B ||
+            drive_params->controller == CONTROLLER_DSD_5217_512B ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
             drive_params->controller == CONTROLLER_MORROW_MD11 ||
             drive_params->controller == CONTROLLER_UNKNOWN1 ||
@@ -1400,7 +1408,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
          status |= corvus_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
-      } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE) {
+      } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
+            drive_params->controller == CONTROLLER_SUPERBRAIN) {
          status |= northstar_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
