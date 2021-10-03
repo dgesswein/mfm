@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 09/19/21 DJG Aded TANDY_16B format.
 // 09/03/21 DJG Added SUPERBRAIN format, Fixed message
 // 08/27/21 DJG Added DSD_5217_512B format
 // 05/27/21 DJG Added TEKTRONIX_6130 format
@@ -540,6 +541,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_NIXDORF_8870 ||
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
+         drive_params->controller == CONTROLLER_TANDY_16B ||
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
          drive_params->controller == CONTROLLER_SM_1810_512B ||
          drive_params->controller == CONTROLLER_DSD_5217_512B ||
@@ -1337,6 +1339,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_NIXDORF_8870 ||
             drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
+            drive_params->controller == CONTROLLER_TANDY_16B ||
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
             drive_params->controller == CONTROLLER_SM_1810_512B ||
             drive_params->controller == CONTROLLER_DSD_5217_512B ||

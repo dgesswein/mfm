@@ -6,9 +6,12 @@
 // We perform the analysis by trying the various formats we know of until we
 // find one that matches and other tests. See the routines for details.
 
-// Copyright 2018 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 09/19/21 DJG Fixed indexing of sector_status_list in analyze model. 
+//    Indexing always starts with entry 0 irrespective of first_sector_number
+//    CONT_MODEL formats that stated with sector 1 were not detected properly.
 // 01/17/21 DJG Made match logic for MODEL controllers pick one with closest
 //    number of sectors to expected. RQDX2 was matching WD_3B1.
 // 03/15/20 DJG Give margin in LBA head check
@@ -266,8 +269,7 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
          }
       }
       int good_data_count = 0;
-      for (i = drive_params->first_sector_number; 
-            i < drive_params->first_sector_number + drive_params->num_sectors; i++) {
+      for (i = 0; i < drive_params->num_sectors; i++) {
          if (!(sector_status_list[i].status & (SECT_BAD_DATA | SECT_BAD_HEADER))) {
             good_data_count++;
          }

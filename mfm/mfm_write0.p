@@ -146,7 +146,9 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
-// 03/20/21 Fix race condition on sampling index.
+// 09/08/21 DJG Changed to using command status to indicate track write done
+//     instead of interrupt. Error was ignored.
+// 03/20/21 DJG Fix race condition on sampling index.
 // 03/07/21 DJG Continue writing to end of track if end of data seen before 
 //     index. Stop write data when turning off write.
 // 02/22/21 DJG Stop write when index seen to prevent overwriting beginning of
@@ -356,8 +358,6 @@ wait_cmd:
 #include "drive_operations.p"
 
 mfm_setup:
-   MOV      r0, CMD_STATUS_OK
-   SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
    LBCO     START_TIME_CLOCKS, CONST_PRURAM, PRU0_START_TIME_CLOCKS, 4
 next_mfm:
       // Switch to PWM mode
@@ -490,6 +490,8 @@ end_track:
    CLR      r30, R30_WRITE_GATE  
    MOV      PRU0_STATE, STATE_READ_DONE
    XOUT     10, PRU0_BUF_STATE, 4
+   MOV      r0, CMD_STATUS_OK
+   SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
 wait_done:
    XIN      10, PRU1_BUF_STATE, 4              
    QBNE     wait_done, PRU1_STATE, STATE_READ_DONE
@@ -500,11 +502,7 @@ wait_done:
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4  // Prevent overflow and halt
    LBCO     r1, CONST_PRURAM, PRU0_CMD, 4 
    QBEQ     EXIT, r1, CMD_EXIT
-
-send_arm_done:
-      // Send notification to Host to move to next track
-   MOV       r31.b0, PRU0_ARM_INTERRUPT+16
-   JMP       wait_cmd
+   JMP      wait_cmd
    
       // ARM has requested us to exit
 EXIT:

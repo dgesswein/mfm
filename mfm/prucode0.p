@@ -22,6 +22,7 @@
 // PRU0_CMD_DATA
 //
 // Time is in 200 MHz clocks
+// 09/08/21 DJG Fixed shared SRAM address. Shared SRAM not currently used.
 // 03/22/19 DJG Added REV C support
 // 02/17/19 DJG Capture sligtly past index to try to capture all data when
 //   sector straddles index.
@@ -40,7 +41,7 @@
 // 09/06/14 DJG Increased seek timeout to 4 seconds so if the drive
 //    recalibrates we may not time out.
 //
-// Copyright 2019 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -79,8 +80,8 @@ START:
    SBCO     r0, CONST_PRUCFG, 4, 4
 
    // Configure the programmable pointer register for PRU0 by setting c28_pointer[15:0]
-   // field to 0x0120.  This will make C28 point to 0x00012000 (PRU shared RAM).
-   MOV      r0, 0x00000120
+   // field to 0x0100.  This will make C28 point to 0x00010000 (PRU shared RAM).
+   MOV      r0, 0x00000100
    MOV      r1, PRU0_CONTROL | CTPPR_0
    SBBO     r0, r1, 0, 4
 

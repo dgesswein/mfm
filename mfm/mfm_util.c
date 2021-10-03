@@ -84,6 +84,8 @@ int main (int argc, char *argv[])
    int cyl, head;
    int last_cyl = -1, last_head = -1;
    DRIVE_PARAMS drive_params;
+   // This is in order of physcial sector. First entry is the first
+   // physical sector even if the pysical sectors are numbered from 1.
    SECTOR_STATUS sector_status_list[MAX_SECTORS];
    int seek_difference;
    //SECTOR_DECODE_STATUS status;

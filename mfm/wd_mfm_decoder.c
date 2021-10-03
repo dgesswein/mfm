@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 09/19/21 DJG Added TANDY_16B format.
 // 08/28/21 DJG Fixed alternate cylinder handling for iSBC 214, iSBC 215,
 //    SM_1810. Only example found in images I have was for iSBC 215. Unable
 //    to validate if head pulled from correct byte. May still have errors.
@@ -225,7 +226,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      CRC/ECC code
 //
 //   CONTROLLER_TANDY_8MEG, Tandy 8 meg 8" drive. Same as WD_1006
-//
+//      Needed separate entry since 8" drive with different data rate.
+//   CONTROLLER_TANDY_16B. Same as WD_1006. Added to enable ext2emu support.
+//      Example XENIX.emu in emu.zip
 //   CONTROLLER_NIXDORF_8870
 //   Reference image nixdorf-1-raw_data from 8870 Quattro/7
 //      Same as WD_1006 except ECC and which bytes used in ECC differ so
@@ -695,6 +698,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   iris-2400-w3.3 image
 //   Used in SGI IRIS 2400. DSD/Data Systems Design changed name to Qualogy
 //   Similar to SM-1810
+//   5217 and 5215 use same format
 //
 //   6 byte header + 4 byte CRC
 //      byte 0 0xa1
@@ -1220,6 +1224,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_RQDX2 || 
             drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
+            drive_params->controller == CONTROLLER_TANDY_16B || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
                IsOutermostCylinder(drive_params, exp_cyl)) ||
               drive_params->controller == CONTROLLER_WD_3B1) {

@@ -19,6 +19,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 09/07/21 DJG Handle error from write track
 // 03/07/21 DJG Only pad end if non zero
 // 06/30/17 DJG Use emulator file number of heads, not command line.
 //
@@ -98,10 +99,10 @@ for (n = 0; n < drive_params->emu_file_info->num_head; n++) {
       for (head = 0; head < drive_params->num_head; head++) {
          drive_set_head(head); 
          pru_write_word(MEM_PRU1_DATA, PRU1_CUR_HEAD, head);
-         pru_exec_cmd(CMD_WRITE_TRACK, 0);
-         // Wait for request from PRU
-         prussdrv_pru_wait_event (PRU_EVTOUT_0);
-         prussdrv_pru_clear_event (PRU_EVTOUT_0, PRU0_ARM_INTERRUPT);
+         if (pru_exec_cmd(CMD_WRITE_TRACK, 0)) {
+            drive_print_drive_status(MSG_FATAL, drive_get_drive_status());
+            exit(1);
+         }
       }
    }
 }
