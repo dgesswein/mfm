@@ -1,14 +1,11 @@
 #define VCD 0
-// This routine decodes Corvus formated disks. No documentation was found
-// for track format. The bit/clock timing is 11 MHz.
-// The format is Headers is preceded by a large number of zero followed
-// by a one. The header is 3 bytes immediately followed by the sector data.
-// Sector start is determined by time from index. There is a gap between
-// sectors where it does not write anything when formatting the track so
-// whatever existing data (possibly at the normal MFM 10 MHz will be seen.
+// This routine decodes Corvus formated disks and other disks that use a
+// bunch of 0's followed by one or other pattern to mark start and use rotation
+// time from index to determine when to start looking. 
 //
-// Copyright 2019 David Gesswein.
+// Copyright 2021 David Gesswein.
 //
+// 10/29/21 DJG Added STRIDE_440 format
 // 07/05/19 DJG Improved 3 bit head field handling
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX
 // 04/22/18 DJG Made code for setting bit rate match other routines
@@ -52,6 +49,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
+#include <limits.h>
 
 #include "crc_ecc.h"
 #include "emu_tran_file.h"
@@ -81,6 +79,13 @@ static inline float filter(float v, float *delay)
 // writing that format.
 // The format is
 //   CONTROLLER_CORVUS_H,
+//   The bit/clock timing is 11 MHz.
+//   No documentation on format
+//   The format is Headers is preceded by a large number of zero followed
+//   by a one. The header is 3 bytes immediately followed by the sector data.
+//   Sector start is determined by time from index. There is a gap between
+//   sectors where it does not write anything when formatting the track so
+//   whatever existing data (possibly at the normal MFM 10 MHz will be seen.
 //   3 byte header + 2 byte CRC
 //      byte 0 head upper 3 bits, sector number lower 5
 //      byte 1 low byte of cylinder
@@ -136,6 +141,18 @@ static inline float filter(float v, float *delay)
 //      byte 3 sector
 //      256 bytes of sector data
 //      4 byte ecc
+//
+//   CONTROLLER_STRIDE_440
+//      No documentation on format other than controller schematic
+//        http://www.bitsavers.org/pdf/sage/schematics/Sage-II_IV-Schematics.pdf
+//      Sync on 1 bit after a bunch of zeros
+//
+//      byte 7 high of track count
+//      byte 8 low of track count
+//      8192 bytes of sector data
+//      one extra byte
+//      2 byte ecc
+//      Track number is zero for first track and counts up
 //
 //   CONTROLLER_SAGA_FOX
 //      No information on format available
@@ -215,6 +232,11 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[2];
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[1]);
          sector_status.sector = bytes[3];
+      } else if (drive_params->controller == CONTROLLER_STRIDE_440) {
+         int track = (bytes[7] << 8) + bytes[8];
+         sector_status.cyl = track / drive_params->num_head;
+         sector_status.head = track % drive_params->num_head;
+         sector_status.sector = 0;
       } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
          if (bytes[0] != 0xf0) {
             msg(MSG_ERR, "Bad sync byte %x on cyl %d,%d head %d,%d\n",
@@ -383,6 +405,8 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_VECTOR4 ||
        drive_params->controller == CONTROLLER_VECTOR4_ST506) {
       next_header_time = 58000;
+   } else if (drive_params->controller == CONTROLLER_STRIDE_440) {
+      next_header_time = 10000;
    } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
       next_header_time = 91000;
    } else {
@@ -512,6 +536,10 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                   // case drive rotation speed varies
                   next_header_time = track_time + 96000;
                   raw_bit_cntr = 2;
+               } else if (drive_params->controller == CONTROLLER_STRIDE_440) {
+                  // No more headers
+                  next_header_time += INT_MAX/2;
+                  raw_bit_cntr = 4;
                } else if (drive_params->controller == CONTROLLER_CROMEMCO) {
                   // We need the 0x04 that is also the sync we are using
                   // to start decoding so back up

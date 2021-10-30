@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/29/21 DJG Added STRIDE_440
 // 09/20/21 DJG Added TANDY_16B to give ext2emu support
 // 09/03/21 DJG Added SUPERBRAIN
 // 08/27/21 DJG Added DSD_5217_512B
@@ -229,6 +230,7 @@ typedef struct {
       CONTROLLER_CROMEMCO,
       CONTROLLER_VECTOR4,
       CONTROLLER_VECTOR4_ST506,
+      CONTROLLER_STRIDE_440,
       CONTROLLER_SAGA_FOX,
       CONTROLLER_PERQ_T2
    } controller;
@@ -2222,7 +2224,7 @@ typedef struct {
 
       // Size of headers not including checksum
    int header_bytes, data_header_bytes; 
-      // These bytes at start of header and data header ignored
+      // These bytes at start of header and data header ignored in CRC calc
    int header_crc_ignore, data_crc_ignore;
    CHECK_TYPE header_check, data_check;
 
@@ -2933,6 +2935,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 20,
          {0x0,0x104c981,32,6},{0x0,0x104c981,32,6}, CONT_ANALYZE,
+         0, 0, 0
+      },
+      {"Stride_440",             256, 10000000,  300000,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         28, 0, 6, 0, CHECK_CRC, CHECK_CRC,
+         1, 0, NULL, 8192, 1, 0, 5209,
+         0, 20,
+         {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"Saga_Fox",             256, 10000000,  330000,

@@ -52,7 +52,9 @@ endif
 
 # If local copy of PRU package exists use it. Currently the
 # package isn't provided for Angstrom and doesn't work for Debian
-PRU_PACKAGE_PATH = ../am335x_pru_package-master
+# Used copy from https://github.com/beagleboard/am335x_pru_package.git
+# run pru_sw/utils/pasm_source/linuxbuild
+PRU_PACKAGE_PATH = ../am335x_pru_package
 LIB_PATH =
 INCL_PATH = -I $(INCDIR)/ -I /usr/include/libiberty/
 PASM = pasm
@@ -95,7 +97,7 @@ find_crc_info : find_crc_info.cpp
 	$(CPP) -O3 -std=c++0x -Wall $< -o $@
 
 clean :
-	rm -rf $(OBJDIR)/*.o *.bin mfm_read mfm_util core *~
+	rm -rf $(OBJDIR)/*.o *.bin mfm_read mfm_util core *~ find_crc_info
 
 %.bin: %.p prucode.hp $(INCDIR)/cmd.h drive_operations.p
 	$(PASM) -b $<

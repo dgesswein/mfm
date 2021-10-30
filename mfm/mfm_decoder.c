@@ -21,7 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
-// 09/19/21 DJG Aded TANDY_16B format.
+// 10/29/21 DJG Added STRIDE_440 format
+// 09/19/21 DJG Added TANDY_16B format
 // 09/03/21 DJG Added SUPERBRAIN format, Fixed message
 // 08/27/21 DJG Added DSD_5217_512B format
 // 05/27/21 DJG Added TEKTRONIX_6130 format
@@ -604,6 +605,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_CROMEMCO ||
          drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
          drive_params->controller == CONTROLLER_VECTOR4 ||
+         drive_params->controller == CONTROLLER_STRIDE_440 ||
          drive_params->controller == CONTROLLER_SAGA_FOX)  {
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
@@ -1209,6 +1211,7 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
       crc = (bytes[i] != x2) || (bytes[i+1] != x1) ;
    } else {
       int i;
+
       crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
       // If all the data and CRC is zero and CRC returns zero
       // mark it as ambiguous crc since any polynomial will match 
@@ -1407,6 +1410,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_CROMEMCO ||
             drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
             drive_params->controller == CONTROLLER_VECTOR4 ||
+            drive_params->controller == CONTROLLER_STRIDE_440 ||
             drive_params->controller == CONTROLLER_SAGA_FOX) {
          status |= corvus_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
