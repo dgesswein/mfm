@@ -21,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 12/19/21 DJG Code cleanups and hunk of commented code for possible future changes
+// 12/18/21 SWE Added David Junior II format
 // 10/29/21 DJG Added STRIDE_440 format
 // 09/19/21 DJG Added TANDY_16B format
 // 09/03/21 DJG Added SUPERBRAIN format, Fixed message
@@ -114,7 +116,7 @@
 // 10/06/14 DJG Added new CONTROLLER_MACBOTTOM format
 // 09/10/14 DJG Added new CONTROLLER_OLIVETTI format
 //
-// Copyright 2018 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // 09/06/14 DJG Made sector number printed for sectors with errors
@@ -389,11 +391,51 @@ static void update_stats(DRIVE_PARAMS *drive_params, int cyl, int head,
 {
    STATS *stats = &drive_params->stats;
    int i;
+   int write_cyl = last_cyl;
+
 
    // If track changed and list has been set (last_cyl != -1) then process
    if (last_cyl != -1 && (cyl != last_cyl || head != last_head)) {
+// This was start of trying to enable creating emu file with --ignore_seek_errors 
+// Solved issue by using microstepper so this never finished
+// Also needed change below
+//                if (sector_status_list[i].status & SECT_ECC_RECOVERED) {
+//                   best_weight += 10;
+// and to allow ignore seek with emu generation
+#if 0 
+      if (drive_params->ignore_seek_errors) {
+         int cyl_list[drive_params->num_sectors];
+         int cmpint (const void * a, const void * b) {
+             return ( *(int*)a - *(int*)b );
+         }
+         int ndx = 0;
+         for (i = 0; i < drive_params->num_sectors; i++) {
+            if (!(last_sector_list[i].status & SECT_BAD_HEADER)) {
+               cyl_list[ndx++] = last_sector_list[i].cyl;
+            }
+         }
+         qsort(cyl_list, ndx, sizeof(cyl_list[0]), cmpint);
+         int count = 1;
+         int last_entry = cyl_list[0];
+         for (i = 1; i < ndx; i++) {
+            if (cyl_list[i] == last_entry) {
+               count++;
+               // If over half same cylinder use it.
+            } 
+            if (cyl_list[i] != last_entry || i == ndx - 1) {
+               if (count > drive_params->num_sectors / 2 + 1 && last_entry != last_cyl) {
+                  printf("Writing read cyl %d to actual cyl %d head %d, count %d\n",
+                     last_cyl, last_entry, last_head, count);
+                  write_cyl = last_entry;
+               }
+               count = 1;
+               last_entry = cyl_list[i];
+            }
+         }
+      }
+#endif
       update_emu_track_words(drive_params, sector_status_list, 1, 1, 
-          last_cyl, last_head);
+          write_cyl, last_head);
       for (i = 0; i < drive_params->num_sectors; i++) {
          if (last_sector_list[i].status & SECT_ECC_RECOVERED &&
              !(last_sector_list[i].status & SECT_SPARE_BAD)) {
@@ -552,6 +594,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_UNKNOWN2 ||
          drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+         drive_params->controller == CONTROLLER_DJ_II ||
          drive_params->controller == CONTROLLER_MYARC_HFDC ||
          drive_params->controller == CONTROLLER_SHUGART_1610 ||
          drive_params->controller == CONTROLLER_MVME320 ||
@@ -1151,17 +1194,19 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
    // Start byte for CRC decoding
    int start;
    SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
+   CHECK_TYPE check_type;
 
    if (state == PROCESS_HEADER) {
       start = mfm_controller_info[drive_params->controller].header_crc_ignore;
       crc_info = drive_params->header_crc;
+      check_type = mfm_controller_info[drive_params->controller].header_check;
    } else {
       start = mfm_controller_info[drive_params->controller].data_crc_ignore;
       crc_info = drive_params->data_crc;
+      check_type = mfm_controller_info[drive_params->controller].data_check;
    }
-   if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
-       (drive_params->controller == CONTROLLER_WANG_2275 &&
-         state == PROCESS_HEADER)) {
+
+   if (check_type == CHECK_CHKSUM) {
       crc = checksum64(&bytes[start], bytes_crc_len-crc_info.length/8-start, &crc_info);
       if (crc_info.length == 8) {
         crc = crc & 0xff;
@@ -1193,13 +1238,9 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
          msg(MSG_FATAL, "Invalid checksum length %d\n",crc_info.length);
          exit(1);
       }
-   } else if (drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
-      if (state == PROCESS_HEADER) {
-         crc = 0;
-      } else {
-         crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
-      }
-   } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
+   } else if (check_type == CHECK_NONE) {
+      crc = 0;
+   } else if (check_type == CHECK_XOR16) {
       uint8_t x1 = 0, x2 = 0;
       int i;
       for (i = start; i < bytes_crc_len - crc_info.length/8; i += 2) {
@@ -1209,7 +1250,7 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
          x2 ^= bytes[i];
       }
       crc = (bytes[i] != x2) || (bytes[i+1] != x1) ;
-   } else {
+   } else if (check_type == CHECK_CRC) {
       int i;
 
       crc = crc64(&bytes[start], bytes_crc_len-start, &crc_info);
@@ -1225,6 +1266,11 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
             *init_status |= SECT_AMBIGUOUS_CRC;
          }
       }
+   } else if (check_type == CHECK_PARITY) {
+      crc = eparity64(&bytes[start], bytes_crc_len - start, &drive_params->header_crc) != 1;
+   } else {
+      msg(MSG_FATAL, "Unknown check type %d\n", check_type);
+      exit(1);
    }
    // Zero CRC is no error
    if (crc == 0 && !(*init_status & SECT_AMBIGUOUS_CRC)) {
@@ -1352,6 +1398,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_UNKNOWN2 ||
             drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
+            drive_params->controller == CONTROLLER_DJ_II ||
             drive_params->controller == CONTROLLER_MYARC_HFDC ||
             drive_params->controller == CONTROLLER_SHUGART_1610 ||
             drive_params->controller == CONTROLLER_MVME320 ||
@@ -1822,6 +1869,9 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
          alt_info->bad_offset != drive_params->alt_llist->bad_offset ||
          alt_info->good_offset != drive_params->alt_llist->good_offset) {
       drive_params->alt_llist = alt_info;
+
+      msg(MSG_INFO,"Alternate cyl assigned to cyl %d head %d for cyl %d head %d. Extract data fixed\n",
+           good_cyl, good_head, bad_cyl, bad_head);
    } else {
       free(alt_info);
    }

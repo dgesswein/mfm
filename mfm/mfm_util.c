@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 12/19/21 DJG Code cleanup
 // 01/18/21 DJG Only print valid formats for ext2emu
 // 10/08/20 DJG Added OP_XOR for sector data. Changed a couple of error messages
 // 12/31/19 DJG Allow additional special encoded bytes
@@ -437,7 +438,7 @@ static uint64_t get_check_value(uint8_t track[], int length, CRC_INFO *crc_info,
          exit(1);
       }
    } else if (check_type == CHECK_PARITY) {
-      value = parity64(track, length, crc_info);
+      value = eparity64(track, length, crc_info);
    } else if (check_type == CHECK_XOR16) {
       int i;
       uint8_t x1 = 0, x2 = 0;
@@ -449,6 +450,8 @@ static uint64_t get_check_value(uint8_t track[], int length, CRC_INFO *crc_info,
          x2 ^= track[i];
       }
       value = (x2 << 8) | x1;
+   } else if (check_type == CHECK_NONE) {
+      value = 0; // Should be ignored
    } else {
       msg(MSG_FATAL, "Unknown check_type %d\n",check_type);
       exit(1);

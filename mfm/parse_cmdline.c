@@ -9,6 +9,7 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 12/19/21 DJG crc_length now allowed to be 0 so unset length is -1.
 // 01/18/21 DJG Only print valid formats for ext2emu
 // 03/15/20 DJG Fix fix for emulation_output set when file not specified
 // 03/09/20 DJG Fix emulation_output set when file not specified
@@ -115,7 +116,7 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
    }
    safe_print(&cmdptr, &cmdleft, "--heads %d --cylinders %d ",
          drive_params->num_head, drive_params->num_cyl);
-   if (drive_params->header_crc.length != 0) {
+   if (drive_params->header_crc.length != -1) {
       safe_print(&cmdptr, &cmdleft,
          "--header_crc 0x%llx,0x%llx,%d,%d ",
          drive_params->header_crc.init_value, drive_params->header_crc.poly,
@@ -531,6 +532,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
       drive_params->emulation_output = 0;
       drive_params->analyze = 0;
       drive_params->start_time_ns = 0;
+      drive_params->header_crc.length = -1; // 0 is valid
    }
    // Handle the options. The long options are converted to the short
    // option name for the switch by getopt_long.

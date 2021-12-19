@@ -1,3 +1,5 @@
+// copy track xfer_cyl, xfer_head from good.emu to bad.emu
+
 #include <stdint.h>
 #include <stdio.h>
 
@@ -11,19 +13,20 @@ int main() {
    int cyl,head;
    unsigned int words[MAX_TRACK_WORDS];
    unsigned int words2[MAX_TRACK_WORDS];
-   int xfer_cyl = 755;
-   int xfer_head = 2;
+   int xfer_cyl = 0;
+   int xfer_head = 3;
    FILE *out;
    int i;
 
-   in_fd = emu_file_read_header("bad.emu", &emu_in_file_info, 0);   
-   out_fd = emu_file_read_header("good.emu", &emu_out_file_info, 1);   
+   in_fd = emu_file_read_header("good.emu", &emu_in_file_info, 0);   
+   out_fd = emu_file_read_header("bad.emu", &emu_out_file_info, 1);   
 
 
    emu_file_seek_track(in_fd, xfer_cyl, xfer_head, &emu_in_file_info);
    emu_file_read_track_bits(in_fd, &emu_in_file_info, words, ARRAYSIZE(words),
      &cyl, &head); 
 
+#if 0
    emu_file_seek_track(out_fd, xfer_cyl, xfer_head, &emu_out_file_info);
    emu_file_read_track_bits(out_fd, &emu_out_file_info, words2, ARRAYSIZE(words2),
      &cyl, &head); 
@@ -33,6 +36,7 @@ for (i = 0; i < 4000; i++) {
    }
 }
 words[1038] = words2[1038];
+#endif
    emu_file_seek_track(out_fd, xfer_cyl, xfer_head, &emu_out_file_info);
    emu_file_write_track_bits(out_fd, words, ARRAYSIZE(words), xfer_cyl,
       xfer_head, emu_out_file_info.track_data_size_bytes); 

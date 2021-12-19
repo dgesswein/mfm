@@ -6,10 +6,11 @@
 // checksum64 calculates checksums up to 64 bits long
 // eparity64 currently only calculates single bit even parity of bytes
 //
+// 12/19/21 DJG Removed length check for partity64 and actually named it epartity64
 // 12/31/15 DJG Added eparity64 function
 // 01/04/15 DJG Added checksum64 function
 //
-// Copyright 2014 David Gesswein.
+// Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -192,7 +193,7 @@ uint64_t checksum64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info)
 // crc_info: CRC parameters to use. We only use the initial value and length
 //    Init_value 1 gives odd parity, 0 gives even parity
 // return: parity bit
-uint64_t parity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info)
+uint64_t eparity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info)
 {
    // Calculate the even parity of a byte
    static unsigned char parity_lookup[16] = {
@@ -202,10 +203,6 @@ uint64_t parity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info)
    int eparity = 0;
    int i;
 
-   if (crc_info->length != 1) {
-      msg(MSG_FATAL, "Only single bit parity supported\n");
-      exit(1);
-   }
    for (i = 0; i < num_bytes; i++) {
       eparity ^= EPARITY(bytes[i]);
    }

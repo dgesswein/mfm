@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 12/18/21 SWE Added David Junior_II format.
 // 09/19/21 DJG Added TANDY_16B format.
 // 08/28/21 DJG Fixed alternate cylinder handling for iSBC 214, iSBC 215,
 //    SM_1810. Only example found in images I have was for iSBC 215. Unable
@@ -968,6 +969,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size. Bytes are inverted.
 //      CRC/ECC code
 //      
+//   CONTROLLER_DJ_II
+//      6 byte header standard data. See DJ_II code below
 //
 // state: Current state in the decoding
 // bytes: bytes to process
@@ -1111,6 +1114,101 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
 
          if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_DJ_II ) {
+         // Controller David Junior II
+         // Data format of a header is 4 bytes not including 0xa1, 0xfd
+         // -------------------------------------------------------------------------
+         // |   T7   |   T6   |   T5   |   T4   |   T3   |   T2   |   T1   |   T0   |
+         // |   H2   |   H1   |   H0   |   S4   |   S3   |   S2   |   S1   |   S0   |
+         // |~T7/~TB |~T6/~TA |~T5/~T9 |~T4/T4  |  ~T3   |  ~T2   |  ~T1   |  ~T0   | *
+         // |  ~T8   |  ~H1   |  ~H0   |  ~S4   |  ~S3   |  ~S2   |  ~S1   |  ~S0   |
+         // -------------------------------------------------------------------------
+
+         // Data format of spare track header is 4 bytes not including 0xa1, 0xfd
+         // -------------------------------------------------------------------------
+         // |   T7   |   T6   |   T5   |   T4   |   T3   |   T2   |   T1   |   T0   |
+         // |   T8   |    1   |    0   |    1   |    1   |   H2   |   H1   |   H0   |
+         // |~T7/~TB |~T6/~TA |~T5/~T9 |~T4/T4  |  ~T3   |  ~T2   |  ~T1   |  ~T0   | *
+         // |  ~T8   |    1   |    0   |    1   |    1   |  ~H2   |  ~H1   |  ~H0   |
+         // -------------------------------------------------------------------------
+
+         // Data format of a bad sector header is 8 bytes not including 0xa1, 0xfd
+         // -------------------------------------------------------------------------
+         // |   T7   |   T6   |   T5   |   T4   |   T3   |   T2   |   T1   |   T0   | New Track Low
+         // |   T8   |    1   |    1   |    0   |    1   |   H2   |   H1   |   H0   | New T(,DH and  New Head
+         // |~T7/~TB |~T7/~TA |~T6/~T9 |~T4/T4  |  ~T3   |  ~T2   |  ~T1   |  ~T0   | New Track Low Not *
+         // |  ~T8   |    1   |    1   |    0   |    1   |  ~H2   |  ~H1   |  ~H0   | New ~T8,DH and New Head Not
+         // |   T7   |   T6   |   T5   |   T4   |   T3   |   T2   |   T1   |   T0   | Current Track Low
+         // |   H2   |   H1   |   H0   |   S4   |   S3   |   S2   |   S1   |   S0   | Current Head/Sector
+         // |~T7/~TB |~T7/~TA |~T6/~T9 |~T4/T4  |  ~T3   |  ~T2   |  ~T1   |  ~T0   | Current Track Not*
+         // |  ~T8   |  ~H1   |  ~H0   |  ~S4   |  ~S3   |  ~S2   |  ~S1   |  ~S0   | Cureent Track,Head,Sector Not
+         // -------------------------------------------------------------------------
+
+         // * Bit values following the slashes are for track >  d512
+
+         int cyl_high;
+         int hdr_offset, hdr_mask;
+
+         sector_size = drive_params->sector_size; // Sectore size need from user
+         bad_block = 0;
+         
+	 cyl_high = ((~bytes[5] ) >> 7) & 0x01; // Get ~T8 from byte 5 and invert it
+         //Format change after cylinder d512. Can detect if T4 bit is not inverted in second copy.
+         if (!((bytes[2] ^ bytes[4]) & 0x10)) {
+	    cyl_high |= (((~bytes[4] ) >> 5) & 0x07) << 1;  //Get ~TB,~TA,~T9 from byte 4 and invert it
+         }
+
+         sector_status.cyl = cyl_high << 8;
+         sector_status.cyl |= bytes[2]; // Adding low cyl
+
+         // Bad block is 8 bytes long keeps the current track/sect head information in the last 4 bytes
+         if (bytes[6] != 0x00 && bytes[7] != 0x00 && bytes[8] != 0x00){ 
+            int new_cyl = sector_status.cyl;
+            int new_head = bytes[3] & 7;
+
+            bad_block=0;
+            cyl_high = ((~bytes[9] ) >> 7) & 0x01;
+            if (!((bytes[6] ^ bytes[8]) & 0x10)) {
+               cyl_high |= (((~bytes[8] ) >> 5) & 0x07) << 1; 
+            }
+            sector_status.cyl = cyl_high << 8;
+            sector_status.cyl |= bytes[6];
+            sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[7] & 0xe0) >> 5 );
+            sector_status.sector = (bytes[7] & 0x1f);
+
+            mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+               sector_status.head, new_cyl, new_head);
+
+            hdr_offset = 4;
+            hdr_mask = 0x7f;
+         } else {
+            // Is it spare track header?
+            if ((bytes[3] & 0x78) == 0x58 && (bytes[5] & 0x78) == 0x58) {
+               sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[3] & 0x07));
+               // No sector in header. Code needs sectors to be unique so we number them
+               sector_status.sector = *sector_index; 
+               hdr_mask = 0x7;
+            } else {
+               sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[3] & 0xe0) >> 5 );
+               sector_status.sector = (bytes[3] & 0x1f) ; // Get sectors from byte 3
+               hdr_mask = 0x7f;
+            }
+            hdr_offset = 0;
+         }
+         // Not bothering to check T4 bit since it changes at cyl >= 512
+         if ((bytes[2 + hdr_offset] & 0x0f) != (~bytes[4 + hdr_offset] & 0x0f) || 
+                ((bytes[3 + hdr_offset] & hdr_mask) != (~bytes[5 + hdr_offset] & hdr_mask))) {
+            msg(MSG_INFO, "Header mismatch %x %x %x %x on cyl %d head %d sector %d\n",
+               bytes[2], bytes[3], bytes[4], bytes[5],
+               sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+
+         if (bytes[1] != 0xfd) {
             msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
@@ -1536,10 +1634,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                 bytes[7], bytes[8], bytes[10], exp_cyl, sector_status.cyl,
                 exp_head, sector_status.head, sector_status.sector);
          }
-         if (parity64(&bytes[7], 4, &drive_params->header_crc) != 1) {
-            msg(MSG_INFO,"Header parity mismatch\n");
-            sector_status.status |= SECT_BAD_HEADER;
-         }
          // Not encoded in header so use what was provided.
          sector_size = drive_params->sector_size;
 
@@ -1842,6 +1936,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_DEC_RQDX3) {
          id_byte_expected = 0xfb;
+      } else if (drive_params->controller == CONTROLLER_DJ_II) {
+         id_byte_expected = 0xf8;
       } else if (drive_params->controller == CONTROLLER_IBM_3174) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_MVME320) {
@@ -1934,8 +2030,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             acyl = (bytes[i] << 8) + bytes[i+1];
             ahead = bytes[i+2];
             if (acyl == last_acyl && ahead == last_ahead) {
-               msg(MSG_INFO,"Alternate cyl assigned cyl %d head %d for cyl %d head %d. Extract data fixed\n",
-                  acyl, ahead, sector_status.cyl, sector_status.head);
                mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
                  sector_status.head, acyl, ahead);
                break;
@@ -1950,8 +2044,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          alt_assigned_handled = 1;
       }
       if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
-         msg(MSG_INFO,"Alternate cylinder assigned cyl %d head %d (extract data fixed)\n",
-            (bytes[2] << 8) + bytes[3], bytes[4]);
           mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
             sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
          alt_assigned_handled = 1;
@@ -2286,8 +2378,9 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                }
                header_raw_bit_count = tot_raw_bit_cntr;
             }
-         } else {
+         } else { // PROCESS_DATA
             int entry_state = state;
+
             // If we have enough bits to decode do so. Stop if state changes
             while (raw_bit_cntr >= 4 && entry_state == state) {
                // If we have more than 4 only process 4 this time

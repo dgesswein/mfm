@@ -147,6 +147,7 @@ static inline float filter(float v, float *delay)
 //        http://www.bitsavers.org/pdf/sage/schematics/Sage-II_IV-Schematics.pdf
 //      Sync on 1 bit after a bunch of zeros
 //
+//      Header is 28 bytes. Has more non zero bytes for unknown purpose
 //      byte 7 high of track count
 //      byte 8 low of track count
 //      8192 bytes of sector data

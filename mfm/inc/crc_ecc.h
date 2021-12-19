@@ -18,5 +18,5 @@ uint64_t crc64(uint8_t bytes[], int num_bytes, CRC_INFO *crc_info);
 int ecc64(uint8_t bytes[], int num_bytes, uint64_t syndrome, 
    CRC_INFO *crc_info);
 uint64_t checksum64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info);
-uint64_t parity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info);
+uint64_t eparity64(uint8_t *bytes, int num_bytes, CRC_INFO *crc_info);
 #endif /* CRC_ECC_H_ */

@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 12/18/21 DJG Fix Symbolics 3640 ext2emu creation
+// 12/18/21 SWE Added David Junior II
 // 10/29/21 DJG Added STRIDE_440
 // 09/20/21 DJG Added TANDY_16B to give ext2emu support
 // 09/03/21 DJG Added SUPERBRAIN
@@ -213,6 +215,7 @@ typedef struct {
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, 
+      CONTROLLER_DJ_II,
       CONTROLLER_SM1040,
       CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
@@ -326,8 +329,9 @@ DEF_EXTERN struct {
 } mfm_all_poly[]
 #ifdef DEF_DATA
    = {
-  // Length 1 for parity (Symbolics 3640. Doesn't really use length
-  {0, 1, 0},
+  // Length 0 for parity (Symbolics 3640). Doesn't really use length
+  // also used for CHECK_NONE
+  {0, 0, 0},
   // Length 16 for Northstar header checksum
   {0, 16, 0},
   // Length 32 for Northstar data checksum
@@ -364,6 +368,8 @@ DEF_EXTERN struct {
   {0x10183031, 32, 6},
   // DSD 5217
   {0x00105187, 32, 6},
+  // David Junior II DJ_II
+  {0x5140c101, 32, 6},
   // Nixdorf 
   {0x8222f0804bda23ll, 56, 22}
   // DQ604 Not added to search since more likely to cause false
@@ -1463,13 +1469,12 @@ DEF_EXTERN TRK_L trk_symbolics_3640[]
            }
         },
         {25, TRK_FILL, 0x00, NULL},
-        {1166, TRK_FIELD, 0x00, 
+        {1165, TRK_FIELD, 0x00, 
            (FIELD_L []) {
-              {1, FIELD_FILL, 0x01, OP_SET, 0, NULL},
-              {1, FIELD_FILL, 0xe0, OP_SET, 1, NULL},
-              {0, FIELD_MARK_CRC_START, 0, OP_SET, 2, NULL},
-              {1160, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
-              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1162, NULL},
+              {1, FIELD_FILL, 0x0f, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {1160, FIELD_SECTOR_DATA, 0x00, OP_REVERSE, 1, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1161, NULL},
               {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
@@ -1478,7 +1483,7 @@ DEF_EXTERN TRK_L trk_symbolics_3640[]
         {-1, 0, 0, NULL},
      }
    },
-   {32, TRK_FILL, 0x4e, NULL},
+   {42, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -2202,7 +2207,11 @@ DEF_EXTERN TRK_L trk_acorn_a310_podule[]
 }
 #endif
 ;
-typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16} CHECK_TYPE;
+// CHECK_NONE is used for header formats where some check that is specific
+// to the format is used so can't be generalized. If so the check will need
+// to be done in the header decode and ext2emu as special cases.
+typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16,
+              CHECK_NONE} CHECK_TYPE;
 
 typedef struct {
    char *name;
@@ -2765,6 +2774,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
          0, 0, 0
       },
+      // Header is either 6 or 10 bytes
+      {"DJ_II",            256, 10000000,      0,
+         0, 0, 4, ARRAYSIZE(mfm_all_poly),
+         0, 0, CINFO_CHS,
+         6, 2, 0, 2, CHECK_NONE, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
+         0, 0, 0
+      },
       {"SM1040",       256, 10000000,      0, 
          0, 1, 4, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
@@ -2777,10 +2796,10 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 4, ARRAYSIZE(mfm_all_poly), 
          0, 1, CINFO_CHS,
-         11, 2, 0, 2, CHECK_PARITY, CHECK_CRC,
+         11, 2, 7, 2, CHECK_PARITY, CHECK_CRC,
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
          0, 0,
-         {0x0,0x0,1,0},{0x0,0xa00805,32,4}, CONT_MODEL,
+         {0x0,0x0,0,0},{0x0,0xa00805,32,4}, CONT_MODEL,
          0, 0, 0
       },
 // This format is detected by special case code so it doesn't need to
