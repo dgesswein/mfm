@@ -970,6 +970,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      CRC/ECC code
 //      
 //   CONTROLLER_DJ_II
+//      Format info 
+//      http://bitsavers.org/pdf/konan/Konan_David_Junior_II_Reference_Aug83.pdf
+//      image catnet1.6_micropolis_1304.trans
 //      6 byte header standard data. See DJ_II code below
 //
 // state: Current state in the decoding

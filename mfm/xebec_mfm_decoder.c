@@ -4,6 +4,9 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 12/20/21 DJG Removed number of zero words before sector header test
+//    for EC1841 since one drive read didn't have enough zeros to 
+//    have one 32 bit zero word.
 // 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate
 // 04/20/18 DJG Figured proper sector number decoding and which added
@@ -400,6 +403,8 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // When write turns on and off can cause codes that look like the 0xa1
    // so this avoids them.
 #define MARK_NUM_ZEROS 8
+   // Sample with short number of zero words abc80.gz
+#define MARK_NUM_ZEROS_EC1841 0
    int sync_count = 0;
    // Number of deltas available so far to process
    int num_deltas;
@@ -421,7 +426,15 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int all_raw_bits_count = 0;
    // First address mark time in ns 
    int first_addr_mark_ns = 0;
+   // Number of zero words to see before checking for header
+   int mark_num_zero;
 
+   // One drive had shorter number of zeros for last sector on track
+   if (drive_params->controller == CONTROLLER_EC1841) {
+      mark_num_zero = MARK_NUM_ZEROS_EC1841;
+   } else {
+      mark_num_zero = MARK_NUM_ZEROS;
+   }
    num_deltas = deltas_get_count(0);
 
    raw_word = 0;
@@ -482,7 +495,7 @@ if ((raw_word & 0xffff) == 0x4489) {
             if (raw_word == 0x55555555 || raw_word == 0xaaaaaaaa) {
                sync_count++;
             } else {
-               if (sync_count < MARK_NUM_ZEROS) {
+               if (sync_count < mark_num_zero) {
                   sync_count = 0;
                }
             }
@@ -495,7 +508,7 @@ if ((raw_word & 0xffff) == 0x4489) {
             // TODO: The MARK_NUM_ZERO makes my st506 image decode worse
             // than not checking. Using track format to know when at proper
             // header bit location may work better.
-            if ((raw_word & 0xffff) == 0x4489 && sync_count >= MARK_NUM_ZEROS) {
+            if ((raw_word & 0xffff) == 0x4489 && sync_count >= mark_num_zero) {
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
