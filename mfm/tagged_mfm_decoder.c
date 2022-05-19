@@ -6,6 +6,7 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 03/17/22 DJG Handle large deltas and improved error message
 // 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate and 
 //    format Xerox 8010
@@ -18,7 +19,7 @@
 // 10/07/16 DJG Add support for disks with tag header in addition to the
 //    normal header. Xerox 6085
 //   
-// Copyright 2018 David Gesswein.
+// Copyright 2022 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -336,6 +337,11 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int num_deltas;
    // And number from last time
    int last_deltas = 0;
+   // If we get too large a delta we need to process it in less than 32 bit
+   // word number of bits. This holds remaining number to process
+   int remaining_delta = 0;
+   // Maximum delta to process in one pass
+   int max_delta;
    // Intermediate value
    int tmp_raw_word;
    // Collect bytes to further process here
@@ -361,23 +367,39 @@ SECTOR_DECODE_STATUS tagged_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    raw_word = 0;
    nominal_bit_sep_time = 200e6 /
        mfm_controller_info[drive_params->controller].clk_rate_hz;
+   max_delta = nominal_bit_sep_time * 22;
    avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
-      for (; i < num_deltas; i++) {
-         track_time += deltas[i];
+      for (; i < num_deltas;) {
+         int delta_process;
+         // If no remaining delta process next else finish remaining
+         if (remaining_delta == 0) {
+            delta_process = deltas[i++];
+            remaining_delta = delta_process;
+         }  else {
+            delta_process = remaining_delta;
+         }
+         // Don't overflow our 32 bit word
+         if (delta_process > max_delta) {
+            delta_process = max_delta;
+         }
+         track_time += delta_process;
          // This is simulating a PLL/VCO clock sampling the data.
-         clock_time += deltas[i];
+         clock_time += delta_process;
+         remaining_delta -= delta_process;
          // Move the clock in current frequency steps and count how many bits
          // the delta time corresponds to
          for (int_bit_pos = 0; clock_time > avg_bit_sep_time / 2;
                clock_time -= avg_bit_sep_time, int_bit_pos++) {
-            
          }
          // And then filter based on the time difference between the delta and
-         // the clock
-         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         // the clock. Don't update PLL if this is a long burst without
+         // transitions
+         if (remaining_delta == 0) {
+            avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         }
 #if 0
          if (cyl == 819 && head == 0) {
          printf
@@ -544,7 +566,7 @@ last_tot_raw_bit_cntr = tot_raw_bit_cntr;
                         }
                      }
                   } else {
-                     mfm_mark_end_data(all_raw_bits_count, drive_params);
+                     mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
                          bytes_crc_len, bytes_needed, &state, cyl, head, 
                          &sector_index, seek_difference, sector_status_list,

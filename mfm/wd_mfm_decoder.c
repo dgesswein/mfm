@@ -14,6 +14,8 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 05/04/22 DJG Fixed Adaptec printing wrong sector in debug message
+// 03/17/22 DJG Handle large deltas and improved error message
 // 12/18/21 SWE Added David Junior_II format.
 // 09/19/21 DJG Added TANDY_16B format.
 // 08/28/21 DJG Fixed alternate cylinder handling for iSBC 214, iSBC 215,
@@ -96,7 +98,7 @@
 //    based on one XM5220/2 drive sample. Unknown what controller wrote it.
 //    Controller likely DTC so renamed.
 //   
-// Copyright 2018 David Gesswein.
+// Copyright 2022 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -409,11 +411,14 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Only tested on spare track list of XT-2190 drive
 //      byte 0 0xa1
 //      byte 1 0xfe
-//      byte 2 Upper 8 bits of logical block address (LBA)
+//      byte 2 Upper 8 bits of logical block address (LBA). MSB set on bad
+//         or possibly spare sectors.
 //      byte 3 Middle 8 bits of LBA
 //      byte 4 Lower 8 bits of LBA
 //      byte 5 Flag bit 0x40 indicates last sector on track. On another image
 //         probably a 4000 series controller 0x80 used to mark last sector.
+//         Another uses this field to count number of bad sectors skipped.
+//         FORMAT_ADAPTEC_COUNT_BAD_BLOCKS
 //      bytes 6-9 32 bit CRC
 //   Data
 //      byte 0 0xa1
@@ -522,6 +527,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //   CONTROLLER_MIGHTYFRAME, Mightyframe, variant of WD_1006
 //   No manual
+//   Likely same as CONTROLLER_WD_3B1 after 4th head select was added
 //   5 byte header + 2 byte CRC
 //      byte 0 0xa1
 //      byte 1 0xfe exclusive ored with cyl11 0 cyl10 cyl9
@@ -1553,8 +1559,15 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.lba_addr = lba_addr;
          sector_status.is_lba = 1;
 
+         // We can't determine what the actual cylinder sector and head is.
+         // If we track rotation time we can take a guess at sector
+         // TODO: Add this when driven by track format information
+         sector_status.sector = *sector_index;
+         sector_status.head = exp_head;
+         sector_status.cyl = exp_cyl;
+
          if (lba_addr & 0x800000) {
-            msg(MSG_DEBUG, "Sector marked bad/spare flag %x on cyl %d head %d physical sector %d\n",
+            msg(MSG_DEBUG, "Sector marked bad/spare LBA %x on cyl %d head %d physical sector %d\n",
                   lba_addr, exp_cyl, exp_head, sector_status.sector);
             sector_status.status |= SECT_SPARE_BAD;
             sector_status.status |= SECT_BAD_LBA_NUMBER;
@@ -1563,12 +1576,6 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             }
             first_spare_bad_sector = 0;
          }
-         // We can't determine what the actual cylinder sector and head is.
-         // If we track rotation time we can take a guess at sector
-         // TODO: Add this when driven by track format information
-         sector_status.sector = *sector_index;
-         sector_status.head = exp_head;
-         sector_status.cyl = exp_cyl;
 
 //printf("lba %d sect %d head %d cyl %d\n", lba_addr, sector_status.sector,
 //   sector_status.head, sector_status.cyl);
@@ -1888,10 +1895,18 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          exit(1);
       }
 
-      msg(MSG_DEBUG,
-         "Got exp %d,%d cyl %d head %d sector %d,%d size %d bad block %d\n",
-            exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
-            sector_status.sector, *sector_index, sector_size, bad_block);
+      if (sector_status.is_lba) {
+         msg(MSG_DEBUG,
+            "Got LBA %d exp %d,%d cyl %d head %d sector %d,%d size %d bad block %d\n",
+               sector_status.lba_addr, exp_cyl, exp_head, sector_status.cyl, 
+               sector_status.head, sector_status.sector, *sector_index, 
+               sector_size, bad_block);
+      } else {
+         msg(MSG_DEBUG,
+            "Got exp %d,%d cyl %d head %d sector %d,%d size %d bad block %d\n",
+               exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
+               sector_status.sector, *sector_index, sector_size, bad_block);
+      }
 
       if (bad_block) {
          sector_status.status |= SECT_SPARE_BAD;
@@ -2140,6 +2155,11 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int num_deltas;
    // And number from last time
    int last_deltas = 0;
+   // If we get too large a delta we need to process it in less than 32 bit
+   // word number of bits. This holds remaining number to process
+   int remaining_delta = 0;
+   // Maximum delta to process in one pass
+   int max_delta;
    // Intermediate value
    int tmp_raw_word;
    // Collect bytes to further process here
@@ -2165,25 +2185,41 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
-   nominal_bit_sep_time = 200e6 / 
+   nominal_bit_sep_time = 200e6 /
        mfm_controller_info[drive_params->controller].clk_rate_hz;
+   max_delta = nominal_bit_sep_time * 22;
    avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
-      for (; i < num_deltas; i++) {
-         track_time += deltas[i];
+      for (; i < num_deltas;) {
+         int delta_process;
+         // If no remaining delta process next else finish remaining
+         if (remaining_delta == 0) {
+            delta_process = deltas[i++];
+            remaining_delta = delta_process;
+         }  else {
+            delta_process = remaining_delta;
+         }
+         // Don't overflow our 32 bit word
+         if (delta_process > max_delta) {
+            delta_process = max_delta;
+         }
+         track_time += delta_process;
          // This is simulating a PLL/VCO clock sampling the data.
-         clock_time += deltas[i];
+         clock_time += delta_process;
+         remaining_delta -= delta_process;
          // Move the clock in current frequency steps and count how many bits
          // the delta time corresponds to
          for (int_bit_pos = 0; clock_time > avg_bit_sep_time / 2;
                clock_time -= avg_bit_sep_time, int_bit_pos++) {
-            
          }
          // And then filter based on the time difference between the delta and
-         // the clock
-         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         // the clock. Don't update PLL if this is a long burst without
+         // transitions
+         if (remaining_delta == 0) {
+            avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         }
 #if 0
          if (cyl == 819 && head == 0) {
          printf
@@ -2424,7 +2460,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC) && drive_params->header_crc.poly != 0) {
 //printf("Switched header %x\n", init_status);
                            mfm_mark_header_location(MARK_STORED, 0, 0);
-                           mfm_mark_end_data(all_raw_bits_count, drive_params);
+                           mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                            state = PROCESS_HEADER;
                            bytes_crc_len = header_bytes_crc_len;
                            bytes_needed = header_bytes_needed;
@@ -2453,7 +2489,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                           header_raw_bit_delta, header_bytes_needed * 7 * 8,
                           cyl, head, sector_index);
                      }
-                     mfm_mark_end_data(all_raw_bits_count, drive_params);
+                     mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
                         bytes_crc_len, bytes_needed, &state, cyl, head, 
                         &sector_index, seek_difference, sector_status_list, 

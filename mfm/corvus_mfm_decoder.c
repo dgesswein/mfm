@@ -3,8 +3,9 @@
 // bunch of 0's followed by one or other pattern to mark start and use rotation
 // time from index to determine when to start looking. 
 //
-// Copyright 2021 David Gesswein.
+// Copyright 2022 David Gesswein.
 //
+// 03/17/22 DJG Handle large deltas and improved error message
 // 10/29/21 DJG Added STRIDE_440 format
 // 07/05/19 DJG Improved 3 bit head field handling
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX
@@ -365,6 +366,11 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int num_deltas;
    // And number from last time
    int last_deltas = 0;
+   // If we get too large a delta we need to process it in less than 32 bit
+   // word number of bits. This holds remaining number to process
+   int remaining_delta = 0;
+   // Maximum delta to process in one pass
+   int max_delta;
    // Intermediate value
    int tmp_raw_word;
    // Collect bytes to further process here
@@ -393,7 +399,8 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 
 
    nominal_bit_sep_time = 200e6 /
-         mfm_controller_info[drive_params->controller].clk_rate_hz;
+       mfm_controller_info[drive_params->controller].clk_rate_hz;
+   max_delta = nominal_bit_sep_time * 22;
    avg_bit_sep_time = nominal_bit_sep_time;
 
    if (drive_params->controller == CONTROLLER_CORVUS_H) {
@@ -433,18 +440,34 @@ fprintf(out,"$var wire 1 & sector $end\n");
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
-      for (; i < num_deltas; i++) {
-         track_time += deltas[i];
+      for (; i < num_deltas;) {
+         int delta_process;
+         // If no remaining delta process next else finish remaining
+         if (remaining_delta == 0) {
+            delta_process = deltas[i++];
+            remaining_delta = delta_process;
+         }  else {
+            delta_process = remaining_delta;
+         }
+         // Don't overflow our 32 bit word
+         if (delta_process > max_delta) {
+            delta_process = max_delta;
+         }
+         track_time += delta_process;
          // This is simulating a PLL/VCO clock sampling the data.
-         clock_time += deltas[i];
+         clock_time += delta_process;
+         remaining_delta -= delta_process;
          // Move the clock in current frequency steps and count how many bits
          // the delta time corresponds to
          for (int_bit_pos = 0; clock_time > avg_bit_sep_time / 2;
                clock_time -= avg_bit_sep_time, int_bit_pos++) {
          }
          // And then filter based on the time difference between the delta and
-         // the clock
-         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         // the clock. Don't update PLL if this is a long burst without
+         // transitions
+         if (remaining_delta == 0) {
+            avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         }
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          //if (cyl == 70 & head == 5 && track_time > next_header_time)
@@ -618,7 +641,7 @@ fprintf(out,"#%lld\n%d^\n#%lld\n%d^\n", bit_time,
 #if VCD
 fprintf(out,"#%lld\n0&\n", bit_time);
 #endif
-                     mfm_mark_end_data(all_raw_bits_count, drive_params);
+                     mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
                         bytes_crc_len, bytes_needed, &state, cyl, head, 
                         &sector_index, seek_difference, sector_status_list, 0);

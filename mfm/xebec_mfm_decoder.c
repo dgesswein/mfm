@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 03/17/22 DJG Handle large deltas and improved error message
 // 12/20/21 DJG Removed number of zero words before sector header test
 //    for EC1841 since one drive read didn't have enough zeros to 
 //    have one 32 bit zero word.
@@ -30,7 +31,7 @@
 // 11/01/15 DJG Use new drive_params field and comment changes
 // 05/17/15 DJG Code cleanup
 //
-// Copyright 2018 David Gesswein.
+// Copyright 2022 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -410,6 +411,11 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int num_deltas;
    // And number from last time
    int last_deltas = 0;
+   // If we get too large a delta we need to process it in less than 32 bit
+   // word number of bits. This holds remaining number to process
+   int remaining_delta = 0;
+   // Maximum delta to process in one pass
+   int max_delta;
    // Intermediate value
    int tmp_raw_word;
    // Collect bytes to further process here
@@ -440,27 +446,44 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    raw_word = 0;
    nominal_bit_sep_time = 200e6 /
        mfm_controller_info[drive_params->controller].clk_rate_hz;
+   max_delta = nominal_bit_sep_time * 22;
    avg_bit_sep_time = nominal_bit_sep_time;
    i = 1;
    while (num_deltas >= 0) {
       // We process what we have then check for more.
-      for (; i < num_deltas; i++) {
-         track_time += deltas[i];
+      for (; i < num_deltas;) {
+         int delta_process;
+         // If no remaining delta process next else finish remaining
+         if (remaining_delta == 0) {
+            delta_process = deltas[i++];
+            remaining_delta = delta_process;
+         }  else {
+            delta_process = remaining_delta;
+         }
+         // Don't overflow our 32 bit word
+         if (delta_process > max_delta) {
+            delta_process = max_delta;
+         }
+         track_time += delta_process;
          // This is simulating a PLL/VCO clock sampling the data.
-         clock_time += deltas[i];
+         clock_time += delta_process;
+         remaining_delta -= delta_process;
          // Move the clock in current frequency steps and count how many bits
          // the delta time corresponds to
          for (int_bit_pos = 0; clock_time > avg_bit_sep_time / 2;
                clock_time -= avg_bit_sep_time, int_bit_pos++) {
          }
          // And then filter based on the time difference between the delta and
-         // the clock
-         avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         // the clock. Don't update PLL if this is a long burst without
+         // transitions
+         if (remaining_delta == 0) {
+            avg_bit_sep_time = nominal_bit_sep_time + filter(clock_time, &filter_state);
+         }
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          printf
          ("  delta %d skew %.2f %.2f bit pos %.2f int bit pos %d avg_bit %.2f time %d\n",
-               deltas[i], clock_time - track_time, skew, bit_pos,
+               delta_process, clock_time - track_time, skew, bit_pos,
                int_bit_pos, avg_bit_sep_time, track_time);
 #endif
          if (all_raw_bits_count + int_bit_pos >= 32) {
@@ -580,7 +603,7 @@ if ((raw_word & 0xffff) == 0x4489) {
                   if (byte_cntr < bytes_needed) {
                      bytes[byte_cntr++] = decoded_word;
                   } else {
-                     mfm_mark_end_data(all_raw_bits_count, drive_params);
+                     mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
                            bytes_crc_len, bytes_needed, &state, cyl, head, 
                            &sector_index,

@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 03/17/22 DJG Update function prototype
 // 12/18/21 DJG Fix Symbolics 3640 ext2emu creation
 // 12/18/21 SWE Added David Junior II
 // 10/29/21 DJG Added STRIDE_440
@@ -3156,7 +3157,7 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
 void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_location(int bit_count, int bit_offset, int tot_bit_count);
-void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params);
+void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params, int cyl, int head);
 void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
 int mfm_fix_head(DRIVE_PARAMS *drive_params, int exp_head, int head);

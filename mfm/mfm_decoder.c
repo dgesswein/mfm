@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 03/17/22 DJG Improved error message
 // 12/19/21 DJG Code cleanups and hunk of commented code for possible future changes
 // 12/18/21 SWE Added David Junior II format
 // 10/29/21 DJG Added STRIDE_440 format
@@ -115,15 +116,15 @@
 // 11/09/14 DJG Changes for note option
 // 10/06/14 DJG Added new CONTROLLER_MACBOTTOM format
 // 09/10/14 DJG Added new CONTROLLER_OLIVETTI format
-//
-// Copyright 2021 David Gesswein.
-// This file is part of MFM disk utilities.
-//
 // 09/06/14 DJG Made sector number printed for sectors with errors
 //   use drive sector numbering (drives may use 0 or 1 for first sector.
 //   Separated dumping read data from error messages
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
+//
+// Copyright 2022 David Gesswein.
+// This file is part of MFM disk utilities.
+//
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
@@ -1677,13 +1678,13 @@ void mfm_mark_location(int bit_count, int bit_offset, int tot_bit_count) {
 
 // Mark end of data in track data we are building
 // Bit count is bit location in work
-void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params) {
+void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params, int cyl, int head) {
 
    if (drive_params->emu_track_data_bytes > 0 && current_track_words_ndx*4 >=
           drive_params->emu_track_data_bytes) {
-      msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes, need %d words\n",
+      msg(MSG_ERR, "Warning: Track data truncated writing to emulation file by %d bytes, need %d words cyl %d head %d\n",
            current_track_words_ndx*4 - drive_params->emu_track_data_bytes+
-           (bit_count+7)/8, current_track_words_ndx);
+           (bit_count+7)/8, current_track_words_ndx, cyl, head);
       drive_params->stats.emu_data_truncated = 1;
    }
    if (current_track_words_ndx > drive_params->stats.max_track_words) {
