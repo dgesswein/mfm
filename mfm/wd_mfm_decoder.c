@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 05/29/22 TJT Added Callan Unistar format
 // 05/04/22 DJG Fixed Adaptec printing wrong sector in debug message
 // 03/17/22 DJG Handle large deltas and improved error message
 // 12/18/21 SWE Added David Junior_II format.
@@ -781,6 +782,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      16 bit CRC/ECC code
 //      
 //   CONTROLLER_CALLAN
+//	aka "Callan Unistar"
 //	aka "Liberty Bay Multibus model WDC-796-A"
 //	Added by tjt 5-26-2022
 //      byte 0 0xa1
