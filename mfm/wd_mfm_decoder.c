@@ -780,6 +780,21 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      16 bit CRC/ECC code
 //      
+//   CONTROLLER_CALLAN
+//	aka "Liberty Bay Multibus model WDC-796-A"
+//	Added by tjt 5-26-2022
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-3 head number. Bits 4-7 upper bits of cylinder
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      16 bit CRC/ECC code
+//      
 //   CONTROLLER_EDAX_PV9900
 //      Quantum Q540 drive that appears to be from EDAX PV9900 EDS X-ray 
 //      microanalysis system. From online informat disk controller is likely
@@ -1508,6 +1523,21 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_CALLAN) {
+         sector_status.cyl = bytes[2] | ((bytes[3] & 0xf0) << 4);
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0x0f);
+         sector_size = drive_params->sector_size;
+
+         sector_status.sector = bytes[4];
+         bad_block = 0;
+
+         if (bytes[1] !=  0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else if (drive_params->controller == CONTROLLER_EDAX_PV9900) {
          sector_status.cyl = bytes[1] | (bytes[2] << 8);
 
@@ -1999,6 +2029,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_WANG_2275) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_WANG_2275_B) {
+         id_byte_expected = 0xf8;
+      } else if (drive_params->controller == CONTROLLER_CALLAN) {
          id_byte_expected = 0xf8;
       } else if (drive_params->controller == CONTROLLER_IBM_5288) {
          id_byte_expected = 0xfb;

@@ -614,6 +614,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ATT_3B2 ||
          drive_params->controller == CONTROLLER_WANG_2275 ||
          drive_params->controller == CONTROLLER_WANG_2275_B ||
+         drive_params->controller == CONTROLLER_CALLAN ||
          drive_params->controller == CONTROLLER_IBM_5288 ||
          drive_params->controller == CONTROLLER_IBM_3174 ||
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
@@ -1418,6 +1419,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ATT_3B2 ||
             drive_params->controller == CONTROLLER_WANG_2275 ||
             drive_params->controller == CONTROLLER_WANG_2275_B ||
+            drive_params->controller == CONTROLLER_CALLAN ||
             drive_params->controller == CONTROLLER_IBM_5288 ||
             drive_params->controller == CONTROLLER_IBM_3174 ||
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||

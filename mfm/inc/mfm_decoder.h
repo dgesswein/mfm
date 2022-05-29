@@ -191,6 +191,7 @@ typedef struct {
       CONTROLLER_CONVERGENT_AWS_SA1000,
       CONTROLLER_WANG_2275,
       CONTROLLER_WANG_2275_B,
+      CONTROLLER_CALLAN,
       CONTROLLER_IBM_5288,
       CONTROLLER_EDAX_PV9900,
       CONTROLLER_SHUGART_1610,
@@ -2531,6 +2532,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 0
       },
       {"WANG_2275_B",            256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 0, 0, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"CALLAN",            256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
