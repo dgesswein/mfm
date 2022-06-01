@@ -2544,9 +2544,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+	 {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0
       },
       {"IBM_5288",            256, 10000000,      0, 
