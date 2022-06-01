@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/01/22 TJT Add CALLAN with proper CRC info
 // 03/17/22 DJG Update function prototype
 // 12/18/21 DJG Fix Symbolics 3640 ext2emu creation
 // 12/18/21 SWE Added David Junior II
