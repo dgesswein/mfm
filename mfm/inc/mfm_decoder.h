@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/01/22 TJT Add CALLAN with proper CRC info
 // 03/17/22 DJG Update function prototype
 // 12/18/21 DJG Fix Symbolics 3640 ext2emu creation
 // 12/18/21 SWE Added David Junior II
@@ -191,6 +192,7 @@ typedef struct {
       CONTROLLER_CONVERGENT_AWS_SA1000,
       CONTROLLER_WANG_2275,
       CONTROLLER_WANG_2275_B,
+      CONTROLLER_CALLAN,
       CONTROLLER_IBM_5288,
       CONTROLLER_EDAX_PV9900,
       CONTROLLER_SHUGART_1610,
@@ -2537,6 +2539,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"CALLAN",            256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+	 {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0
       },
       {"IBM_5288",            256, 10000000,      0, 
