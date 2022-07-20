@@ -6,6 +6,7 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
 // 07/05/19 DJG Improved 3 bit head field handling
 // 04/22/18 DJG Added support for non 10 MHz bit rate and 
@@ -565,7 +566,8 @@ last_tot_raw_bit_cntr = tot_raw_bit_cntr;
                            }
                         }
                      }
-                  } else {
+                  } 
+                  if (byte_cntr == bytes_needed) {
                      mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                      all_sector_status |= mfm_process_bytes(drive_params, bytes,
                          bytes_crc_len, bytes_needed, &state, cyl, head, 

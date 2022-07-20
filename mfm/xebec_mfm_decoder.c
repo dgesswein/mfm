@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
 // 12/20/21 DJG Removed number of zero words before sector header test
 //    for EC1841 since one drive read didn't have enough zeros to 
@@ -602,7 +603,8 @@ if ((raw_word & 0xffff) == 0x4489) {
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
                      bytes[byte_cntr++] = decoded_word;
-                  } else {
+                  } 
+                  if (byte_cntr == bytes_needed) {
                      mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
                      sector_status |= mfm_process_bytes(drive_params, bytes,
                            bytes_crc_len, bytes_needed, &state, cyl, head, 

@@ -4,6 +4,7 @@
 //
 // Copyright 2022 David Gesswein.
 //
+// 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
 //
 // This file is part of MFM disk utilities.
@@ -481,7 +482,8 @@ fprintf(out,"#%lld\n%d^\n#%lld\n%d^\n", bit_time,
                   if (byte_cntr < bytes_needed) {
                      bytes[byte_cntr++] = decoded_word;
 //printf("Decoded %d  %d %08x\n",byte_cntr, tot_raw_bit_cntr, decoded_word);
-                  } else {
+                  } 
+                  if (byte_cntr == bytes_needed) {
 #if VCD
 fprintf(out,"#%lld\n0&\n", bit_time);
 #endif

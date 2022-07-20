@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 05/29/22 TJT Added Callan Unistar format
 // 05/04/22 DJG Fixed Adaptec printing wrong sector in debug message
 // 03/17/22 DJG Handle large deltas and improved error message
@@ -2501,6 +2502,8 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                            all_sector_status |= mfm_process_bytes(drive_params, bytes,
                               bytes_crc_len, bytes_needed, &state, cyl, head, 
                               &sector_index, seek_difference, sector_status_list, 0);
+                              // Don't allow these bytes to be reprocessed below
+                              byte_cntr = 0;
                         }
                      }
                      bytes[byte_cntr++] = decoded_word;
@@ -2510,7 +2513,8 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         // as data
                         mfm_mark_data_location(MARK_STORED, 0, 0);
                      }
-                  } else {
+                  } 
+                  if (byte_cntr == bytes_needed) {
                      int force_bad = SECT_NO_STATUS;
 
                      // If data header too far from sector header mark bad.

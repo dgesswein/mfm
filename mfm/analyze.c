@@ -9,6 +9,7 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 07/20/22 DJG Removed useless lines
 // 09/19/21 DJG Fixed indexing of sector_status_list in analyze model. 
 //    Indexing always starts with entry 0 irrespective of first_sector_number
 //    CONT_MODEL formats that stated with sector 1 were not detected properly.
@@ -413,8 +414,6 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
                      max_lba_addr = sector_status_list[i].lba_addr;
                   }
                }
-            }
-            if (mfm_controller_info[cont].analyze_type == CINFO_LBA ) {
             }
             // If LBA drive make sure addresses are somewhat adjacent and
             // plausible for the cylinder. If not clear good header count
