@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/01/22 DJG Added CTM9016 format
 // 06/01/22 TJT Add CALLAN with proper CRC info
 // 03/17/22 DJG Update function prototype
 // 12/18/21 DJG Fix Symbolics 3640 ext2emu creation
@@ -184,6 +185,7 @@ typedef struct {
       CONTROLLER_DTC_520_256B, 
       CONTROLLER_DTC_520_512B, 
       CONTROLLER_MACBOTTOM, 
+      CONTROLLER_CTM9016, 
       CONTROLLER_ACORN_A310_PODULE, 
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_ALTOS_586,
@@ -350,6 +352,8 @@ DEF_EXTERN struct {
   // Don't move this without fixing the Northstar reference
   {0x1021, 16, 0},
   {0x8005, 16, 0},
+  // CTM9016
+  {0x0001, 16, 0},
   // The rest of the 32 bit polynomials with 8 bit correct get 5-19 false 
   // corrects per 100000 when more errors than can be corrected. Reduced due
   // to false correct seen with 0x00a00805
@@ -2210,6 +2214,46 @@ DEF_EXTERN TRK_L trk_acorn_a310_podule[]
 }
 #endif
 ;
+
+DEF_EXTERN TRK_L trk_CTM9016[] 
+#ifdef DEF_DATA
+ = 
+{ { 257, TRK_FILL, 0x4e, NULL },
+  { 8, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {24, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {27, TRK_FILL, 0x00, NULL},
+        {1030, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {1024, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1026, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {4, TRK_FILL, 0x00, NULL},
+        {98, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {641, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 // CHECK_NONE is used for header formats where some check that is specific
 // to the format is used so can't be generalized. If so the check will need
 // to be done in the header decode and ext2emu as special cases.
@@ -2466,6 +2510,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         0, 0, 0
+      },
+      {"CTM9016",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_CTM9016, 1024, 8, 0, 5209,
+         0, 0,
+         {0x0,0x1021,16,0},{0x0,0xa00805,32,4}, CONT_MODEL,
          0, 0, 0
       },
       {"Acorn_A310_podule",            256, 10000000,      0,

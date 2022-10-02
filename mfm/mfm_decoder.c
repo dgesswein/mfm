@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/01/22 DJG Added CTM9016 format
 // 03/17/22 DJG Improved error message
 // 12/19/21 DJG Code cleanups and hunk of commented code for possible future changes
 // 12/18/21 SWE Added David Junior II format
@@ -603,6 +604,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DTC_520_512B ||
          drive_params->controller == CONTROLLER_DTC_520_256B ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
+         drive_params->controller == CONTROLLER_CTM9016 ||
          drive_params->controller == CONTROLLER_ACORN_A310_PODULE ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_DG_MV2000 ||
@@ -1408,6 +1410,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DTC_520_512B ||
             drive_params->controller == CONTROLLER_DTC_520_256B ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
+            drive_params->controller == CONTROLLER_CTM9016 ||
             drive_params->controller == CONTROLLER_ACORN_A310_PODULE ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_DG_MV2000 ||

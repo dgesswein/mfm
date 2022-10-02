@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/01/22 DJG Added CTM9016 format
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 05/29/22 TJT Added Callan Unistar format
 // 05/04/22 DJG Fixed Adaptec printing wrong sector in debug message
@@ -403,6 +404,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_CTM9016. Same as MACBOTTOM except MACBOTTOM has 524 byte 
+//      sectors and CTM9016 has 1024 byte sectors. CTM9016 also has different
+//      header polynomial on cyl 0 head 0.
 //
 //   CONTROLLER_A310_PODULE. Same as MACBOTTOM except what bytes in CRC and
 //      sector length. Uses HD63463 controller chip
@@ -1581,6 +1586,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.status |= SECT_BAD_HEADER;
          }
       } else if (drive_params->controller == CONTROLLER_MACBOTTOM ||
+             drive_params->controller == CONTROLLER_CTM9016 ||
              drive_params->controller == CONTROLLER_ACORN_A310_PODULE) {
          sector_status.cyl = bytes[2] | (bytes[1] << 8);
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
@@ -2556,7 +2562,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    if (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) {
       float begin_time = 
          ((bytes_needed - byte_cntr) * 16.0 *
-             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz 
+             1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
              + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
       msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
          sector_index, round(begin_time / 1000.0) * 1000.0);

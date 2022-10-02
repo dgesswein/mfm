@@ -5,6 +5,7 @@
 //
 // Copyright 2022 David Gesswein.
 //
+// 10/02/22 DJG Suppress false reporting of needing --begin_time
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
 // 10/29/21 DJG Added STRIDE_440 format
@@ -662,7 +663,9 @@ fprintf(out,"#%lld\n0&\n", bit_time);
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
-   if ((state == PROCESS_HEADER || state == PROCESS_DATA) && sector_index <= drive_params->num_sectors) {
+   // If in PROCESS_DATA sector_index has been incremented for possible next sector
+   if ((state == PROCESS_HEADER && sector_index < drive_params->num_sectors) ||
+        (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) ) {
       float begin_time =
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz

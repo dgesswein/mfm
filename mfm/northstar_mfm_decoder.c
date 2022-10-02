@@ -16,6 +16,7 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 10/02/22 DJG Suppress false reporting of needing --begin_time
 // 03/17/22 DJG Handle large deltas and improved error message
 // 09/03/21 DJG Added CONTROLLER_SUPERBRAIN
 // 07/05/19 DJG Improved 3 bit head field handling
@@ -527,7 +528,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       last_deltas = num_deltas;
       num_deltas = deltas_get_count(i);
    }
-   if (state == PROCESS_DATA) {
+   if (state == PROCESS_DATA && sector_index <= drive_params->num_sectors) {
       float begin_time =
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
