@@ -1,4 +1,6 @@
 // copy track xfer_cyl, xfer_head from good.emu to bad.emu
+// build with 
+//   gcc -o copy_emu copy_emu.c emu_tran_file.c msg.c crc_ecc.c -Iinc -lm
 
 #include <stdint.h>
 #include <stdio.h>
@@ -14,7 +16,7 @@ int main() {
    unsigned int words[MAX_TRACK_WORDS];
    unsigned int words2[MAX_TRACK_WORDS];
    int xfer_cyl = 0;
-   int xfer_head = 3;
+   int xfer_head = 0;
    FILE *out;
    int i;
 
@@ -44,6 +46,7 @@ words[1038] = words2[1038];
    emu_file_close(in_fd, 0);
    emu_file_close(out_fd, 0);
 
+#if 0
    out = fopen("/tmp/good_track", "w");
    for (i = 0; i < emu_out_file_info.track_data_size_bytes / 4; i++) {
       fprintf(out, "%08x\n",words2[i]);
@@ -54,4 +57,5 @@ words[1038] = words2[1038];
       fprintf(out, "%08x\n",words[i]);
    }
    fclose(out);
+#endif
 }

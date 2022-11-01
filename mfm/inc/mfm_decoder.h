@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/31/22 DJG Added ext2emu Corvus_H support 
 // 10/01/22 DJG Added CTM9016 format
 // 06/01/22 TJT Add CALLAN with proper CRC info
 // 03/17/22 DJG Update function prototype
@@ -2254,6 +2255,61 @@ DEF_EXTERN TRK_L trk_CTM9016[]
 }
 #endif
 ;
+
+DEF_EXTERN TRK_L trk_corvus_h[] 
+#ifdef DEF_DATA
+ = 
+{ { 7, TRK_FILL, 0x00, NULL },
+  { 20, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        // Real disk seems to have some non zero bytes here but they aren't
+        // always the same or a simple pattern so I ignored them
+        {49, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x02, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              // Put head in bits 7-5 of byte 1
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3,
+                 (BIT_L []) {
+                    { 8, 3},
+                    { -1, -1},
+                 }
+              },
+              // Put sector in bits 4-0 of byte 1
+              {0, FIELD_SECTOR, 0x00, OP_XOR, 5,
+                 (BIT_L []) {
+                    { 11, 5},
+                    { -1, -1},
+                 }
+              },
+              {2, FIELD_FILL, 0x00, OP_SET, 2, NULL},
+              // Cyl in upper 8 bits in byte 2, lower 8 bits in
+              // byte 3
+              {0, FIELD_CYL, 0x00, OP_XOR, 16, 
+                 (BIT_L []) {
+                    { 24, 8},
+                    { 16, 8},
+                    { -1, -1},
+                 }
+              },
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 516, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {-1, 0, 0, NULL},
+     }
+   },
+   {113, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 // CHECK_NONE is used for header formats where some check that is specific
 // to the format is used so can't be generalized. If so the check will need
 // to be done in the header decode and ext2emu as special cases.
@@ -2975,10 +3031,11 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          3, 3, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 0, NULL, 0, 0, 0, 5209,
-// Should be model after data filled in
+         0, 0, trk_corvus_h, 512, 20, 0, 5730,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         // Only have one CRC. DATA_CRC needs to be non zero for analyze_model
+         // to ignore this format. Also needed by ext2emu for mark_bad to work
+         {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"NorthStar_Advantage",  256, 10000000, 230000,
