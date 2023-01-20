@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 12/08/22 DJG Changed error message
 // 10/01/22 DJG Added CTM9016 format
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 05/29/22 TJT Added Callan Unistar format
@@ -2564,7 +2565,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
              + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
-      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+      msg(MSG_ERR, "Ran out of data on sector index %d, try adding --begin_time %.0f to mfm_read command line\n",
          sector_index, round(begin_time / 1000.0) * 1000.0);
    }
 

@@ -1,9 +1,10 @@
 // This routine decodes Xebec formated disks.
 // The format is Headers is marked with an 0xa1 byte. That is followed
-// by a sync bit which is a one between a bunch of zeros. That synchronizes
+// by a sync bit which is a one following a bunch of zeros. That synchronizes
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 12/08/22 DJG Changed error message
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
 // 12/20/21 DJG Removed number of zero words before sector header test
@@ -630,7 +631,7 @@ if ((raw_word & 0xffff) == 0x4489) {
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
              + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
-      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+      msg(MSG_ERR, "Ran out of data on sector index %d, try adding --begin_time %.0f to mfm_read command line\n",
          sector_index, round(begin_time / 1000.0) * 1000.0);
    }
 

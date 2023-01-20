@@ -16,6 +16,7 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 12/08/22 DJG Changed error message
 // 10/02/22 DJG Suppress false reporting of needing --begin_time
 // 03/17/22 DJG Handle large deltas and improved error message
 // 09/03/21 DJG Added CONTROLLER_SUPERBRAIN
@@ -533,7 +534,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
              + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
-      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+      msg(MSG_ERR, "Ran out of data on sector index %d, try adding --begin_time %.0f to mfm_read command line\n",
          sector_index, round(begin_time / 1000.0) * 1000.0);
    }
    // Force last partial word to be saved

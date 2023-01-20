@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 01/17/22 DJG Added ext2emu support for Xebec_104527_256B
 // 12/19/21 DJG Code cleanup
 // 01/18/21 DJG Only print valid formats for ext2emu
 // 10/08/20 DJG Added OP_XOR for sector data. Changed a couple of error messages
@@ -557,6 +558,16 @@ static void process_field(DRIVE_PARAMS *drive_params,
    while (field_def[ndx].len_bytes != -1) {
       data_set = 0;
       switch (field_def[ndx].type) {
+            // Fill the specified range with the specified value only if last 
+            // sector of track
+         case FIELD_FILL_LAST_SECTOR:
+            // Only take action on last sector
+            if (get_sector(drive_params) != drive_params->num_sectors -
+                 drive_params->first_sector_number - 1) {
+               data_set = 1;
+               break;
+            }
+            // Intentional fall through
             // Fill the specified range with the specified value
          case FIELD_FILL:
             if (field_def[ndx].byte_offset_bit_len +

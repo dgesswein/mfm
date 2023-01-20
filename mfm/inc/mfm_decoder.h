@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 01/17/22 DJG Found false ECC correction so reduced ECC correction length for 0x00a00805
+//    added ext2emu support for Xebec_104527_256B
 // 10/31/22 DJG Added ext2emu Corvus_H support 
 // 10/01/22 DJG Added CTM9016 format
 // 06/01/22 TJT Add CALLAN with proper CRC info
@@ -348,8 +350,9 @@ DEF_EXTERN struct {
   // more errors than can be corrected. Had false correction at length 5 on disk
   // read so dropped back to 4. My attempt to test showed 7 gives 3-42 false 
   // corrections per 100000. Some controllers do 11 bit correct with 32 bit
-  // polynomial
-  {0x00a00805, 32, 4}, 
+  // polynomial. Had false ECC corrections with length 3 on another disk so dropped it 
+  // to 2.
+  {0x00a00805, 32, 2}, 
   // Don't move this without fixing the Northstar reference
   {0x1021, 16, 0},
   {0x8005, 16, 0},
@@ -485,6 +488,8 @@ typedef struct field_l {
       FIELD_HEAD_SEAGATE_ST11M, FIELD_CYL_SEAGATE_ST11M,
          // Mark end of sector to increment sector counter
       FIELD_NEXT_SECTOR, FIELD_SECTOR_METADATA,
+         // Like FIELD_FILL but only takes effect if last sector on track
+      FIELD_FILL_LAST_SECTOR
       } type;
       // Value for field. 
    uint8_t value;
@@ -2310,6 +2315,64 @@ DEF_EXTERN TRK_L trk_corvus_h[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_Xebec_104527_256B[] 
+#ifdef DEF_DATA
+ = 
+{ { 20, TRK_FILL, 0x00, NULL },
+  { 32, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {8, TRK_FILL, 0x00, NULL},
+        {28, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x01, OP_SET, 14, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
+              {2, FIELD_FILL, 0x00, OP_SET, 15, NULL},
+              {1, FIELD_FILL, 0xc2, OP_SET, 17, NULL},
+              // Upper 4 bits in low 4 bits of byte 5, lower 8 bits in
+              // byte 6
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 148, 4},
+                    { 152, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 20, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 21, NULL},
+              {1, FIELD_FILL, 0x80, OP_SET, 22, NULL},
+              {1, FIELD_FILL_LAST_SECTOR, 0x10, OP_XOR, 22, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 23, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 24, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {17, TRK_FILL, 0x00, NULL},
+        {263, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x01, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0xc9, OP_SET, 2, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 3, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 259, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {6, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {94, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 // CHECK_NONE is used for header formats where some check that is specific
 // to the format is used so can't be generalized. If so the check will need
 // to be done in the header decode and ext2emu as special cases.
@@ -2995,7 +3058,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 256, 32, 0, 5209,
+         0, 1, trk_Xebec_104527_256B, 256, 32, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,4},{0x0,0xa00805,32,4}, CONT_MODEL,
          0, 0, 0

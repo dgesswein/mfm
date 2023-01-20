@@ -6,6 +6,7 @@
 // We probably should be able to do better than just the PLL since we can 
 // look ahead.
 //
+// 12/08/22 DJG Changed error message
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
 // 07/05/19 DJG Improved 3 bit head field handling
@@ -593,7 +594,7 @@ last_tot_raw_bit_cntr = tot_raw_bit_cntr;
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
              + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
-      msg(MSG_ERR, "Ran out of data on sector index %d, try reading with --begin_time %.0f\n",
+      msg(MSG_ERR, "Ran out of data on sector index %d, try adding --begin_time %.0f to mfm_read command line\n",
          sector_index, round(begin_time / 1000.0) * 1000.0);
    }
 

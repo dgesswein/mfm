@@ -1624,8 +1624,8 @@ void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count) 
 #if PRINT_SPACING
    if (header_track_tot_bit_count != 0 && (tot_bit_count) > 
         header_track_tot_bit_count) {
-      msg(MSG_INFO, "Header difference %.1f bytes\n", 
-        (tot_bit_count - header_track_tot_bit_count) / 16.0);
+      msg(MSG_INFO, "Header difference %.1f bytes bit count %d\n", 
+        (tot_bit_count - header_track_tot_bit_count) / 16.0, tot_bit_count);
       msg(MSG_INFO, "Data to header difference %.1f %.1f bytes\n", 
         (tot_bit_count - data_tot_bit_count) / 16.0,
         (data_tot_bit_count - header_track_tot_bit_count) / 16.0);
