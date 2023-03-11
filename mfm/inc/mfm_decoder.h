@@ -1,7 +1,9 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
-// 01/17/22 DJG Found false ECC correction so reduced ECC correction length for 0x00a00805
+// 03/11/23 DJG Fix for EC1841 decoding
+// 03/10/23 DJG Added ES7978 format.
+// 01/17/23 DJG Found false ECC correction so reduced ECC correction length for 0x00a00805
 //    added ext2emu support for Xebec_104527_256B
 // 10/31/22 DJG Added ext2emu Corvus_H support 
 // 10/01/22 DJG Added CTM9016 format
@@ -158,6 +160,9 @@ typedef struct {
    int noretry_head;
    // The number of the first sector. Some disks start at 0 others 1
    int first_sector_number;
+   // First logical sector on track. Only set and used by EC1841 format. 
+   // -1 when not set.
+   int first_logical_sector;
    // Size of data area of sector in bytes
    int sector_size;
    // Size of metadata area of sector in bytes
@@ -202,7 +207,8 @@ typedef struct {
       CONTROLLER_EDAX_PV9900,
       CONTROLLER_SHUGART_1610,
       CONTROLLER_SHUGART_SA1400,
-      CONTROLLER_SM_1810_512B, 
+      CONTROLLER_ES7978, 
+      CONTROLLER_SM_1810_512B,
       CONTROLLER_DSD_5217_512B, 
       CONTROLLER_OMTI_5510, 
       CONTROLLER_XEROX_6085, 
@@ -2756,6 +2762,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_shugart_1400, 256, 32, 0, 5209,
          0, 0,
          {0x0,0x24409,24,2},{0x0,0x24409,24,2}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"ES7978",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 2, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
       // OMTI_5200 uses initial value 0x409e10aa for data

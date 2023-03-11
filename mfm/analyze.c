@@ -9,6 +9,7 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/11/23 DJG Improved EC1841 sector number decoding
 // 07/20/22 DJG Removed useless lines
 // 09/19/21 DJG Fixed indexing of sector_status_list in analyze model. 
 //    Indexing always starts with entry 0 irrespective of first_sector_number
@@ -740,6 +741,11 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
     drive_params->num_head = last_good_head+1;
     drive_params->num_sectors = max_sector - min_sector + 1;
     drive_params->first_sector_number = min_sector;
+    if (drive_params->controller == CONTROLLER_EC1841) {
+       drive_params->first_logical_sector = interleave[1];
+       msg(MSG_INFO, "First logical sector %d\n", drive_params->first_logical_sector);
+    }
+
     msg(MSG_INFO, "Number of heads %d number of sectors %d first sector %d\n",
           drive_params->num_head, drive_params->num_sectors,
           drive_params->first_sector_number);

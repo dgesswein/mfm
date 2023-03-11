@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 03/10/23 DJG Added ES7978 format
 // 12/08/22 DJG Changed error message
 // 10/01/22 DJG Added CTM9016 format
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
@@ -243,6 +244,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //      Cyl 0, head 0 has 17 sectors. Rest of disk has 16 sectors
 //      TODO: Support mixed formats.
+//   CONTROLLER_ES7978. Same as WD_1006 with different data CRC. Uses Intel 
+//      82062 which seems to only use 16 bit CRC. Data actually has 32 bit CRC.
 //
 //   CONTROLLER_MOTOROLA_VME10
 //   5 byte header + 4 byte CRC
@@ -1356,6 +1359,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             drive_params->controller == CONTROLLER_TANDY_16B || 
+            drive_params->controller == CONTROLLER_ES7978 || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
                IsOutermostCylinder(drive_params, exp_cyl)) ||
               drive_params->controller == CONTROLLER_WD_3B1) {

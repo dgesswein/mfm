@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 03/10/23 DJG Added ES7978 format
 // 10/01/22 DJG Added CTM9016 format
 // 03/17/22 DJG Improved error message
 // 12/19/21 DJG Code cleanups and hunk of commented code for possible future changes
@@ -578,6 +579,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_RQDX2 ||
+         drive_params->controller == CONTROLLER_ES7978 ||
          drive_params->controller == CONTROLLER_ISBC_214_128B ||
          drive_params->controller == CONTROLLER_ISBC_214_256B ||
          drive_params->controller == CONTROLLER_ISBC_214_512B ||
@@ -1384,6 +1386,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 ||
+            drive_params->controller == CONTROLLER_ES7978 ||
             drive_params->controller == CONTROLLER_ISBC_214_128B ||
             drive_params->controller == CONTROLLER_ISBC_214_256B ||
             drive_params->controller == CONTROLLER_ISBC_214_512B ||

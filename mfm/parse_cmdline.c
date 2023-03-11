@@ -9,6 +9,7 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 03/11/23 DJG Fix for EC1841 decoding
 // 12/19/21 DJG crc_length now allowed to be 0 so unset length is -1.
 // 01/18/21 DJG Only print valid formats for ext2emu
 // 03/15/20 DJG Fix fix for emulation_output set when file not specified
@@ -533,6 +534,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
       drive_params->analyze = 0;
       drive_params->start_time_ns = 0;
       drive_params->header_crc.length = -1; // 0 is valid
+      drive_params->first_logical_sector = -1;
    }
    // Handle the options. The long options are converted to the short
    // option name for the switch by getopt_long.

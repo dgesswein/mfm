@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 03/11/23 DJG Improved EC1841 sector number decoding
 // 12/08/22 DJG Changed error message
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
 // 03/17/22 DJG Handle large deltas and improved error message
@@ -131,8 +132,9 @@ static inline float filter(float v, float *delay)
 //      
 //   CONTROLLER_EC1841 (Also seems to be Xebec S1410)
 //      Same as XEBEC_104786 except data compare byte is 0x00, not 0xc9
-//      Sector numbers start at 3 for first sector and wrap back to 0 at
-//      number of sectors.
+//      The second physical sector is actually sector 0 not what it says
+//      in the header. Don't know how the controller really figures this
+//      out. Current implementation is likley not fully correct.
 //      Needs --begin_time 220000
 //
 //   CONTROLLER_SOLOSYSTEMS. (Syquest removable drive)
@@ -188,15 +190,23 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5] & 0xf);
-         if (drive_params->controller == CONTROLLER_EC1841) {
+         if (!drive_params->analyze_in_progress && drive_params->controller == CONTROLLER_EC1841) {
             // Controller shifts the sectors by 3 from what is recored
             // in the header. We only handle 17 512 byte and 32 256 byte
             // sectors per track. Using num_sectors doesn't work with analyze
-            if (bytes[6]<3) {
+            if (drive_params->first_logical_sector == -1) {
+               msg(MSG_FATAL, "EC1841 requires --analyze to determine proper sector mapping\n");
+               exit(1);
+            }
+            if (*sector_index == 1 && drive_params->first_logical_sector !=  bytes[6]) {
+               msg(MSG_ERR, "Found different first logical sector %d vs %d on cyl %d head %d\n",
+               bytes[6], drive_params->first_logical_sector, exp_cyl, exp_head);
+            }
+            if (bytes[6] < drive_params->first_logical_sector) {
                 if (drive_params->sector_size == 256) {
-                   sector_status.sector = bytes[6] + 32 - 3;
+                   sector_status.sector = bytes[6] + 32 - drive_params->first_logical_sector;
                 } else if (drive_params->sector_size == 512) {
-                   sector_status.sector = bytes[6] + 17 - 3;
+                   sector_status.sector = bytes[6] + 17 - drive_params->first_logical_sector;
                 } else {
                    msg(MSG_ERR, "Unsupported sector size %d on cyl %d head %d sector %d\n",
                      drive_params->sector_size,
@@ -204,7 +214,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                    sector_status.status |= SECT_BAD_HEADER;
                 }
             } else {
-                sector_status.sector = bytes[6]-3;
+                sector_status.sector = bytes[6] - drive_params->first_logical_sector;
             }
          } else {
             sector_status.sector = bytes[6];
