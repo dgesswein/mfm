@@ -146,6 +146,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/12/23 DJG Don't stop write at index if --begin_time/START_TIME_CLOCKS
+//     non zero
 // 09/08/21 DJG Changed to using command status to indicate track write done
 //     instead of interrupt. Error was ignored.
 // 03/20/21 DJG Fix race condition on sampling index.
@@ -407,15 +409,15 @@ wait_low:
    JMP      wait_timeout
 
    // For some disk formats we need to delay start of data capture so we
-   // get the sector the crosses the failling index pulse. Wait for the
+   // get the sector that crosses the failling index pulse. Wait for the
    // time specified.
 wait_start_time:
    MOV      r2, 0
    SBBO     r2, CYCLE_CNTR, 0, 4    // Clear timer
-   LBCO     r3, CONST_PRURAM, PRU0_START_TIME_CLOCKS, 4
 wait_start_loop:
    LBBO     r0, CYCLE_CNTR, 0, 4
-   QBLT     wait_start_loop, r3, r0 // Try again if we haven't timed out
+      // Try again if we haven't timed out
+   QBLT     wait_start_loop, START_TIME_CLOCKS, r0 
    MOV      r20, r31                // Initialize last index state
       // Turn on write
    SET      r30, R30_WRITE_GATE
@@ -431,8 +433,12 @@ read:
    ADD      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, 4 
    AND      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, SHARED_PWM_READ_MASK   
    QBEQ     end_data, PWM_WORD, 0         // Time 0 marks end of data
-   // If we see falling edge of index stop write
+
    MOV      r0, r31     // sample R31 to get consistent data for checks
+      // If START_TIME_CLOCKS not 0 don't check index
+      // May be better to stop at index + start_time_clocks but too hard
+   QBNE     indexhigh, START_TIME_CLOCKS, 0
+   // If we see falling edge of index stop write
    QBBS     indexhigh, r0, R31_INDEX_BIT     // Continue if high
    QBBS     end_track, r20, R31_INDEX_BIT    // Stop if last high
 indexhigh:
@@ -482,6 +488,9 @@ loadit:
    JMP      read
       // Write last pattern till end of track
 end_data:
+      // If start time non zero don't fill till end of track since end not
+      // at index
+   QBNE     end_track, START_TIME_CLOCKS, 0   
    QBBC     end_track, r31, R31_INDEX_BIT     // Low, stop
    JMP      end_data
 end_track:
