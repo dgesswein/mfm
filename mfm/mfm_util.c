@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 04/17/23 DJG Add ext2emu support for EC1841
 // 01/17/22 DJG Added ext2emu support for Xebec_104527_256B
 // 12/19/21 DJG Code cleanup
 // 01/18/21 DJG Only print valid formats for ext2emu
@@ -469,13 +470,19 @@ static uint64_t get_check_value(uint8_t track[], int length, CRC_INFO *crc_info,
 static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
    int block;
    int rc;
+   int sector = get_sector(drive_params);
 
    if (drive_params->sector_size > length) {
       msg(MSG_FATAL, "Track overflow get_data\n");
       exit(1);
    }
+   // This is a stupid format where the sector header sector field is
+   // different than the actual sector. This adjusts for it.
+   if (drive_params->controller == CONTROLLER_EC1841) {
+      sector = (sector + 17 - sector_interleave) % drive_params->num_sectors;
+   }
    block = (get_cyl() * drive_params->num_head + get_head()) *
-       drive_params->num_sectors + get_sector(drive_params) -
+       drive_params->num_sectors + sector -
        drive_params->first_sector_number;
 
    if (lseek(drive_params->ext_fd, 
@@ -780,25 +787,30 @@ static void process_field(DRIVE_PARAMS *drive_params,
             // the bits specified. In this encoding the bits are numbered with
             // the most significant bit of the first byte 0 counting up.
             // Multiple disjoint bit fields can be specified.
+            // bitl_start -1 is end of list, -2 is discard the bits 
          while (bit_list[ndx2].bitl_start != -1) {
             for (i = 0; i < bit_list[ndx2].bitl_length; i++) {
-                  // Find byte and bit to update
-               byte_offset = (bit_list[ndx2].bitl_start + i) / 8; 
-               field_filled = MAX(field_filled, byte_offset);
-               bit_offset = (bit_list[ndx2].bitl_start + i) % 8; 
-               if (byte_offset >= length) {
-                  msg(MSG_FATAL, "Track overflow bit field\n");
-                  exit(1);
-               }
-                  // Extract bit and update in track
-               temp = ( (value >> (field_def[ndx].byte_offset_bit_len - 
-                  bit_count++ - 1)) & 1) << (7 - bit_offset);
-               if (field_def[ndx].op == OP_XOR || field_def[ndx].op == OP_REVERSE_XOR) {
-                  track[byte_offset] ^= temp;
+               if (bit_list[ndx2].bitl_start == -2) {
+                  bit_count++; // Discard these bits
                } else {
-                  track[byte_offset] &= ~(1 << (7 - bit_offset));
-                  track[byte_offset] |= temp;
-               } 
+                     // Find byte and bit to update
+                  byte_offset = (bit_list[ndx2].bitl_start + i) / 8; 
+                  field_filled = MAX(field_filled, byte_offset);
+                  bit_offset = (bit_list[ndx2].bitl_start + i) % 8; 
+                  if (byte_offset >= length) {
+                     msg(MSG_FATAL, "Track overflow bit field\n");
+                     exit(1);
+                  }
+                  // Extract bit and update in track
+                  temp = ( (value >> (field_def[ndx].byte_offset_bit_len - 
+                     bit_count++ - 1)) & 1) << (7 - bit_offset);
+                  if (field_def[ndx].op == OP_XOR || field_def[ndx].op == OP_REVERSE_XOR) {
+                     track[byte_offset] ^= temp;
+                  } else {
+                     track[byte_offset] &= ~(1 << (7 - bit_offset));
+                     track[byte_offset] |= temp;
+                  } 
+               }
             }
             ndx2++;
          }

@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 04/17/23 DJG Fixed EC1841 and Tektronix_6130 ext2emu
 // 03/27/23 DJG Addex ext2emu support for EC1841
 // 03/11/23 DJG Fix for EC1841 decoding
 // 03/10/23 DJG Added ES7978 format.
@@ -549,7 +550,7 @@ DEF_EXTERN TRK_L trk_3B1[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -602,7 +603,7 @@ DEF_EXTERN TRK_L trk_tandy_16b[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -659,7 +660,7 @@ DEF_EXTERN TRK_L trk_ISBC214_128b[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -714,7 +715,7 @@ DEF_EXTERN TRK_L trk_ISBC214_256b[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -768,7 +769,7 @@ DEF_EXTERN TRK_L trk_ISBC214_512b[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -823,7 +824,7 @@ DEF_EXTERN TRK_L trk_ISBC214_1024b[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -1090,8 +1091,8 @@ DEF_EXTERN TRK_L trk_ISBC215_1024b[]
 DEF_EXTERN TRK_L trk_tektronix_6130[] 
 #ifdef DEF_DATA
  = 
-{ { 15, TRK_FILL, 0x4e, NULL },
-  { 54, TRK_SUB, 0x00, 
+{ { 38, TRK_FILL, 0x4e, NULL },
+  { 17, TRK_SUB, 0x00, 
      (TRK_L []) 
      {
         {14, TRK_FILL, 0x00, NULL},
@@ -1099,8 +1100,8 @@ DEF_EXTERN TRK_L trk_tektronix_6130[]
            (FIELD_L []) {
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
-              // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // This adds upper 2 bits of cylinder to bits 1,0 of
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -1109,34 +1110,47 @@ DEF_EXTERN TRK_L trk_tektronix_6130[]
                     { -1, -1},
                  }
               },
-              // Sector size 128
-              {1, FIELD_FILL, 0x60, OP_SET, 3, NULL},
+              // Sector size 512
+              {1, FIELD_FILL, 0x20, OP_SET, 3, NULL},
               // Add head to lower bits
-              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {0, FIELD_HEAD, 0x00, OP_XOR, 4, 
+                 (BIT_L []) {
+                    { -2, 1}, // -2 says discard this bit. Goes in different byte
+                    { 29, 3},
+                    { -1, -1},
+                 }
+              },
               // Don't support alternate tracks
               {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {0, FIELD_HEAD, 0x00, OP_XOR, 4, 
+                 (BIT_L []) {
+                    { 33, 1},
+                    { -2, 3},	// -2 says discard these bits
+                    { -1, -1},
+                 }
+              },
               {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
         },
         // 3 after header and 12 before data field
         {15, TRK_FILL, 0x00, NULL},
-        {134, TRK_FIELD, 0x00, 
+        {518, TRK_FIELD, 0x00, 
            (FIELD_L []) {
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
-              {128, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
-              {4, FIELD_DATA_CRC, 0x00, OP_SET, 130, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
               {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
               {-1, 0, 0, 0, 0, NULL}
            }
         },
         {3, TRK_FILL, 0x00, NULL},
-        {15, TRK_FILL, 0x4e, NULL},
+        {38, TRK_FILL, 0x4e, NULL},
         {-1, 0, 0, NULL},
      }
    },
-   {251, TRK_FILL, 0x4e, NULL},
+   {265, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -1212,7 +1226,7 @@ DEF_EXTERN TRK_L trk_ELEKTROKIKA_85[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -2137,7 +2151,7 @@ DEF_EXTERN TRK_L trk_myarc_hfdc[]
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
               {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
               // This adds upper 3 bits of cylinder to bits 3,1,0 of
-              // the 0xfe byte and the rest in the next bit. The cylinder
+              // the 0xfe byte and the rest in the next byte. The cylinder
               // bits are xored with the 0xfe. Xor with 0 just sets the bits
               {0, FIELD_CYL, 0x00, OP_XOR, 11, 
                  (BIT_L []) {
@@ -2421,7 +2435,7 @@ DEF_EXTERN TRK_L trk_EC1841[]
               {1, FIELD_FILL, 0x01, OP_SET, 0, NULL},
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
               {1, FIELD_FILL, 0x00, OP_SET, 1, NULL},
-              {1, FIELD_FILL, 0xc9, OP_SET, 2, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 2, NULL},
               {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 3, NULL},
               {4, FIELD_DATA_CRC, 0x00, OP_SET, 515, NULL},
               {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
