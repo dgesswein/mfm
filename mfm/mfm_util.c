@@ -1,6 +1,8 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 04/26/23 DJG Really fixed EC1841 ext2emu with new sync pattern bytes. Also
+//   switched marking last sector to physcially last sector.
 // 04/17/23 DJG Add ext2emu support for EC1841
 // 01/17/22 DJG Added ext2emu support for Xebec_104527_256B
 // 12/19/21 DJG Code cleanup
@@ -316,6 +318,8 @@ static int track_interleave;
 
 // Current sector
 static int sector;
+// Current physical sector
+static int phys_sector;
 // Current head and cylinder
 static int head, cyl;
 
@@ -369,8 +373,10 @@ static void start_new_track(DRIVE_PARAMS *drive_params) {
    sector_used_count = 0;
    if (track_interleave == 0) {
       sector = 0;
+      phys_sector = 0;
    } else {
       sector = track_start_sector;
+      phys_sector = 0;
       track_start_sector = (track_start_sector + track_interleave) %
        drive_params->num_sectors;
    }
@@ -400,6 +406,7 @@ static void inc_sector(DRIVE_PARAMS *drive_params)
    sector_used_count++;
    if (sector_used_count < drive_params->num_sectors) {
       sector = (sector + sector_interleave) % drive_params->num_sectors;
+      phys_sector++;
          // If sector is already used find next unused
       while (sector_used_list[sector]) {
          sector = (sector + 1) % drive_params->num_sectors;
@@ -569,8 +576,20 @@ static void process_field(DRIVE_PARAMS *drive_params,
             // sector of track
          case FIELD_FILL_LAST_SECTOR:
             // Only take action on last sector
+            
+            // This used to be based on logical sector. For other example
+            // I had logical and physical were both the last sector. New
+            // sample they are different and physical last sector got the
+            // flag byte so changing to physical.
+#if 0
             if (get_sector(drive_params) != drive_params->num_sectors -
                  drive_params->first_sector_number - 1) {
+               data_set = 1;
+               break;
+            }
+#endif
+            // If not last physical sector break to not change value
+            if (phys_sector != drive_params->num_sectors - 1) {
                data_set = 1;
                break;
             }
@@ -720,6 +739,54 @@ static void process_field(DRIVE_PARAMS *drive_params,
                 field_def[ndx].byte_offset_bit_len;
             special_list[(*special_list_ndx)++].pattern = 0x4489;
             value = 0xa1;
+         break;
+            // Special 42 with missing clock. We put 42 in the data and fix the
+            // encoded MFM data curing the conversion
+         case FIELD_42:
+            if (*special_list_ndx >= special_list_len) {
+               msg(MSG_FATAL, "Special list overflow\n");
+               exit(1);
+            }      
+            special_list[*special_list_ndx].index = start + 
+                field_def[ndx].byte_offset_bit_len;
+            special_list[(*special_list_ndx)++].pattern = 0x1224;
+            value = 0x42;
+         break;
+            // Special 85 with missing clock. We put 85 in the data and fix the
+            // encoded MFM data curing the conversion
+         case FIELD_85:
+            if (*special_list_ndx >= special_list_len) {
+               msg(MSG_FATAL, "Special list overflow\n");
+               exit(1);
+            }      
+            special_list[*special_list_ndx].index = start + 
+                field_def[ndx].byte_offset_bit_len;
+            special_list[(*special_list_ndx)++].pattern = 0x4891;
+            value = 0x85;
+         break;
+            // Special 0a with missing clock. We put 0a in the data and fix the
+            // encoded MFM data curing the conversion
+         case FIELD_0A:
+            if (*special_list_ndx >= special_list_len) {
+               msg(MSG_FATAL, "Special list overflow\n");
+               exit(1);
+            }      
+            special_list[*special_list_ndx].index = start + 
+                field_def[ndx].byte_offset_bit_len;
+            special_list[(*special_list_ndx)++].pattern = 0x2244;
+            value = 0x0a;
+         break;
+            // Special 10 with missing clock. We put 1f in the data and fix the
+            // encoded MFM data curing the conversion
+         case FIELD_10:
+            if (*special_list_ndx >= special_list_len) {
+               msg(MSG_FATAL, "Special list overflow\n");
+               exit(1);
+            }      
+            special_list[*special_list_ndx].index = start + 
+                field_def[ndx].byte_offset_bit_len;
+            special_list[(*special_list_ndx)++].pattern = 0x89aa;
+            value = 0x10;
          break;
             // Special E3 with missing clock. We put E3 in the data and fix the
             // encoded MFM data curing the conversion.

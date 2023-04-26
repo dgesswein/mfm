@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 04/26/23 DJG Really fixed EC1841 ext2emu
 // 04/17/23 DJG Fixed EC1841 and Tektronix_6130 ext2emu
 // 03/27/23 DJG Addex ext2emu support for EC1841
 // 03/11/23 DJG Fix for EC1841 decoding
@@ -488,7 +489,8 @@ typedef struct field_l {
       // byte for CRC (check data) calculation. The default
       // includes the all the data from sector start flag byte (a1 etc) to 
       // the CRC.
-   enum {FIELD_FILL, FIELD_A1, FIELD_C0, FIELD_CYL, FIELD_HEAD, FIELD_SECTOR,
+   enum {FIELD_FILL, FIELD_A1, FIELD_C0, FIELD_42, FIELD_85, FIELD_0A, FIELD_10,
+      FIELD_CYL, FIELD_HEAD, FIELD_SECTOR,
       FIELD_LBA, FIELD_HDR_CRC, FIELD_DATA_CRC, FIELD_SECTOR_DATA, 
       FIELD_MARK_CRC_START, FIELD_MARK_CRC_END,
       FIELD_BAD_SECTOR,
@@ -2405,7 +2407,13 @@ DEF_EXTERN TRK_L trk_EC1841[]
         {28, TRK_FIELD, 0x00, 
            (FIELD_L []) {
               {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
-              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_42, 0x42, OP_SET, 1, NULL},
+              {1, FIELD_85, 0x85, OP_SET, 2, NULL},
+              {1, FIELD_0A, 0x0a, OP_SET, 3, NULL},
+              // This doesn't exactly match real pattern but real pattern
+              // doesn't allign the 0x01 start with our pattern
+              {1, FIELD_10, 0x10, OP_SET, 4, NULL},
+              {9, FIELD_FILL, 0x00, OP_SET, 5, NULL},
               {1, FIELD_FILL, 0x01, OP_SET, 14, NULL},
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
               {2, FIELD_FILL, 0x00, OP_SET, 15, NULL},
