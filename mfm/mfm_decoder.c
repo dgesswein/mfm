@@ -1159,8 +1159,8 @@ void mfm_dump_bytes(uint8_t bytes[], int len, int cyl, int head,
    int i;
 
    msg(msg_level, "%4d %2d %2d:", cyl, head, sector_index);
+   //for (i = 0; i < MIN(len, 30); i++) {
    for (i = 0; i < len; i++) {
-      //      MSG(MSG_INFO, " %02x",bytes[i]);
       msg(msg_level, "0x%02x,",bytes[i]);
       if (i % 16 == 15) {
          msg(msg_level, "\n");

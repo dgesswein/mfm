@@ -18,6 +18,7 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 05/05/23 GL  Fix by Gleb Larionov for hang on first write
 // 01/18/21 DJG Updated function call
 // 03/22/19 DJG Added REV C support
 // 03/14/19 DJG Set PRU clock rate. Needed for SA1000 support
@@ -191,6 +192,7 @@ int main(int argc, char *argv[])
       msg(MSG_FATAL, "Unable to execute mfm_write0.bin\n");
       exit(1);
    }
+   pru_write_word(MEM_PRU1_DATA,PRU1_DMA_CHANNEL, 7);		//  (Moved here by Gleb Larionov 05.05.2023)
    if (prussdrv_exec_program(1, "mfm_write1.bin") != 0) {
       msg(MSG_FATAL, "Unable to execute mfm_write1.bin\n");
       exit(1);
@@ -200,7 +202,6 @@ int main(int argc, char *argv[])
       drive_params.start_time_ns / CLOCKS_TO_NS);
    pru_write_word(MEM_PRU0_DATA, PRU0_BOARD_REVISION, board_get_revision());
    // TODO: Get driver working to find unused channel
-   pru_write_word(MEM_PRU1_DATA,PRU1_DMA_CHANNEL, 7);
    pru_write_word(MEM_PRU1_DATA,PRU1_DRIVE0_TRACK_HEADER_BYTES,
       drive_params.emu_file_info->track_header_size_bytes);
    pru_write_word(MEM_PRU1_DATA,PRU1_DRIVE0_TRACK_DATA_BYTES,

@@ -146,6 +146,7 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 05/05/23 GL  Fix by Gleb Larionov for hang on first write
 // 03/12/23 DJG Don't stop write at index if --begin_time/START_TIME_CLOCKS
 //     non zero
 // 09/08/21 DJG Changed to using command status to indicate track write done
@@ -287,6 +288,8 @@ START:
    MOV      r2, 0     // Compensation disabled
    MOV      r3, 0     // Clear count
    SBCO     r0, CONST_IEP, 0, 16
+
+   CLR      r30, R30_STEP_BIT       // Make sure seek is off (Added by Gleb Larionov 05.05.2023)
 
       // Turn off write
    CLR      r30, R30_WRITE_GATE
