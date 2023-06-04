@@ -35,14 +35,12 @@ double drive_rpm(void);
 
 int drive_step(int seek_speed, int steps, int update_cyl, int err_fatal);
 int drive_current_cyl(void);
-int drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
-      void *deltas, int max_deltas, int return_write_fault);
+void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
+      void *deltas, int max_deltas);
 void drive_initialize(void);
 int drive_get_board_revision(void);
 void drive_write_disk(DRIVE_PARAMS *drive_params);
 void drive_enable_recovery(int enable);
-int drive_has_write_fault(void);
-
 
 
 #endif /* DRIVE_H_ */

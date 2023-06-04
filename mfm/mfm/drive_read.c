@@ -6,7 +6,6 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
-// 06/02/2023 DJG Fixed write fault error reading NEC drive
 // 07/05/2019 DJG Added support for using recovery signal
 // 03/09/2018 DJG Added logic to not retry when requested to read more
 //   cylinders or heads than analyze determined
@@ -14,7 +13,7 @@
 // 10/16/2016 DJG Added control over seek on retry
 // 10/02/2016 DJG Rob Jarratt change to clean up confusing code.
 //
-// Copyright 2023 David Gesswein.
+// Copyright 2016 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -177,7 +176,7 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
             }
             last = start;
 
-            drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+            drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
             sector_status = mfm_decode_track(drive_params, cyl, head,
                deltas, &seek_difference, sector_status_list);
@@ -252,12 +251,8 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
 //    and head selected
 // deltas: Memory array containing the raw MFM delta time transition data
 // max_deltas: Size of deltas array
-// return_write_fault: Non zero if function should return if write fault error present
-//   otherwise write fault is fatal error.
-//
-// return non zero if write fault present and return_write_fault true.
-int drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head, 
-      void *deltas, int max_deltas, int return_write_fault) {
+void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head, 
+      void *deltas, int max_deltas) {
 
    if (cyl != drive_current_cyl()) {
       drive_step(drive_params->step_speed, cyl - drive_current_cyl(), 
@@ -272,14 +267,8 @@ int drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
 
    if (pru_exec_cmd(CMD_READ_TRACK, 0) != 0) {
       drive_print_drive_status(MSG_FATAL, drive_get_drive_status());
-      if (drive_has_write_fault() && return_write_fault) {
-         return 1;
-      } else {
-         exit(1);
-      }
-   } else {
-      // OK to start reading deltas
-      deltas_start_read(cyl, head);
+      exit(1);
    }
-   return 0;
+   // OK to start reading deltas
+   deltas_start_read(cyl, head);
 }

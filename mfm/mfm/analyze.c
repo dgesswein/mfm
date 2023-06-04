@@ -9,7 +9,6 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
-// 06/02/23 DJG Fixed write fault error reading NEC drive
 // 03/11/23 DJG Improved EC1841 sector number decoding
 // 07/20/22 DJG Removed useless lines
 // 09/19/21 DJG Fixed indexing of sector_status_list in analyze model. 
@@ -224,7 +223,7 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
    int best_match = 0;
    int best_match_count = 999;
 
-   drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+   drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
    analyze_rate(drive_params, cyl, head, deltas, max_deltas);
 
@@ -333,7 +332,7 @@ static int analyze_header(DRIVE_PARAMS *drive_params, int cyl, int head,
    // Minimum and maximum LBA to verify they make sense
    int min_lba_addr, max_lba_addr;
 
-   drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+   drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
    analyze_rate(drive_params, cyl, head, deltas, max_deltas);
 
@@ -491,7 +490,7 @@ static int analyze_data(DRIVE_PARAMS *drive_params, int cyl, int head, void *del
 
    *best_match_count = 0;
 
-   drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+   drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
    data_crc_info.poly = 0;
    // Try an exhaustive search of all the formats we know about. If we get too
@@ -619,12 +618,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
        // Try to get a good read. sector_status_list will be the best from
        // all the reads.
        do {
-          if (drive_read_track(drive_params, cyl, head, deltas, max_deltas, 1)) {
-             msg(MSG_FORMAT, "Got write fault on head %d, stopping search\n",head);
-             head_mismatch = 1;
-             status = 0;
-             break;
-          }
+          drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
           mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
           status = mfm_decode_track(drive_params, cyl, head, deltas, NULL, sector_status_list);
@@ -734,10 +728,6 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
        }
        last_min_lba = min_lba;
     }
-
-
-    drive_set_head(0); // Make sure head valid for NEC drives
-
     // If we had a read error but got some good error warn. If nothing readable
     // assume we were trying to read an invalid head
     if (unrecovered_error && found_header) {
@@ -870,7 +860,7 @@ static void analyze_disk_size(DRIVE_PARAMS *drive_params, int start_cyl,
          msg(MSG_INFO, "Stopping end of disk search due to recalibration\n");
          break;
       }
-      drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+      drive_read_track(drive_params, cyl, head, deltas, max_deltas);
 
       mfm_init_sector_status_list(sector_status_list, drive_params->num_sectors);
       msg_mask_hold = msg_set_err_mask(decode_errors);

@@ -11,11 +11,9 @@
 // drive_step steps the head the requested number of cylinders.
 // drive_is_file: Indicate if real drive or reading from file
 // drive_enable_recovery: Set the recovery line active/inactive
-// drive_has_write_fault: Return true if drive has write fault
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
-// 06/02/2023 DJG Fixed write fault error reading NEC drive
 // 07/05/2019 DJG Added support for using recovery signal
 // 03/22/2019 DJG Added REV C support
 // 09/01/2018 DJG Drive 0 is valid for drive_select(), don't drive
@@ -32,7 +30,7 @@
 // 07/30/2015 DJG Added support for revision B board.
 // 05/16/2015 DJG Changes for drive_file.c
 //
-// Copyright 2014-2023 David Gesswein.
+// Copyright 2014-2019 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -315,10 +313,6 @@ void drive_setup(DRIVE_PARAMS *drive_params)
    // Turn off recovery mode
    drive_enable_recovery(0);
 
-   // Make sure head lines valid. NEC D5124 generates write fault if invalid 
-   // head selected. 
-   drive_set_head(0); 
-
    drive_select(drive_params->drive);
 
    if (pru_exec_cmd(CMD_CHECK_READY, 0)) {
@@ -366,11 +360,6 @@ void drive_print_drive_status(int level, uint32_t status)
    }
 }
 
-// Return true if write fault is active on drive
-int drive_has_write_fault(void) {
-   // Status bits are active low so invert before checking
-   return ~drive_get_drive_status() & (1 << R31_WRITE_FAULT_BIT);
-}
 
 // Print the drive Revolutions Per Minute (RPM)
 // return drive RPM

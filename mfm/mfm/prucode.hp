@@ -1,0 +1,144 @@
+// prucode.hp
+
+#ifndef __PRUCODE_HP__
+#define __PRUCODE_HP__
+
+// Definitions
+
+// Refer to this mapping in the file - pruss_intc_mapping.h
+#define PRU0_PRU1_INTERRUPT     17
+#define PRU1_PRU0_INTERRUPT     18
+#define PRU0_ARM_INTERRUPT      19
+#define PRU1_ARM_INTERRUPT      20
+#define ARM_PRU0_INTERRUPT      21
+#define ARM_PRU1_INTERRUPT      22
+
+#define CONST_PRUSSINTC      C0
+#define CONST_DMTIMER2       C1
+#define CONST_ECAP           C3
+#define CONST_PRUCFG         C4
+#define CONST_PRURAM         C24
+#define CONST_PRURAM_OTHER   C25
+#define CONST_IEP            C26
+#define CONST_PRUSHAREDRAM   C28
+#define CONST_DDR            C31
+
+// Base addresses for the following control registers
+#define PRU0_CONTROL 0x00022000
+#define PRU1_CONTROL 0x00024000
+// Address for the control register (CONTROL)
+#define CONTROL         0x0
+// Address for the cycle counter register (CYCLE)
+#define CYCLE           0x0c
+// Address for the Constant table Block Index Register (CTBIR)
+#define CTBIR           0x20
+// Address for the Constant table Block Index Register (CTBIR1)
+#define CTBIR1          0x24
+// Address for the Constant table Programmable Pointer Register 0(CTPPR_0)
+#define CTPPR_0         0x28
+// Address for the Constant table Programmable Pointer Register 1(CTPPR_1)
+#define CTPPR_1         0x2C
+
+
+// Interrupt controller registers
+#define GER_OFFSET        0x10
+#define HIESR_OFFSET      0x34
+#define SICR_OFFSET       0x24
+#define SISR_OFFSET       0x20
+#define EISR_OFFSET       0x28
+#define GPIR_OFFSET       0x80
+#define HOST_NUM          0
+#define CHN_NUM           0
+
+#define ECAP0_EVT         31
+#define GPIO0_EVT         57
+// Enhanced capture registers
+#define TSCTR             0x00
+#define CAP1              0x08
+#define CAP2              0x0c
+#define CAP3              0x10
+#define CAP4              0x14
+#define ECCTL1            0x28
+#define ECCTL2            0x2a
+#define ECFLG             0x2e
+#define ECCLR             0x30
+ 
+// IEP
+#define IEP_COUNT         0x0c
+#define INTC_REGS_BASE                0x00004000
+#define INTC_CHNMAP_REGS_OFFSET       0x0400
+#define INTC_HOSTMAP_REGS_OFFSET      0x0800
+#define INTC_HOSTINTPRIO_REGS_OFFSET  0x0900
+#define INTC_SYS_INT_REGS_OFFSET      0x0D00
+#define INTC_HOSTNEST_REGS_OFFSET     0x1100
+
+#define GPIO0 0x44e07000
+#define GPIO1 0x4804c000
+#define GPIO2 0x481Ac000
+#define GPIO3 0x481AE000
+#define GPIO_IRQSTATUS_0      0x02c
+#define GPIO_IRQSTATUS_1      0x030
+#define GPIO_IRQSTATUS_RAW_0  0x024
+#define GPIO_IRQSTATUS_RAW_1  0x028
+#define GPIO_IRQSTATUS_SET_0  0x034
+#define GPIO_IRQSTATUS_SET_1  0x038
+#define GPIO_DATIN            0x138
+#define GPIO_LEVELDECTECT0    0x140
+#define GPIO_LEVELDECTECT1    0x144
+#define GPIO_RISINGDETECT     0x148
+#define GPIO_FALLINGDETECT    0x14c
+#define GPIO_CLEARDATAOUT     0x190
+#define GPIO_SETDATAOUT       0x194
+
+
+//EDMA registers
+#define EDMA0_CC_BASE 0x49000000
+#define DMAQNUM0    0x0240 
+#define QUEPRI      0x0284
+#define EMR         0x0300
+#define EMCR        0x0308
+#define EMCRH       0x030C
+#define QEMCR       0x0314
+#define CCERRCLR    0x031C
+#define DRAE0	     0x0340
+#define DRAE1	     0x0348
+#define DRAE2	     0x0350
+#define DRAE3	     0x0358
+#define QWMTHRA     0x0620
+#define GLOBAL_ESR  0x1010
+#define GLOBAL_CER  0x1018
+#define GLOBAL_EECR 0x1028
+#define GLOBAL_SECR 0x1040
+#define GLOBAL_IER  0x1050
+#define GLOBAL_IECR 0x1058
+#define GLOBAL_IESR 0x1060
+#define GLOBAL_ICR  0x1070
+// 0x1000 + 0x200 * region, we use region 1
+#define DRAE_OFFSET 0x1200
+//#define DRAE_OFFSET 0x0000
+#define ESR         (0x1010+DRAE_OFFSET)
+#define EECR	     (0x1028+DRAE_OFFSET)
+#define SECR	     (0x1040+DRAE_OFFSET)
+#define IER         (0x1050+DRAE_OFFSET)
+#define IPR         (0x1068+DRAE_OFFSET)
+#define ICR         (0x1070+DRAE_OFFSET)
+#define IESRL	     (0x1060+DRAE_OFFSET)
+#define IEVAL       (0x1078+DRAE_OFFSET)
+#define IECR	     (0x1058+DRAE_OFFSET)
+
+
+//EDMA PARAM registers
+#define PARAM_OFFSET    0x4000
+#define OPT             0x00
+#define SRC             0x04
+#define A_B_CNT         0x08
+#define DST             0x0C
+#define SRC_DST_BIDX    0x10
+#define LINK_BCNTRLD    0x14
+#define SRC_DST_CIDX    0x18
+#define CCNT            0x1C
+ 
+#define AM335X_CTRL_BASE    0x44e10000
+#define CONF_MCASP0_ACLKX   0x990
+
+#endif // __PRUCODE_HP__

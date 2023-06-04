@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+	<title></title>
+	<meta name="generator" content="LibreOffice 7.4.6.2 (Linux)"/>
+	<meta name="author" content="David Gesswein"/>
+	<meta name="created" content="2013-12-28T10:05:51"/>
+	<meta name="changed" content="2023-05-05T20:35:22.751401490"/>
+	<style type="text/css">
+		@page { size: 8.5in 11in; margin: 0.79in }
+		p { margin-bottom: 0.08in; background: transparent }
+		p.hanging-indent { margin-left: 0.39in; text-indent: -0.2in }
+		a:link { color: #000080; so-language: zxx; text-decoration: underline }
+		a:visited { color: #800000; so-language: zxx; text-decoration: underline }
+	</style>
+</head>
+<body lang="en-US" link="#000080" vlink="#800000" dir="ltr"><p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
+mfm_write can write an emulator file to a disk drive. I got it to the
+state I could write the disk I needed but it is not a finished
+program. Currently it can only write an entire disk at once. It will
+pick up number of cylinders and heads to write from emulator file. 
+To change other  parameters  such as write precomensation cylinder
+you need to edit mfm_write.c main routine to set the parameters for
+your drive. I have not fixed command line parsing.</p>
+<p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
+ 
+</p>
+<p style="margin-bottom: 0in">These command line options will be
+supported at some time along with options for setting the write
+precompensation. Currently only emulation_file, version, and quiet
+work. Emulation_file must be specified.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">--begin_time -b #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+nanoseconds to delay from index to start reading track</p>
+<p style="margin-bottom: 0in">--cylinders  -c #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+cylinders.</p>
+<p style="margin-bottom: 0in">--drive  -d #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Drive number to
+select for reading. Only valid for read command. Drives are number 1
+to 4. 
+</p>
+<p style="margin-bottom: 0in">--emulation_file -m filename</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
+emulation bit data to. No file created if not specified</p>
+<p style="margin-bottom: 0in">--heads  -h #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+heads.</p>
+<p style="margin-bottom: 0in">--quiet  -q #h</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Bit mask to select
+which messages don't print. 0 is print all messages. Default is 1 (no
+debug messages). Higher bits are more important messages in general.</p>
+<p style="margin-bottom: 0in">--unbuffered_seek  -u</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Use
+unbuffered/ST506 seeks. Default is buffered/ST412.</p>
+<p style="margin-bottom: 0in">--version -v</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Print program
+version number.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+To work mfm_read-00A0.dts for revision A or B boards or
+mfm_read-00C0.dts for revision C boards needs to be modified. This
+line</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+                    0x190 0x07 // OUT P9_31 = gpio3_14</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+needs to be commented out and this line uncommented before running
+setup_mfm_read</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+                    //0x190 0x2d // OUT P9_31 = pr1_pru0_pru_30_0</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+If you already ran the setup script reboot before rerunning.</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+<br/>
+
+</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+Use mfm_read to verify the disk is properly written. The first
+attempt had a couple tracks that seem to be written to the wrong
+head. The next run worked ok. This program does not do anything to
+avoid using bad locations on the disk,</p>
+<p style="font-style: normal; font-weight: normal; margin-bottom: 0in">
+<br/>
+
+</p>
+</body>
+</html>

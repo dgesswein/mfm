@@ -1,0 +1,112 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+	<title></title>
+	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
+	<meta name="author" content="David Gesswein"/>
+	<meta name="created" content="2013-12-28T10:05:51"/>
+	<meta name="changed" content="2021-01-17T14:30:52.893050424"/>
+	<style type="text/css">
+		@page { margin: 0.79in }
+		p { margin-bottom: 0.08in }
+		p.hanging-indent { margin-left: 0.39in; text-indent: -0.2in }
+		a:link { so-language: zxx }
+	</style>
+</head>
+<body lang="en-US" dir="ltr">
+<p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
+Ext2emu converts an extracted data file to an emulator file.</p>
+<p class="hanging-indent" style="margin-left: 0in; text-indent: 0in; margin-bottom: 0in">
+<br/>
+
+</p>
+<p style="margin-bottom: 0in">--cylinders  -c #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+cylinders.</p>
+<p style="margin-bottom: 0in">--emulation_file -m filename</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">File name to write
+emulation bit data to.</p>
+<p style="margin-bottom: 0in">--extracted_data_file  -e filename</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">File name to read
+decoded data from.</p>
+<p style="margin-bottom: 0in">--format  -f formatName</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The track format.
+Use --format help to list all currently supported formats.</p>
+<p style="margin-bottom: 0in">--heads  -h #</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The number of
+heads.</p>
+<p style="margin-bottom: 0in">--interleave  -i #,#</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The sector
+interleave and track interleave. Both parameters must be specified if
+interleave specified. The first parameter is the value to increment
+sector number by between sectors on the same track. The second
+parameter is the value to increment the first sector by for track on
+the same cylinder.</p>
+<p style="margin-bottom: 0in">--mark_bad  -M #,#,#:#,#,#...</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">The
+cylinder,head,sector to mark bad by complementing the CRC/Check code.
+Use to force sectors that are known to be bad to be seen as bad by
+the host system.</p>
+<p style="margin-bottom: 0in">--note -n “string”</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">String is stored in
+header of emulation file for information about image. mfm_util will
+display.</p>
+<p style="margin-bottom: 0in">--quiet  -q #h</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Bit mask to select
+which messages not to print. 0 is print all messages. Default is 1
+(no debug messages). Higher bits are more important messages in
+general.</p>
+<p style="margin-bottom: 0in">--version -v</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Print program
+version number.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Long options can be abbreviated to the
+shortest unique name. Option values can't have spaces unless quoted
+as a string.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in"># is a number. #h is a number which may
+be decimal, octal if starts with a 0, or hex starting with 0x.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Cylinders, heads, format,
+emulation_file and extracted_data_file are required. The cylinders,
+format, and heads parameters can be determined by mfm_util if an
+emulator or transitions file is available.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">NOTE: Some computers use different
+format on different tracks. This program can only handle one format.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">Example:</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">   ext2emu --extracted_data_file
+extracted_data --emulation_file emulation_file --cylinders 300
+--heads 4 --format OMTI_5510 --interleave 3,1 –mark_bad
+3,2,6:6,1,3:200,4,14 –note “Regenerated file”</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">This would generate sectors 0, 3, 6…
+for first track, 1, 4, 7... for second track, 2, 5, 8... for third.
+The start of the next cylinder will start back with sector 0.</p>
+<p style="margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-bottom: 0in">If the extracted data file size
+calculated using the specified cylinders and tracks doesn't match the
+actual file size the warning message “Calculated extract file size
+# bytes, actual size #'” will be printed. Verify the parameters are
+correct for the file being converted.</p>
+</body>
+</html>

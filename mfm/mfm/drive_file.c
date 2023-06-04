@@ -2,7 +2,7 @@
 // a emulation file instead of a actual drive. See drive.c for function
 // definitions
 //
-// Copyright 2023 David Gesswein.
+// Copyright 2015 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -74,8 +74,8 @@ double drive_rpm() {
 // emulation file back to deltas so we can convert back to bits but it
 // allowed for minimum code changes.
 //
-int drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
-      void *deltas, int max_deltas, int return_write_fault) {
+void drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
+      void *deltas, int max_deltas) {
    int num_deltas;
 
    if (drive_params->tran_fd != -1) {
@@ -97,6 +97,4 @@ int drive_read_track(DRIVE_PARAMS *drive_params, int cyl, int head,
       }
    }
    deltas_update_count(num_deltas, 0);
-
-   return 0;
 }

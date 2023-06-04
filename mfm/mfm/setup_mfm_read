@@ -1,0 +1,70 @@
+#!/bin/bash
+if [ -e /sys/devices/platform/bone_capemgr/slots ]
+then
+   CAPE=/sys/devices/platform/bone_capemgr/slots
+else
+   CAPE=/sys/devices/bone_capemgr.*/slots
+   # Enable A/D
+   echo cape-bone-iio > $CAPE
+fi
+
+# Depending up default pullup since we haven't loaded the overlay
+echo 61 > /sys/class/gpio/export
+echo in > /sys/class/gpio/gpio61/direction
+REV=`cat /sys/class/gpio/gpio61/value`
+if [ $REV == '0' ]; then
+   echo Rev C Board
+   /usr/bin/dtc -O dtb -o mfm_read-00C0.dtbo -b 0 -@ mfm_read-00C0.dts
+   cp mfm_read-00C0.dtbo /lib/firmware
+   echo mfm_read:00C0 > $CAPE
+   # Set inactive 31 recovery 46,15,26,27 Drive select, 110 write
+   # 50 read transceiver enable, low enabled
+   pins_low="31 46 15 26 27 110 50"
+   # 113 TRACK 0
+   pins_in="113"
+   # 8-11 rev B head, all high is head 0
+   # 44 emu second driver emulation, disable
+   # 60 MFM emulation tranceiver enable, high is disabled
+   # 14,30(C) drive selected LEDS
+   # 60 emulation xcvr en 48 testing(C)
+   pins_high="8 9 10 11 14 30 44 60"
+else
+   /usr/bin/dtc -O dtb -o mfm_read-00A0.dtbo -b 0 -@ mfm_read-00A0.dts
+   cp mfm_read-00A0.dtbo /lib/firmware
+   echo mfm_read:00A0 > $CAPE
+   # Set inactive 22,23,26,27 Drive select, 31 recovery, 110 write
+   # 50 read transceiver enable, low enabled
+   pins_low="22 23 26 27 31 110 50"
+   # 2-5 rev A head, 8-11 rev B head, all high is head 0
+   # 14,15 drive selected LEDS
+   # 44 emu second driver emulation, disable
+   # 60 MFM emulation tranceiver enable, high is disabled
+   pins_high="2 3 4 5 8 9 10 11 14 15 44 60"
+   # 30 TRACK 0
+   pins_in="30"
+   # Detect A/B PIN
+   echo 46 > /sys/class/gpio/export
+   echo in > /sys/class/gpio/gpio46/direction
+   REV=`cat /sys/class/gpio/gpio46/value`
+   if [ $REV == '0' ]; then
+      echo Rev B Board
+   else
+      echo Rev A Board
+   fi
+fi
+
+for pin in $pins_in; do
+   echo $pin > /sys/class/gpio/export
+   echo in > /sys/class/gpio/gpio$pin/direction
+done
+
+for pin in $pins_low; do
+   echo $pin > /sys/class/gpio/export
+   echo low > /sys/class/gpio/gpio$pin/direction
+done
+
+for pin in $pins_high; do
+   echo $pin > /sys/class/gpio/export
+   echo high > /sys/class/gpio/gpio$pin/direction
+done
+
