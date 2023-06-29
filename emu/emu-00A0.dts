@@ -84,7 +84,7 @@
                     0x070 0x0f // OUT  P9_11 = gpio0_30
                     0x078 0x0f // OUT  P9_12 = gpio1_28
                     0x074 0x0f // OUT  P9_13 = gpio0_31
-                    0x040 0x0f // OUT  P9_14 = gpio1_18
+                    0x040 0x0f // OUT  P9_15 = gpio1_16
                     0x184 0x0f // OUT  P9_24 = gpio0_15
                     0x180 0x0f // OUT  P9_26 = gpio0_14
                     0x07c 0x37 // IN   P8_26 = gpio1_29, pullup, REV C detect
