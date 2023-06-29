@@ -108,8 +108,8 @@ static int pru_allocate_ddr_memory(void **ddrmem, uint32_t *ddr_phys_addr)
    }
    fscanf(fin, "%x", &ddr_mem_size);
    fclose(fin);
-   //printf("DDR base %x offset %x size %x\n", *ddr_phys_addr, ddr_offset,
-   //      ddr_mem_size);
+   //printf("DDR base %x offset %x size %x\n", ddr_base, ddr_offset,
+   //       ddrMemSize);
 
    *ddrmem = prussdrv_get_virt_addr(*ddr_phys_addr + ddr_offset);
 

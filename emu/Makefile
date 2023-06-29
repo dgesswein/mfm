@@ -63,7 +63,10 @@ $(PROJECT) : $(OBJECTS)
 
 clean :
 	echo $(OBJ)
-	rm -rf $(OBJDIR)/*.o *.bin $(PROJECT) core *~
+	rm -rf $(OBJDIR)/*.o *.bin $(PROJECT) core *~ prucode*_rev*.txt
+
+distclean : clean
+	rm -rf logfile.txt *.dto
 
 %_reva.bin: %.p prucode.hp $(INCDIR)/cmd.h
 	$(PASM) -b -L $< $*_reva

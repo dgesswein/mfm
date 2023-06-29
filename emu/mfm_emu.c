@@ -871,7 +871,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // TODO: Get driver working to find unused channel
+   // DMA channel 7 and PaRAM blocks 7-8 are reserved in our new dto
    pru_write_word(MEM_PRU1_DATA,PRU1_DMA_CHANNEL, 7);
 
    track_buffer_put = 0;

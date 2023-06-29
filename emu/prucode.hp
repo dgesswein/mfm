@@ -136,5 +136,6 @@
 #define LINK_BCNTRLD    0x14
 #define SRC_DST_CIDX    0x18
 #define CCNT            0x1C
+#define DCHMAP_0        0x100
 
 #endif // __PRUCODE_HP__
