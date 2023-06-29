@@ -3,6 +3,7 @@
 *.ko
 *.obj
 *.elf
+*.bin
 
 # Precompiled Headers
 *.gch
@@ -30,3 +31,19 @@
 
 # Debug files
 *.dSYM/
+
+# Optional build dependencies
+am335x_pru_package-master
+
+# Lstings
+prucode*.txt
+logfile.txt
+mfm_write*.txt
+
+# Programs
+emu/mfm_emu
+mfm/mfm_read
+mfm/mfm_util
+mfm/mfm_write
+mfm/find_crc_info
+powerfail/powerfail
