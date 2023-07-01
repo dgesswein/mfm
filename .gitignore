@@ -47,3 +47,4 @@ mfm/mfm_util
 mfm/mfm_write
 mfm/find_crc_info
 powerfail/powerfail
+mfm/ext2emu

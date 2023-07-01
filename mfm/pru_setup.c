@@ -426,6 +426,8 @@ void pru_write_word(MEM_TYPE mem_type, int offset, uint32_t value) {
    get_mem_addr_size(mem_type, &mem_ptr, &mem_size);
    mem_ptr_32 = (uint32_t *) (mem_ptr + offset);
    *mem_ptr_32 = value;
+   // Force a hw write barrier to avoid race conditions
+   __sync_synchronize();
 }
 
 // Wait for bits to be set in a memory location. Timeout after a second

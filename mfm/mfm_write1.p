@@ -155,8 +155,6 @@ START:
     MOV  R2, DRAE1
     SBBO r4, EDMA_BASE,  R2, 4 // Region 1
    
-    // DCHMAP_# is set by system
-
     // Clear channel event from EDMA event registers
     MOV   r3, GLOBAL_SECR
     SBBO  r4, EDMA_BASE,  r3, 4 
@@ -177,6 +175,15 @@ START:
     MOV   r3, EMCR
     SBBO  r4, EDMA_BASE,  r3, 4 
 
+    // DCHMAP_# is no longer set by Linux post-3.x kernels
+    // It is also harmless to set this in 3.x
+    // For channel n, we use PaRAM blocks n and n+1
+    // DCHMAP expects this in bits 13 thru 5
+    LDI r4, DCHMAP_0
+    LSL r1, EDMA_CHANNEL, 2
+    ADD r4, r4, r1
+    LSL r1, EDMA_CHANNEL, 5
+    SBBO r1, EDMA_BASE, r4, 4
 
     // Setup and store PaRAM data for transfer
     LSL  EDMA_PARAM_BASE, EDMA_CHANNEL, 5 // channel*32

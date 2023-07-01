@@ -3,7 +3,7 @@ P8_12 mfm_emu
 P8_13 mfm_emu
 P8_14 mfm_emu
 P8_15 mfm
-P8_16 mfm_emu
+P8_16 mfm_ab
 P8_17 mfm_emu
 P8_19 mfm_emu
 P8_26 mfm_emu
@@ -15,14 +15,14 @@ P8_45 mfm_emu
 P9_11 mfm
 P9_12 mfm
 P9_13 mfm
-P9_14 mfm_emu
-P9_15 mfm
-P9_16 mfm_emu
+P9_14 default
+P9_15 default
+P9_16 default
 P9_17 mfm_emu
 P9_18 mfm_emu
 P9_21 mfm_emu
 P9_22 mfm_emu
-P9_24 mfm_pru
+P9_24 mfm_gpio
 P9_25 mfm_emu
 P9_26 mfm_emu
 P9_27 mfm_emu
