@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 07/08/23 DJG Added Fujitsu-K-10R format
 // 03/10/23 DJG Added ES7978 format
 // 12/08/22 DJG Changed error message
 // 10/01/22 DJG Added CTM9016 format
@@ -416,6 +417,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   CONTROLLER_A310_PODULE. Same as MACBOTTOM except what bytes in CRC and
 //      sector length. Uses HD63463 controller chip
 //      
+//   CONTROLLER_FUJITSU_K-10R. Hitachi HD63463 controller chip. MACBOTTOM
+//      except 0xa1 not included in CRC 
+//      image mihaylov disk2.7z
+//
 //   CONTROLLER_ADAPTEC
 //      6 byte header + 4 byte CRC
 //      format from http://bitsavers.informatik.uni-stuttgart.de/pdf/maxtor/1014286A_XT1000_2000_OEM.pdf
@@ -1592,6 +1597,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_MACBOTTOM ||
              drive_params->controller == CONTROLLER_CTM9016 ||
+             drive_params->controller == CONTROLLER_FUJITSU_K_10R ||
              drive_params->controller == CONTROLLER_ACORN_A310_PODULE) {
          sector_status.cyl = bytes[2] | (bytes[1] << 8);
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);

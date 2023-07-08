@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 07/08/23 DJG Added Fujitsu-K-10R format
 // 03/10/23 DJG Added ES7978 format
 // 10/01/22 DJG Added CTM9016 format
 // 03/17/22 DJG Improved error message
@@ -606,6 +607,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DTC_520_512B ||
          drive_params->controller == CONTROLLER_DTC_520_256B ||
          drive_params->controller == CONTROLLER_MACBOTTOM ||
+         drive_params->controller == CONTROLLER_FUJITSU_K_10R ||
          drive_params->controller == CONTROLLER_CTM9016 ||
          drive_params->controller == CONTROLLER_ACORN_A310_PODULE ||
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
@@ -1413,6 +1415,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DTC_520_512B ||
             drive_params->controller == CONTROLLER_DTC_520_256B ||
             drive_params->controller == CONTROLLER_MACBOTTOM ||
+            drive_params->controller == CONTROLLER_FUJITSU_K_10R ||
             drive_params->controller == CONTROLLER_CTM9016 ||
             drive_params->controller == CONTROLLER_ACORN_A310_PODULE ||
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
@@ -1627,9 +1630,9 @@ void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count) 
 #if PRINT_SPACING
    if (header_track_tot_bit_count != 0 && (tot_bit_count) > 
         header_track_tot_bit_count) {
-      msg(MSG_INFO, "Header difference %.1f bytes bit count %d\n", 
+      msg(MSG_INFO, "Header to header difference %.1f bytes bit count %d\n", 
         (tot_bit_count - header_track_tot_bit_count) / 16.0, tot_bit_count);
-      msg(MSG_INFO, "Data to header difference %.1f %.1f bytes\n", 
+      msg(MSG_INFO, "Data to header difference %.1f header to data %.1f bytes\n", 
         (tot_bit_count - data_tot_bit_count) / 16.0,
         (data_tot_bit_count - header_track_tot_bit_count) / 16.0);
    } else {

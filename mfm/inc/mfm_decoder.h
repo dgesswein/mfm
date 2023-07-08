@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 07/08/23 DJG Added Fujitsu-K-10R and changed all poly 0x00a00805 to shorter
+//    ECC correction length. See 01/17/23
 // 04/26/23 DJG Really fixed EC1841 ext2emu
 // 04/17/23 DJG Fixed EC1841 and Tektronix_6130 ext2emu
 // 03/27/23 DJG Addex ext2emu support for EC1841
@@ -196,6 +198,7 @@ typedef struct {
       CONTROLLER_DTC_520_256B, 
       CONTROLLER_DTC_520_512B, 
       CONTROLLER_MACBOTTOM, 
+      CONTROLLER_FUJITSU_K_10R, 
       CONTROLLER_CTM9016, 
       CONTROLLER_ACORN_A310_PODULE, 
       CONTROLLER_ELEKTRONIKA_85,
@@ -444,7 +447,7 @@ DEF_EXTERN struct {
      {32, 0x920d65c0},
      {32, 0xef26129d},
      {16, 0x8026}, // IBM 3174
-     {16, 0x551a} // Altos
+     {16, 0x551a}  // Altos
   }
 #endif
 ;
@@ -2244,6 +2247,48 @@ DEF_EXTERN TRK_L trk_acorn_a310_podule[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_fujitsu_k_10r[] 
+#ifdef DEF_DATA
+ = 
+{ { 16, TRK_FILL, 0x4e, NULL },
+  { 34, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {8, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x4e, NULL},
+        {12, TRK_FILL, 0x00, NULL},
+        {262, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {11, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {134, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 DEF_EXTERN TRK_L trk_CTM9016[] 
 #ifdef DEF_DATA
  = 
@@ -2718,13 +2763,22 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
          0, 0, 0
       },
+      {"Fujitsu-K-10R",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_fujitsu_k_10r, 256, 34, 0, 5209,
+         0, 0,
+         {0x0,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
+         0, 0, 0
+      },
       {"CTM9016",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_CTM9016, 1024, 8, 0, 5209,
          0, 0,
-         {0x0,0x1021,16,0},{0x0,0xa00805,32,4}, CONT_MODEL,
+         {0x0,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
       {"Acorn_A310_podule",            256, 10000000,      0,
@@ -2733,7 +2787,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          5, 2, 1, 1, CHECK_CRC, CHECK_CRC,
          0, 1, trk_acorn_a310_podule, 256, 32, 0, 5209,
          0, 0,
-         {0xffff,0x1021,16,0},{0x0,0xa00805,32,4}, CONT_MODEL,
+         {0xffff,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
       // Also DEC professional 350 & 380
@@ -3079,7 +3133,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          11, 2, 7, 2, CHECK_PARITY, CHECK_CRC,
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
          0, 0,
-         {0x0,0x0,0,0},{0x0,0xa00805,32,4}, CONT_MODEL,
+         {0x0,0x0,0,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
 // This format is detected by special case code so it doesn't need to
@@ -3156,7 +3210,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_Xebec_104527_256B, 256, 32, 0, 5209,
          0, 0,
-         {0x0,0xa00805,32,4},{0x0,0xa00805,32,4}, CONT_MODEL,
+         {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
       {"Xebec_104527_512B",         256, 10000000,      0,
@@ -3165,7 +3219,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
-         {0x0,0xa00805,32,4},{0x0,0xa00805,32,4}, CONT_MODEL,
+         {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
       {"Xebec_S1420",         256, 10000000,      0,
