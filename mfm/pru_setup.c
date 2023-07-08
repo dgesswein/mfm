@@ -492,12 +492,18 @@ uint32_t pru_set_clock(uint32_t tgt_bitrate_hz, int halt) {
    };
    int ndx;
 
-   fd = open("/dev/mem", O_RDWR);
+   fd = open("/dev/uio/prcm/module", O_RDWR);
    ptr = mmap(0, map_length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 
-      0x44e00000);
+      0);
    if (ptr == MAP_FAILED) {
-      msg(MSG_FATAL, "Clock mmap failed", strerror(errno));
-      exit(1);
+      // Fall back to /dev/mem for older setups
+      fd = open("/dev/mem", O_RDWR);
+      ptr = mmap(0, map_length, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+         0x44e00000);
+      if (ptr == MAP_FAILED) {
+         msg(MSG_FATAL, "Clock mmap failed", strerror(errno));
+         exit(1);
+      }
    }
    // Halt so switching clock doesn't mess up PRU
    for (pru_num = 0; pru_num < 2 && halt == PRU_SET_CLOCK_HALT; pru_num++) {

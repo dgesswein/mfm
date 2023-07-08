@@ -1,0 +1,5 @@
+# /etc/udev/rules.d/zz-mfm-emu.rules
+#
+# Corrects UIO permissions on the BB so non-root users in the gpio group can mmap UIO memory
+#
+KERNEL=="uio*", MODE="0660", GROUP="gpio"

@@ -231,6 +231,10 @@ int set_restore_max_cpu_speed(int restore) {
       if (fscanf(file, "%100s", governor) < 1) {
          return -1;
       }
+      if (strcmp(governor, "performance") == 0) {
+         // performance *is* guaranteed max speed
+         return 0;
+      }
       file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
       if (file == NULL) {
          return -1;

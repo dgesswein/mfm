@@ -1,0 +1,320 @@
+// SPDX-License-Identifier: GPL-3.0-only
+/*
+ * Cape for MFM Emulator and required peripherals
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/pinctrl/am33xx.h>
+#include <dt-bindings/board/am335x-bone-pins.h>
+
+/* macro: BONE_PIN( <pin>, <mode_name>, <register_value_macro(s)> */
+#ifndef BONE_PIN
+#define BONE_PIN(XX,ZZ,QQ) \
+    XX##_##ZZ##_pin: pinmux_##XX##_##ZZ##_pin { pinctrl-single,pins = < QQ >; };
+#endif
+
+/*
+ * Helper to show loaded overlays under: /proc/device-tree/chosen/overlays/
+ */
+&{/chosen} {
+    overlays {
+        MFM-EMU-1.kernel = __TIMESTAMP__;
+    };
+};
+
+/*
+ * Reserve DMA channel 7 and PaRAM slots 7-8
+ */
+&edma {
+    ti,edma-reserved-slot-ranges = <7 2>;
+    dma-channel-mask = <0xffffff7f 0xffffffff>;
+};
+
+/*
+ * Add our pin definitions to the pinmux helpers.
+ */
+&am33xx_pinmux {
+    BONE_PIN(P8_11, mfm, P8_11(PIN_OUTPUT_PULLDOWN | MUX_MODE6))
+
+    BONE_PIN(P8_12, mfm_emu, P8_12(PIN_OUTPUT_PULLDOWN | MUX_MODE6))
+    BONE_PIN(P8_12, mfm_rw, P8_12(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_13, mfm_emu, P8_13(PIN_INPUT_PULLUP | MUX_MODE7))
+    BONE_PIN(P8_13, mfm_rw, P8_13(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_14, mfm_emu, P8_14(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_14, mfm_rw, P8_14(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_15, mfm, P8_15(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE5))
+
+    BONE_PIN(P8_16, mfm_emu, P8_16(PIN_INPUT | PULL_UP | MUX_MODE6))
+    BONE_PIN(P8_16, mfm_ab, P8_16(PIN_INPUT_PULLUP | MUX_MODE7))
+    BONE_PIN(P8_16, mfm_rw, P8_16(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_17, mfm_emu, P8_17(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_17, mfm_rw, P8_17(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_19, mfm_emu, P8_19(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_19, mfm_rw, P8_19(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_26, mfm_emu, P8_26(PIN_INPUT_PULLUP | MUX_MODE7))
+
+    BONE_PIN(P8_31, mfm_emu, P8_31(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_31, mfm_rw, P8_31(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_32, mfm_emu, P8_32(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_32, mfm_rw, P8_32(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_33, mfm_emu, P8_33(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_33, mfm_rw, P8_33(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_35, mfm_emu, P8_35(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P8_35, mfm_rw, P8_35(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P8_45, mfm_emu, P8_45(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
+
+    BONE_PIN(P9_11, mfm, P9_11(PIN_OUTPUT | MUX_MODE7))
+    BONE_PIN(P9_11, mfm_rw_ab, P9_11(PIN_INPUT | PULL_UP | MUX_MODE7))
+
+    BONE_PIN(P9_12, mfm, P9_12(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_13, mfm, P9_13(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_14, mfm_emu, P9_14(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_15, mfm, P9_15(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_16, mfm_emu, P9_16(PIN_OUTPUT | MUX_MODE7))
+    BONE_PIN(P9_16, mfm_rw, P9_16(PIN_INPUT | PULL_UP | MUX_MODE7))
+
+    BONE_PIN(P9_17, mfm_emu, P9_17(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P9_17, mfm_rw, P9_17(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_18, mfm_emu, P9_18(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P9_18, mfm_rw, P9_18(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_21, mfm_emu, P9_21(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P9_21, mfm_rw, P9_21(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_22, mfm_emu, P9_22(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P9_22, mfm_rw, P9_22(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_24, mfm_pru, P9_24(PIN_INPUT_PULLUP | MUX_MODE6))
+    BONE_PIN(P9_24, mfm_gpio, P9_24(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_25, mfm_emu, P9_25(PIN_INPUT | PULL_UP | MUX_MODE6))
+    BONE_PIN(P9_25, mfm_rw, P9_25(PULL_DISABLE | INPUT_EN | MUX_MODE5))
+
+    BONE_PIN(P9_26, mfm_emu, P9_26(PIN_OUTPUT | MUX_MODE7))
+
+    BONE_PIN(P9_27, mfm_emu, P9_27(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
+    BONE_PIN(P9_27, mfm_rw, P9_27(PIN_INPUT_PULLUP | MUX_MODE6))
+
+    BONE_PIN(P9_28, mfm_emu, P9_28(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
+    BONE_PIN(P9_28, mfm_rw, P9_28(PIN_INPUT | PULL_UP | MUX_MODE7))
+    BONE_PIN(P9_28, mfm_rw_ab, P9_28(PIN_INPUT_PULLUP | MUX_MODE6))
+
+    BONE_PIN(P9_29, mfm_emu, P9_29(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
+    BONE_PIN(P9_29, mfm_rw, P9_29(PIN_INPUT_PULLUP | MUX_MODE6))
+
+    BONE_PIN(P9_30, mfm_emu, P9_30(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
+    BONE_PIN(P9_30, mfm_rw, P9_30(PIN_INPUT_PULLUP | MUX_MODE6))
+
+    BONE_PIN(P9_31, mfm_emu, P9_31(PIN_INPUT | PULL_UP | MUX_MODE6))
+    BONE_PIN(P9_31, mfm_rw, P9_31(PIN_OUTPUT_PULLDOWN | MUX_MODE7))
+
+    BONE_PIN(P9_91, mfm_emu, P9_91(PIN_INPUT | MUX_MODE6))
+    BONE_PIN(P9_91, mfm_rw, P9_91(PULL_DISABLE | INPUT_EN | MUX_MODE5))
+
+    BONE_PIN(P9_92, mfm_emu, P9_92(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
+    BONE_PIN(P9_92, mfm_rw, P9_92(PIN_INPUT_PULLUP | MUX_MODE6))
+
+};
+
+/*
+ * Add our new definitions to the pinmux helpers.
+ */
+&ocp {
+    P8_11_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "mfm";
+        pinctrl-6 = <&P8_11_mfm_pin>;
+    };
+    P8_12_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "mfm_emu", "mfm_rw";
+        pinctrl-6 = <&P8_12_mfm_emu_pin>;
+        pinctrl-7 = <&P8_12_mfm_rw_pin>;
+    };
+    P8_13_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_13_mfm_emu_pin>;
+        pinctrl-6 = <&P8_13_mfm_rw_pin>;
+    };
+    P8_14_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_14_mfm_emu_pin>;
+        pinctrl-6 = <&P8_14_mfm_rw_pin>;
+    };
+    P8_15_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pru_ecap_pwm", "pruin", "mfm";
+        pinctrl-7 = <&P8_15_mfm_pin>;
+    };
+    P8_16_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruin", "mfm_emu", "mfm_ab", "mfm_rw";
+        pinctrl-6 = <&P8_16_mfm_emu_pin>;
+        pinctrl-7 = <&P8_16_mfm_ab_pin>;
+        pinctrl-8 = <&P8_16_mfm_rw_pin>;
+    };
+    P8_17_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_17_mfm_emu_pin>;
+        pinctrl-6 = <&P8_17_mfm_rw_pin>;
+    };
+    P8_19_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_19_mfm_emu_pin>;
+        pinctrl-6 = <&P8_19_mfm_rw_pin>;
+    };
+    P8_26_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "mfm_emu";
+        pinctrl-4 = <&P8_26_mfm_emu_pin>;
+    };
+    P8_31_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "uart", "eqep", "mfm_emu", "mfm_rw";
+        pinctrl-6 = <&P8_31_mfm_emu_pin>;
+        pinctrl-7 = <&P8_31_mfm_rw_pin>;
+    };
+    P8_32_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_32_mfm_emu_pin>;
+        pinctrl-6 = <&P8_32_mfm_rw_pin>;
+    };
+    P8_33_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_33_mfm_emu_pin>;
+        pinctrl-6 = <&P8_33_mfm_rw_pin>;
+    };
+    P8_35_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P8_35_mfm_emu_pin>;
+        pinctrl-6 = <&P8_35_mfm_rw_pin>;
+    };
+    P8_45_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "pruout", "pruin", "mfm_emu";
+        pinctrl-7 = <&P8_45_mfm_emu_pin>;
+    };
+    P9_11_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "uart", "mfm", "mfm_rw_ab";
+        pinctrl-5 = <&P9_11_mfm_pin>;
+        pinctrl-6 = <&P9_11_mfm_rw_ab_pin>;
+    };
+    P9_12_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "mfm";
+        pinctrl-4 = <&P9_12_mfm_pin>;
+    };
+    P9_13_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "uart", "mfm";
+        pinctrl-5 = <&P9_13_mfm_pin>;
+    };
+    P9_14_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu";
+        pinctrl-5 = <&P9_14_mfm_emu_pin>;
+    };
+    P9_15_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm";
+        pinctrl-5 = <&P9_15_mfm_pin>;
+    };
+    P9_16_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-5 = <&P9_16_mfm_emu_pin>;
+        pinctrl-6 = <&P9_16_mfm_rw_pin>;
+    };
+    P9_17_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi_cs", "i2c", "pwm", "pru_uart", "mfm_emu", "mfm_rw";
+        pinctrl-8 = <&P9_17_mfm_emu_pin>;
+        pinctrl-9 = <&P9_17_mfm_rw_pin>;
+    };
+    P9_18_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi", "i2c", "pwm", "pru_uart", "mfm_emu", "mfm_rw";
+        pinctrl-8 = <&P9_18_mfm_emu_pin>;
+        pinctrl-9 = <&P9_18_mfm_rw_pin>;
+    };
+    P9_21_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi", "uart", "i2c", "pwm", "pru_uart", "mfm_emu", "mfm_rw";
+        pinctrl-9 = <&P9_21_mfm_emu_pin>;
+        pinctrl-10 = <&P9_21_mfm_rw_pin>;
+    };
+    P9_22_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi_sclk", "uart", "i2c", "pwm", "pru_uart", "mfm_emu", "mfm_rw";
+        pinctrl-9 = <&P9_22_mfm_emu_pin>;
+        pinctrl-10 = <&P9_22_mfm_rw_pin>;
+    };
+    P9_24_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "uart", "can", "i2c", "pru_uart", "pruin", "mfm_pru", "mfm_gpio";
+        pinctrl-9 = <&P9_24_mfm_pru_pin>;
+        pinctrl-10 = <&P9_24_mfm_gpio_pin>;
+    };
+    P9_25_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-7 = <&P9_25_mfm_emu_pin>;
+        pinctrl-8 = <&P9_25_mfm_rw_pin>;
+    };
+    P9_26_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "uart", "can", "i2c", "pru_uart", "pruin", "mfm_emu";
+        pinctrl-9 = <&P9_26_mfm_emu_pin>;
+    };
+    P9_27_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-7 = <&P9_27_mfm_emu_pin>;
+        pinctrl-8 = <&P9_27_mfm_rw_pin>;
+    };
+    P9_28_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi_cs", "pwm", "pwm2", "pruout", "pruin", "mfm_emu", "mfm_rw", "mfm_rw_ab";
+        pinctrl-9 = <&P9_28_mfm_emu_pin>;
+        pinctrl-10 = <&P9_28_mfm_rw_pin>;
+        pinctrl-11 = <&P9_28_mfm_rw_ab_pin>;
+    };
+    P9_29_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi", "pwm", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-8 = <&P9_29_mfm_emu_pin>;
+        pinctrl-9 = <&P9_29_mfm_rw_pin>;
+    };
+    P9_30_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi", "pwm", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-8 = <&P9_30_mfm_emu_pin>;
+        pinctrl-9 = <&P9_30_mfm_rw_pin>;
+    };
+    P9_31_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi_sclk", "pwm", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-8 = <&P9_31_mfm_emu_pin>;
+        pinctrl-9 = <&P9_31_mfm_rw_pin>;
+    };
+    P9_91_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-7 = <&P9_91_mfm_emu_pin>;
+        pinctrl-8 = <&P9_91_mfm_rw_pin>;
+    };
+    P9_92_pinmux {
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-7 = <&P9_92_mfm_emu_pin>;
+        pinctrl-8 = <&P9_92_mfm_rw_pin>;
+    };
+};
+
+/*
+ * Power, reset, and clock management (prcm) UIO access
+ */
+&prcm {
+
+    #address-cells = <1>;
+    #size-cells = <1>;
+
+    prm@0 {
+        compatible = "uio";
+        reg = <0x00 0x1000>;
+        symlink = "uio/prcm/module";
+    };
+
+};
+
