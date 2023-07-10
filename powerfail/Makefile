@@ -34,9 +34,9 @@ clean :
 	echo $(OBJ)
 	rm -rf $(OBJDIR)/*.o $(project) core *~
 
-$(OBJDIR)/%.o: %.c $(INCLUDES) obj
+$(OBJDIR)/%.o: %.c $(INCLUDES) | obj
 	$(CC) $(CFLAGS) -c -o $@ $<
-$(OBJDIR)/%.o: ../mfm/%.c $(INCLUDES)
+$(OBJDIR)/%.o: ../mfm/%.c $(INCLUDES) | obj
 	$(CC) $(CFLAGS) -c -o $@ $<
 obj:
 	mkdir $@

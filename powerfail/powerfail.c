@@ -69,6 +69,8 @@ int main(int argc, char *argv[])
    // A/D read failures
    int err_counter = 0;
    int sleep_time_us;
+   // flag to track if we have seen a valid voltage ever
+   int valid = 0;
 
    // Cleanup when we exit
    signal(SIGINT,(__sighandler_t) shutdown_signal);
@@ -153,7 +155,9 @@ int main(int argc, char *argv[])
                msg(MSG_INFO, "Voltage %.2f under threshold %.2f count %d\n",
                      voltage, drive_params.threshold, under_count);
             }
-            if (++under_count >= min_under_count) {
+	    // do not enter a boot loop if BB is powered but cape is not
+            if ((++under_count >= min_under_count) && valid) {
+               msg(MSG_FATAL, "Voltage under threshold too long\n");
                if (pid != 0) {
                   kill(-pid, SIGINT);
                   waitpid(pid, NULL, 0);
@@ -166,7 +170,10 @@ int main(int argc, char *argv[])
                exit(0);
             }
          } else {
-            under_count = 0;
+            if (voltage >= drive_params.threshold) {
+               valid = 1;
+               under_count = 0;
+            }
          }
       }
       usleep(sleep_time_us);
