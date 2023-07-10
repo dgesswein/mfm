@@ -74,9 +74,10 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          {"options", 1, NULL, 'o'},
          {"rpm", 1, NULL, 'R'},
          {"fill", 1, NULL, 'F'},
+         {"sync", 0, NULL, 's'},
          {NULL, 0, NULL, 0}
    };
-   char short_options[] = "f:d:h:c:r:b:i::p:q:vn:o:R:";
+   char short_options[] = "f:d:h:c:r:b:i::p:q:vn:o:R:F:s";
    int rc;
    // Loop counters
    int i;
@@ -93,6 +94,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
    drive_params->buffer_count = 75;
    drive_params->buffer_max_time = .6;
    drive_params->sample_rate_hz = 10000000;
+   drive_params->sync = 0;
 
    //drive_params->initialize and ->num_drives need to be zero
 
@@ -171,6 +173,9 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
       case 'R':
          drive_params->rpm = strtoul(optarg, NULL, 0);
          break;
+      case 's':
+	 drive_params->sync = 1;
+	 break;
       case '?':
          exit(1);
          break;

@@ -773,7 +773,7 @@ int main(int argc, char *argv[])
       EMU_FILE_INFO *curr_info = &drive_params.emu_file_info[i];
 
       drive_params.fd[i] = emu_file_read_header(drive_params.filename[i],
-         curr_info, 1);
+         curr_info, 1, drive_params.sync);
       if (curr_info->note != NULL &&
          strlen(curr_info->note) != 0) {
          msg(MSG_INFO, "Drive %d note: %s\n", i, 

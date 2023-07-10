@@ -148,6 +148,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "msg.h"
 #include "emu_tran_file.h"
@@ -371,7 +372,7 @@ int  emu_file_write_header(char *fn, int num_cyl, int num_head, char *cmdline,
 // rewrite: Open file for reading and writing
 // return: file descriptor of file opened
 int emu_file_read_header(char *fn, EMU_FILE_INFO *emu_file_info,
-      int rewrite)
+      int rewrite, int direct)
 {
    uint8_t header_id[sizeof(expected_header_id)];
    uint32_t value;
@@ -379,7 +380,11 @@ int emu_file_read_header(char *fn, EMU_FILE_INFO *emu_file_info,
    int header_left;
 
    if (rewrite) {
-      fd = open(fn, O_RDWR);
+      if (direct) {
+         fd = open(fn, O_RDWR | O_DSYNC);
+      } else {
+         fd = open(fn, O_RDWR);
+      }
    } else {
       fd = open(fn, O_RDONLY);
    }

@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
    }
 
    drive_params.emu_fd = emu_file_read_header(
-      drive_params.emulation_filename, &emu_file_info, 0);
+      drive_params.emulation_filename, &emu_file_info, 0, 0);
    drive_params.start_time_ns = emu_file_info.start_time_ns;
    drive_params.emu_file_info = &emu_file_info;
    drive_params.num_cyl = emu_file_info.num_cyl;

@@ -20,13 +20,13 @@ int main() {
    FILE *out;
    int i;
 
-   in_fd = emu_file_read_header("good.emu", &emu_in_file_info, 0);   
-   out_fd = emu_file_read_header("bad.emu", &emu_out_file_info, 1);   
+   in_fd = emu_file_read_header("good.emu", &emu_in_file_info, 0, 0);
+   out_fd = emu_file_read_header("bad.emu", &emu_out_file_info, 1, 0);
 
 
    emu_file_seek_track(in_fd, xfer_cyl, xfer_head, &emu_in_file_info);
    emu_file_read_track_bits(in_fd, &emu_in_file_info, words, ARRAYSIZE(words),
-     &cyl, &head); 
+     &cyl, &head);
 
 #if 0
    emu_file_seek_track(out_fd, xfer_cyl, xfer_head, &emu_out_file_info);
@@ -41,7 +41,7 @@ words[1038] = words2[1038];
 #endif
    emu_file_seek_track(out_fd, xfer_cyl, xfer_head, &emu_out_file_info);
    emu_file_write_track_bits(out_fd, words, ARRAYSIZE(words), xfer_cyl,
-      xfer_head, emu_out_file_info.track_data_size_bytes); 
+      xfer_head, emu_out_file_info.track_data_size_bytes);
 
    emu_file_close(in_fd, 0);
    emu_file_close(out_fd, 0);

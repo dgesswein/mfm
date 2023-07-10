@@ -56,7 +56,7 @@ int emu_file_write_header(char *fn, int num_cyl, int num_head, char *cmdline,
       char *note, uint32_t sample_rate, uint32_t start_time_ns, 
       uint32_t track_bytes);
 int emu_file_read_header(char *fn, EMU_FILE_INFO *emu_file_info_out,
-      int rewrite);
+      int rewrite, int direct);
 void emu_file_write_track_bits(int fd, uint32_t *words, int num_words, int cyl,
       int head, uint32_t track_bytes);
 int emu_file_read_track_bits(int fd, EMU_FILE_INFO *emu_file_info,
