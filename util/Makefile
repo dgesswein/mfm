@@ -1,11 +1,21 @@
 SUDO = /usr/bin/sudo
 UNAME_R = $(shell uname -r)
+SYSTEMCTL = /bin/systemctl
+SYSTEMD_UNIT = /etc/systemd/system/mfm_emu.service
+SYSTEMD_UNIT_CONF = /etc/mfm_emu.conf
 
 all clean:
 
-install:
+install: | $(SYSTEMD_UNIT)
 	$(SUDO) cp -r etc/* /etc
 	$(SUDO) chmod +x /etc/kernel/postinst.d/zzz-mfm-emu
 	$(SUDO) /etc/kernel/postinst.d/zzz-mfm-emu $(UNAME_R)
+
+$(SYSTEMD_UNIT): | $(SYSTEMD_UNIT_CONF)
+	$(SUDO) cp mfm_emu.service /etc/systemd/system/mfm_emu.service
+	$(SUDO) $(SYSTEMCTL) --system daemon-reload
+
+$(SYSTEMD_UNIT_CONF):
+	$(SUDO) cp mfm_emu.conf /etc/mfm_emu.conf
 
 .SILENT:

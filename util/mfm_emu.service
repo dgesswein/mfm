@@ -1,0 +1,18 @@
+#execute systemctl --system daemon-reload after changing
+
+[Unit]
+Description=MFM Emulator
+After=syslog.target local-fs.target
+Before=sysinit.target shutdown.target
+DefaultDependencies=no
+Conflicts=shutdown.target
+
+[Service]
+ExecStart=/opt/mfm/emu/start_mfm_emu
+
+#StandardOutput=journal+console
+StandardOutput=null
+StandardError=journal+console
+
+[Install]
+WantedBy=sysinit.target
