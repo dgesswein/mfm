@@ -73,11 +73,10 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
          {"note", 1, NULL, 'n'},
          {"options", 1, NULL, 'o'},
          {"rpm", 1, NULL, 'R'},
-         {"fill", 1, NULL, 'F'},
          {"sync", 0, NULL, 's'},
          {NULL, 0, NULL, 0}
    };
-   char short_options[] = "f:d:h:c:r:b:i::p:q:vn:o:R:F:s";
+   char short_options[] = "f:d:h:c:r:b:i::p:q:vn:o:R:s";
    int rc;
    // Loop counters
    int i;
