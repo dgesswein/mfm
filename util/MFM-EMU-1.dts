@@ -16,6 +16,20 @@
 #endif
 
 /*
+ * Remove BBGW hogs
+ */
+&gpio1 {
+    bt-aud-in-hog {
+        status = "disabled";
+    };
+};
+&gpio3 {
+    ls-buf-en-hog {
+        status = "disabled";
+    };
+};
+
+/*
  * Helper to show loaded overlays under: /proc/device-tree/chosen/overlays/
  */
 &{/chosen} {
@@ -44,6 +58,13 @@
     BONE_PIN(P8_13, mfm_emu, P8_13(PIN_INPUT_PULLUP | MUX_MODE7))
     BONE_PIN(P8_13, mfm_rw, P8_13(PIN_OUTPUT | MUX_MODE7))
 
+    /* for BBGW, must re-declare all P8.14 */
+    /* P8_14 (ZCZ ball T11) gpmc_ad10 (gpio0_26) */
+    BONE_PIN(P8_14, default, P8_14(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_14, gpio, P8_14(PIN_OUTPUT | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_14, gpio_pu, P8_14(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_14, gpio_pd, P8_14(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_14, pwm, P8_14(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE4))
     BONE_PIN(P8_14, mfm_emu, P8_14(PIN_INPUT | PULL_UP | MUX_MODE7))
     BONE_PIN(P8_14, mfm_rw, P8_14(PIN_OUTPUT | MUX_MODE7))
 
@@ -53,12 +74,24 @@
     BONE_PIN(P8_16, mfm_ab, P8_16(PIN_INPUT_PULLUP | MUX_MODE7))
     BONE_PIN(P8_16, mfm_rw, P8_16(PIN_OUTPUT | MUX_MODE7))
 
+    /* for BBGW, must re-declare all P8.17 */
+    /* P8_17 (ZCZ ball U12) gpmc_ad11 (gpio0_27) */
+    BONE_PIN(P8_17, default, P8_17(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_17, gpio, P8_17(PIN_OUTPUT | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_17, gpio_pu, P8_17(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_17, gpio_pd, P8_17(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_17, pwm, P8_17(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE4))
     BONE_PIN(P8_17, mfm_emu, P8_17(PIN_INPUT | PULL_UP | MUX_MODE7))
     BONE_PIN(P8_17, mfm_rw, P8_17(PIN_OUTPUT | MUX_MODE7))
 
     BONE_PIN(P8_19, mfm_emu, P8_19(PIN_INPUT | PULL_UP | MUX_MODE7))
     BONE_PIN(P8_19, mfm_rw, P8_19(PIN_OUTPUT | MUX_MODE7))
 
+    /* for BBGW, must re-declare all P8.26 */
+    BONE_PIN(P8_26, default, P8_26(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_26, gpio, P8_26(PIN_OUTPUT | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_26, gpio_pu, P8_26(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P8_26, gpio_pd, P8_26(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
     BONE_PIN(P8_26, mfm_emu, P8_26(PIN_INPUT_PULLUP | MUX_MODE7))
 
     BONE_PIN(P8_31, mfm_emu, P8_31(PIN_INPUT | PULL_UP | MUX_MODE7))
@@ -119,6 +152,15 @@
     BONE_PIN(P9_29, mfm_emu, P9_29(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
     BONE_PIN(P9_29, mfm_rw, P9_29(PIN_INPUT_PULLUP | MUX_MODE6))
 
+    /* for BBGW, must re-declare all P9.30 */
+    BONE_PIN(P9_30, default, P9_30(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P9_30, gpio, P9_30(PIN_OUTPUT | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P9_30, gpio_pu, P9_30(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P9_30, gpio_pd, P9_30(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE7))
+    BONE_PIN(P9_30, pwm, P9_30(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE1))
+    BONE_PIN(P9_30, spi, P9_30(PIN_OUTPUT_PULLUP | INPUT_EN | MUX_MODE3))
+    BONE_PIN(P9_30, pruout, P9_30(PIN_OUTPUT_PULLDOWN | INPUT_EN | MUX_MODE5))
+    BONE_PIN(P9_30, pruin, P9_30(PIN_INPUT | MUX_MODE6))
     BONE_PIN(P9_30, mfm_emu, P9_30(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
     BONE_PIN(P9_30, mfm_rw, P9_30(PIN_INPUT_PULLUP | MUX_MODE6))
 
@@ -152,7 +194,14 @@
         pinctrl-6 = <&P8_13_mfm_rw_pin>;
     };
     P8_14_pinmux {
+        compatible = "bone-pinmux-helper";
+        status = "okay";
         pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-0 = <&P8_14_default_pin>;
+        pinctrl-1 = <&P8_14_gpio_pin>;
+        pinctrl-2 = <&P8_14_gpio_pu_pin>;
+        pinctrl-3 = <&P8_14_gpio_pd_pin>;
+        pinctrl-4 = <&P8_14_pwm_pin>;
         pinctrl-5 = <&P8_14_mfm_emu_pin>;
         pinctrl-6 = <&P8_14_mfm_rw_pin>;
     };
@@ -167,7 +216,14 @@
         pinctrl-8 = <&P8_16_mfm_rw_pin>;
     };
     P8_17_pinmux {
+        compatible = "bone-pinmux-helper";
+        status = "okay";
         pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
+        pinctrl-0 = <&P8_17_default_pin>;
+        pinctrl-1 = <&P8_17_gpio_pin>;
+        pinctrl-2 = <&P8_17_gpio_pu_pin>;
+        pinctrl-3 = <&P8_17_gpio_pd_pin>;
+        pinctrl-4 = <&P8_17_pwm_pin>;
         pinctrl-5 = <&P8_17_mfm_emu_pin>;
         pinctrl-6 = <&P8_17_mfm_rw_pin>;
     };
@@ -177,7 +233,13 @@
         pinctrl-6 = <&P8_19_mfm_rw_pin>;
     };
     P8_26_pinmux {
+        compatible = "bone-pinmux-helper";
+        status = "okay";
         pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "mfm_emu";
+        pinctrl-0 = <&P8_26_default_pin>;
+        pinctrl-1 = <&P8_26_gpio_pin>;
+        pinctrl-2 = <&P8_26_gpio_pu_pin>;
+        pinctrl-3 = <&P8_26_gpio_pd_pin>;
         pinctrl-4 = <&P8_26_mfm_emu_pin>;
     };
     P8_31_pinmux {
@@ -281,6 +343,16 @@
         pinctrl-9 = <&P9_29_mfm_rw_pin>;
     };
     P9_30_pinmux {
+        compatible = "bone-pinmux-helper";
+        status = "okay";
+        pinctrl-0 = <&P9_30_default_pin>;
+        pinctrl-1 = <&P9_30_gpio_pin>;
+        pinctrl-2 = <&P9_30_gpio_pu_pin>;
+        pinctrl-3 = <&P9_30_gpio_pd_pin>;
+        pinctrl-4 = <&P9_30_spi_pin>;
+        pinctrl-5 = <&P9_30_pwm_pin>;
+        pinctrl-6 = <&P9_30_pruout_pin>;
+        pinctrl-7 = <&P9_30_pruin_pin>;
         pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi", "pwm", "pruout", "pruin", "mfm_emu", "mfm_rw";
         pinctrl-8 = <&P9_30_mfm_emu_pin>;
         pinctrl-9 = <&P9_30_mfm_rw_pin>;
@@ -300,6 +372,33 @@
         pinctrl-7 = <&P9_92_mfm_emu_pin>;
         pinctrl-8 = <&P9_92_mfm_rw_pin>;
     };
+
+    cape-universal {
+        P8_14 {
+            gpio-name = "P8_14";
+            gpio = <&gpio0 26 0>;
+            input;
+            dir-changeable;
+        };
+        P8_17 {
+            gpio-name = "P8_17";
+            gpio = <&gpio0 27 0>;
+            input;
+            dir-changeable;
+        };
+        P8_26 {
+            gpio-name = "P8_26";
+            gpio = <&gpio1 29 0>;
+            input;
+            dir-changeable;
+        };
+        P9_30 {
+            gpio-name = "P9_30";
+            gpio = <&gpio3 16 0>;
+            input;
+            dir-changeable;
+        };
+    };
 };
 
 /*
@@ -317,4 +416,3 @@
     };
 
 };
-
