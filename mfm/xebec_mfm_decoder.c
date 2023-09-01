@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 08/31/23 DJG Fixed message wording
 // 03/11/23 DJG Improved EC1841 sector number decoding
 // 12/08/22 DJG Changed error message
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
@@ -248,7 +249,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (is_alternate) {
             if (last_cyl_print != sector_status.cyl || 
                   last_head_print != sector_status.head) {
-               msg(MSG_INFO, "Alternate cylinder set on cyl %d, head %d\n",
+               msg(MSG_INFO, "Alternate track set on cyl %d, head %d\n",
                   sector_status.cyl, sector_status.head);
                last_cyl_print = sector_status.cyl;
                last_head_print = sector_status.head; 
@@ -285,7 +286,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (is_alternate) {
             if (last_cyl_print != sector_status.cyl || 
                   last_head_print != sector_status.head) {
-               msg(MSG_INFO, "Alternate cylinder set on cyl %d, head %d\n",
+               msg(MSG_INFO, "Alternate track set on cyl %d, head %d\n",
                   sector_status.cyl, sector_status.head);
                last_cyl_print = sector_status.cyl;
                last_head_print = sector_status.head; 

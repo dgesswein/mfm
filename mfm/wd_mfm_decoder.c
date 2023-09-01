@@ -14,6 +14,8 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 09/01/23 DJG Added WD_MICROENGINE support
+// 08/31/23 DJG Added DIMENSION_68000 support
 // 07/08/23 DJG Added Fujitsu-K-10R format
 // 03/10/23 DJG Added ES7978 format
 // 12/08/22 DJG Changed error message
@@ -24,7 +26,7 @@
 // 03/17/22 DJG Handle large deltas and improved error message
 // 12/18/21 SWE Added David Junior_II format.
 // 09/19/21 DJG Added TANDY_16B format.
-// 08/28/21 DJG Fixed alternate cylinder handling for iSBC 214, iSBC 215,
+// 08/28/21 DJG Fixed alternate track handling for iSBC 214, iSBC 215,
 //    SM_1810. Only example found in images I have was for iSBC 215. Unable
 //    to validate if head pulled from correct byte. May still have errors.
 // 08/27/21 DJG Added DSD_5217_512B format
@@ -33,7 +35,7 @@
 // 10/25/20 DJG Fix regression in DEC_RQDX3. Make MYARC_HDFC implementation
 //    match chip datasheet.
 // 10/24/20 DJG Added MYARC_HFDC controller
-// 10/18/20 DJG Added alternate cylinder support for SHUGART_1610
+// 10/18/20 DJG Added alternate track support for SHUGART_1610
 // 10/16/20 DJG Added SHUGART_SA1400 controller
 // 10/08/20 DJG Added SHUGART_1610 and UNKNOWN2 controllers
 // 09/21/20 DJG Added controller SM_1810_512B and fixed SYMBOLICS_3640
@@ -200,6 +202,11 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Last cylinder is 16 sector instead of 18 sector and has different
 //      sector size value. Code changed to ignore sector size. Two missing
 //      sectors will be reported as error
+//
+//   CONTROLLER_WD_MICROENGINE
+//      Same as WD_1006 except uses 16 sectors per track. A 17th sector
+//      has sector number 0xff and is likely used as spare sector. Didn't
+//      find any used. Code ignores the sector. Drive is Quantum Q20xx type.
 //
 //   CONTROLLER ISBC_214_128 ISBC_214_256 ISBC_214_512 ISBC_214_1024
 //   http://www.bitsavers.org/pdf/intel/iSBC/134910-001_iSBC_214_Peripheral_Controller_Subsystem_Hardware_Reference_Manual_Aug_85.pdf
@@ -668,7 +675,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      http://www.bitsavers.org/pdf/intel/iSBC/144780-002_iSBC_215_Generic_Winchester_Disk_Controller_Hardware_Reference_Manual_Dec84.pdf
 //      See pages around 80 and 132. It appears unused alternate tracks aren't
 //      formatted till use.
-//   Image nopwd5619.emu has example of alternate cylinder assigned. Assigned
+//   Image nopwd5619.emu has example of alternate track assigned. Assigned
 //      for head 0 so not able to verify head pulled from correct byte.
 //
 //   6 byte header + 4 byte CRC
@@ -1012,6 +1019,26 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      http://bitsavers.org/pdf/konan/Konan_David_Junior_II_Reference_Aug83.pdf
 //      image catnet1.6_micropolis_1304.trans
 //      6 byte header standard data. See DJ_II code below
+//
+//   CONTROLLER_DIMENSION_68000
+//   dimension-68000.zip
+//   
+//   Uses non standard address mark of 0x44a1
+//   6 byte header + 4 byte crc
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 Bits 7-4 head, 3-0 upper 4 bits of cylinder
+//      byte 3 8 low bits of cylinder
+//      byte 4 sector number. 
+//      byte 5 Normal 1. 5 is track is bad, sector header has address of
+//         replacement. 9 is track is replacement. Sector header has address
+//         of bad track.
+//      byte 6-9  CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      32 bit CRC
 //
 // state: Current state in the decoding
 // bytes: bytes to process
@@ -1365,6 +1392,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             drive_params->controller == CONTROLLER_TANDY_16B || 
             drive_params->controller == CONTROLLER_ES7978 || 
+            drive_params->controller == CONTROLLER_WD_MICROENGINE || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
                IsOutermostCylinder(drive_params, exp_cyl)) ||
               drive_params->controller == CONTROLLER_WD_3B1) {
@@ -1388,6 +1416,15 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          bad_block = (bytes[3] & 0x80) >> 7;
 
          sector_status.sector = bytes[4];
+         if (drive_params->controller == CONTROLLER_WD_MICROENGINE &&
+               sector_status.sector == 0xff) {
+            // Spare sector, ignore
+            sector_status.ignore = 1;
+            // This seems to fix for example with 2 heads
+            if (bad_block) {
+               sector_status.head ^= 0xf;
+            }
+         }
          // 3B1 with P5.1 stores 4th head bit in bit 5 of sector number field.
          if (drive_params->controller == CONTROLLER_WD_3B1) {
             sector_status.head = sector_status.head | ((sector_status.sector & 0xe0) >> 2);
@@ -1399,6 +1436,37 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], exp_cyl, sector_status.cyl,
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_DIMENSION_68000) {
+         sector_status.cyl = ((bytes[2] & 0xf) << 8) | bytes[3];
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] >> 4);
+         sector_size = drive_params->sector_size;
+         sector_status.sector = bytes[4];
+
+         // Bad track
+         if (bytes[5] == 5) {
+            // header has cyl and head of alternate track. Return cyl and
+            // head of expected track to avoid error messages. Alt track
+            // handling will swap the extracted data in the end.
+            mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head,
+              sector_status.cyl, sector_status.head);
+            sector_status.cyl = exp_cyl;
+            sector_status.head = exp_head;
+            alt_assigned_handled = 1;
+         // Alternate track
+         } else if (bytes[5] == 9) {
+            is_alternate = 1;
+            // header has cyl and head of track alternate of. Return cyl and
+            // head of expected track.
+            sector_status.cyl = exp_cyl;
+            sector_status.head = exp_head;
+         // normal
+         } else if (bytes[5] != 1) {
+               msg(MSG_INFO, "Invalid byte 5 %02x on cyl %d,%d head %d,%d sector %d\n",
+  
+                  bytes[5], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
          }
       } else if (drive_params->controller == CONTROLLER_ISBC_214_128B || 
             drive_params->controller == CONTROLLER_ISBC_214_256B || 
@@ -1964,7 +2032,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
       if (is_alternate) {
-         msg(MSG_INFO,"Alternate cylinder set on cyl %d, head %d, sector %d\n",
+         msg(MSG_DEBUG,"Alternate track set on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
 
@@ -2108,7 +2176,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             last_ahead = ahead;
          }
          if (i >= 128) {
-            msg(MSG_ERR,"Unable to find alternate cylinder cyl %d head %d\n",
+            msg(MSG_ERR,"Unable to find alternate track cyl %d head %d\n",
                sector_status.cyl, sector_status.head);
          }
          alt_assigned_handled = 1;
@@ -2139,7 +2207,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       }
       if (alt_assigned && !alt_assigned_handled) {
-         msg(MSG_INFO,"Assigned alternate cylinder not corrected on cyl %d, head %d, sector %d\n",
+         msg(MSG_INFO,"Assigned alternate track not corrected on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
       *state = MARK_ID;
@@ -2341,10 +2409,14 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
             int use_new_count = 0;  // Use new method
             int good_mark = 0;      // Non zero if proper location to look
             int delta = tot_raw_bit_cntr - header_raw_bit_count;
+            int mark_pattern = 0x4489;
+            if (drive_params->controller == CONTROLLER_DIMENSION_68000) {
+               mark_pattern = 0x44a1;
+            }
 
             // Only look at headers at the expected location from start of
             // track or from last header.
-            if ((raw_word & 0xffff) == 0x4489) {
+            if ((raw_word & 0xffff) == mark_pattern) {
                CONTROLLER *cont = &mfm_controller_info[drive_params->controller];
                if (header_raw_bit_count == 0 && cont->first_header_min_bits != 0) {
                   use_new_count = 1;
@@ -2372,7 +2444,7 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                     (((raw_word & 0xffff) == 0x4489 && state != MARK_ID) || 
                      ((raw_word & 0xfffff) == 0xa4891 && state == MARK_ID)) )  ||
                (drive_params->controller != CONTROLLER_EDAX_PV9900 && 
-               (raw_word & 0xffff) == 0x4489 && good_mark) ) {
+               (raw_word & 0xffff) == mark_pattern && good_mark) ) {
                if (first_addr_mark_ns == 0) {
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }

@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 09/01/23 DJG Added WD_MICROENGINE support
+// 08/31/23 DJG Added DIMENSION_68000 support
 // 07/08/23 DJG Added Fujitsu-K-10R and changed all poly 0x00a00805 to shorter
 //    ECC correction length. See 01/17/23
 // 04/26/23 DJG Really fixed EC1841 ext2emu
@@ -214,6 +216,7 @@ typedef struct {
       CONTROLLER_SHUGART_1610,
       CONTROLLER_SHUGART_SA1400,
       CONTROLLER_ES7978, 
+      CONTROLLER_WD_MICROENGINE, 
       CONTROLLER_SM_1810_512B,
       CONTROLLER_DSD_5217_512B, 
       CONTROLLER_OMTI_5510, 
@@ -232,6 +235,7 @@ typedef struct {
       CONTROLLER_ISBC_215_1024B,
       CONTROLLER_XEROX_8010,
       CONTROLLER_ROHM_PBX,
+      CONTROLLER_DIMENSION_68000,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, 
@@ -2908,6 +2912,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0xffff,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
+      {"WD-Microengine",              256, 8680000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 16, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
       // OMTI_5200 uses initial value 0x409e10aa for data
       // Data CRC is really initial value 0 xor of final value of 0xffffffff.
       // Code doesn't do final xor so initial value is equivalent.
@@ -3077,6 +3090,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0}, {0, 0x88211, 24, 2}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"Dimension-68000",         256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
          0, 0, 0
       },
 //TODO, this won't analyze properly
@@ -3387,6 +3409,7 @@ typedef struct {
    // The sector state
    SECTOR_DECODE_STATUS status;
    SECTOR_DECODE_STATUS last_status;
+   int ignore; // Non zero ignore this sector. Its a non used spare sector
 } SECTOR_STATUS;
 
 SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS *drive_parms, int cyl, 

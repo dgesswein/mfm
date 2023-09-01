@@ -21,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 09/01/23 DJG Added WD_MICROENGINE support
+// 08/31/23 DJG Added DIMENSION_68000 support
 // 07/08/23 DJG Added Fujitsu-K-10R format
 // 03/10/23 DJG Added ES7978 format
 // 10/01/22 DJG Added CTM9016 format
@@ -581,6 +583,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_RQDX2 ||
          drive_params->controller == CONTROLLER_ES7978 ||
+         drive_params->controller == CONTROLLER_WD_MICROENGINE ||
          drive_params->controller == CONTROLLER_ISBC_214_128B ||
          drive_params->controller == CONTROLLER_ISBC_214_256B ||
          drive_params->controller == CONTROLLER_ISBC_214_512B ||
@@ -633,6 +636,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ISBC_215_1024B ||
          drive_params->controller == CONTROLLER_DILOG_DQ614 ||
          drive_params->controller == CONTROLLER_DILOG_DQ604 ||
+         drive_params->controller == CONTROLLER_DIMENSION_68000 ||
          drive_params->controller == CONTROLLER_ROHM_PBX ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
          drive_params->controller == CONTROLLER_SM1040 ||
@@ -814,9 +818,9 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
    // Process last track sector list
    update_stats(drive_params, -1, -1, NULL);
    if (drive_params->ext_fd >= 0) {
-      fix_ext_alt_tracks(drive_params);
       ftruncate(drive_params->ext_fd, drive_params->num_cyl * drive_params->num_head *
           drive_params->num_sectors * drive_params->sector_size);
+      fix_ext_alt_tracks(drive_params);
       close(drive_params->ext_fd);
    }
 
@@ -885,6 +889,10 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
       int *sector_index, int sector_size, int *seek_difference,
       SECTOR_STATUS *sector_status, DRIVE_PARAMS *drive_params,
       SECTOR_STATUS sector_status_list[]) {
+
+   if (sector_status->ignore) {
+      return;
+   }
 
    if (drive_params->ignore_header_mismatch) {
       sector_status->logical_sector = *sector_index;
@@ -1016,6 +1024,10 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    STATS *stats = &drive_params->stats;
    int update;
    off_t offset;
+
+   if (sector_status->ignore) {
+      return 0;
+   }
 
    // Some disks number sectors starting from 1. We need them starting
    // from 0.
@@ -1389,6 +1401,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 ||
             drive_params->controller == CONTROLLER_ES7978 ||
+            drive_params->controller == CONTROLLER_WD_MICROENGINE ||
             drive_params->controller == CONTROLLER_ISBC_214_128B ||
             drive_params->controller == CONTROLLER_ISBC_214_256B ||
             drive_params->controller == CONTROLLER_ISBC_214_512B ||
@@ -1441,6 +1454,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ISBC_215_1024B ||
             drive_params->controller == CONTROLLER_DILOG_DQ614 ||
             drive_params->controller == CONTROLLER_DILOG_DQ604 ||
+            drive_params->controller == CONTROLLER_DIMENSION_68000 ||
             drive_params->controller == CONTROLLER_ROHM_PBX ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
             drive_params->controller == CONTROLLER_SM1040 ||
@@ -1882,7 +1896,7 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
          alt_info->good_offset != drive_params->alt_llist->good_offset) {
       drive_params->alt_llist = alt_info;
 
-      msg(MSG_INFO,"Alternate cyl assigned to cyl %d head %d for cyl %d head %d. Extract data fixed\n",
+      msg(MSG_INFO,"Alternate track assigned to cyl %d head %d for cyl %d head %d. Extract data fixed\n",
            good_cyl, good_head, bad_cyl, bad_head);
    } else {
       free(alt_info);
