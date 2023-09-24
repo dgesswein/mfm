@@ -137,6 +137,7 @@
 #define LINK_BCNTRLD    0x14
 #define SRC_DST_CIDX    0x18
 #define CCNT            0x1C
+#define DCHMAP_0        0x100
  
 #define AM335X_CTRL_BASE    0x44e10000
 #define CONF_MCASP0_ACLKX   0x990

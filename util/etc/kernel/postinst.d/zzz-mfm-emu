@@ -1,0 +1,24 @@
+#!/bin/sh -e
+
+version="$1"
+
+# passing the kernel version is required
+if [ -z "${version}" ] ; then
+	echo >&2 "W: zz-uenv_txt: ${DPKG_MAINTSCRIPT_PACKAGE:-kernel package} did not pass a version number"
+	exit 2
+fi
+
+vernum=$(echo $version | cut -f 1-2 -d.)
+case "$version" in
+	"3."*)		exit ;;
+	*"-ti"*)	dtbdir="dtb-${vernum}-ti" ;;
+	*"-bone"*)	dtbdir="dtb-${vernum}-bone" ;;
+	*)		dtbdir="dtb-${vernum}"
+esac
+
+cd /opt/source/${dtbdir} 
+git fetch --depth 1 || true
+git reset --hard origin/v${vernum}.x-ti-unified || true
+KERNEL_VERSION=${version} make clean all_arm install_arm
+# this will get us to userspace faster
+rm -rf "/boot/initrd.img-${version}"

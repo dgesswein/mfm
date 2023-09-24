@@ -124,7 +124,7 @@ int main (int argc, char *argv[])
          orig_note = tran_file_info.note;
       } else {
          drive_params.emu_fd = emu_file_read_header(
-            drive_params.emulation_filename, &emu_file_info, 0);
+            drive_params.emulation_filename, &emu_file_info, 0, 0);
          drive_params.start_time_ns = emu_file_info.start_time_ns;
          drive_params.emu_file_info = &emu_file_info;
          orig_cmdline = emu_file_info.decode_cmdline;
@@ -181,7 +181,7 @@ int main (int argc, char *argv[])
          drive_params.emulation_output = 0;
          if (drive_params.emu_fd == -1) {
             drive_params.emu_fd = emu_file_read_header(
-               drive_params.emulation_filename, &emu_file_info, 0);
+               drive_params.emulation_filename, &emu_file_info, 0, 0);
          }
       }
    }

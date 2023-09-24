@@ -231,6 +231,10 @@ int set_restore_max_cpu_speed(int restore) {
       if (fscanf(file, "%100s", governor) < 1) {
          return -1;
       }
+      if (strcmp(governor, "performance") == 0) {
+         // performance *is* guaranteed max speed
+         return 0;
+      }
       file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
       if (file == NULL) {
          return -1;
@@ -769,7 +773,7 @@ int main(int argc, char *argv[])
       EMU_FILE_INFO *curr_info = &drive_params.emu_file_info[i];
 
       drive_params.fd[i] = emu_file_read_header(drive_params.filename[i],
-         curr_info, 1);
+         curr_info, 1, drive_params.sync);
       if (curr_info->note != NULL &&
          strlen(curr_info->note) != 0) {
          msg(MSG_INFO, "Drive %d note: %s\n", i, 
@@ -871,7 +875,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // TODO: Get driver working to find unused channel
+   // DMA channel 7 and PaRAM blocks 7-8 are reserved in our new dto
    pru_write_word(MEM_PRU1_DATA,PRU1_DMA_CHANNEL, 7);
 
    track_buffer_put = 0;

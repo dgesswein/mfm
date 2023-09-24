@@ -24,6 +24,8 @@ INCLUDES = $(addprefix $(INCDIR)/, cmd.h parse_cmdline.h) ../mfm/$(INCDIR)/msg.h
 	../mfm/$(INCDIR)/pru_setup.h ../mfm/$(INCDIR)/version.h
 
 CC = gcc
+SUDO = /usr/bin/sudo
+SETCAP = /sbin/setcap
 
 FP_ABI = 
 #Rev B angstrom require softfp
@@ -60,10 +62,14 @@ pru : $(PRU)
 
 $(PROJECT) : $(OBJECTS)
 	$(CC)  $(OBJECTS) -Wl,-rpath=$(LIB_PATH) $(LIB_PATH:%=-L %) $(LIBRARIES:%=-l%) -o $@
+	$(SUDO) $(SETCAP) 'cap_sys_nice=eip' $(PROJECT)
 
 clean :
 	echo $(OBJ)
-	rm -rf $(OBJDIR)/*.o *.bin $(PROJECT) core *~
+	rm -rf $(OBJDIR)/*.o *.bin $(PROJECT) core *~ prucode*_rev*.txt
+
+distclean : clean
+	rm -rf logfile.txt *.dto
 
 %_reva.bin: %.p prucode.hp $(INCDIR)/cmd.h
 	$(PASM) -b -L $< $*_reva
