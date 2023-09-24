@@ -4,6 +4,7 @@
 // Copyright 2014 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 09/12/23 JST/DJG Changes to avoid reboot loop if 12V always low.
 // 11/16/18 DJG Adapt sleep time to wait value specified
 // 06/05/16 DJG Fix using read buffer when read failed
 // 09/07/14 DJG Ignore temporary A/D read failures 
@@ -71,6 +72,7 @@ int main(int argc, char *argv[])
    int sleep_time_us;
    // flag to track if we have seen a valid voltage ever
    int valid = 0;
+   int valid_err_printed = 0;
 
    // Cleanup when we exit
    signal(SIGINT,(__sighandler_t) shutdown_signal);
@@ -156,18 +158,25 @@ int main(int argc, char *argv[])
                      voltage, drive_params.threshold, under_count);
             }
 	    // do not enter a boot loop if BB is powered but cape is not
-            if ((++under_count >= min_under_count) && valid) {
-               msg(MSG_FATAL, "Voltage under threshold too long\n");
-               if (pid != 0) {
-                  kill(-pid, SIGINT);
-                  waitpid(pid, NULL, 0);
-               }
-               rc = system(drive_params.powercmd);
-               if (rc == -1) {
-                  msg(MSG_FATAL, "Executing power off command failed: %s\n",
+            if (++under_count >= min_under_count) {
+               if (valid) {
+                  msg(MSG_FATAL, "Voltage under threshold too long\n");
+                  if (pid != 0) {
+                     kill(-pid, SIGINT);
+                     waitpid(pid, NULL, 0);
+                  }
+                  rc = system(drive_params.powercmd);
+                  if (rc == -1) {
+                     msg(MSG_FATAL, "Executing power off command failed: %s\n",
                         strerror(errno));
+                  }
+                  exit(0);
+               } else {
+                  if (!valid_err_printed) {
+                     msg(MSG_ERR, "Voltage under threshold too long but never valid\n");
+                     valid_err_printed = 1;
+                  }
                }
-               exit(0);
             }
          } else {
             if (voltage >= drive_params.threshold) {

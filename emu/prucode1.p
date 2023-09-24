@@ -37,6 +37,7 @@
 
 // See mfm_emu.c for PRU1_BIT_TABLE format.
 //
+// 09/12/23 JST Changes to support 5.10 kernel and --sync option
 // 01/03/21 DJG Changed handling of keeping read data in sync during
 //   write. Clocks were far enough off on Convergent AWS that caused abort
 //   due to DMA data out of sync.

@@ -60,8 +60,8 @@
                     0x194 0x36 // IN  P9_29 = pr1_pru0_pru_31_1
                     0x198 0x36 // IN  P9_30 = pr1_pru0_pru_31_2
                     //Until we support write make pin GPIO
-                    0x190 0x07 // OUT P9_31 = gpio3_14
-                    //0x190 0x2d // OUT P9_31 = pr1_pru0_pru_30_0
+                    //0x190 0x07 // OUT P9_31 = gpio3_14
+                    0x190 0x2d // OUT P9_31 = pr1_pru0_pru_30_0
                     0x1a8 0x2d // OUT P9_41 = pr1_pru0_pru_30_6
                     0x1a0 0x36 // IN  P9_42.1 = pr1_pru0_pru_31_4
 

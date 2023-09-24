@@ -10,4 +10,5 @@
 
 void board_initialize(void);
 int board_get_revision(void);
+int board_set_restore_max_cpu_speed(int restore);
 #endif /* BOARD_H_ */

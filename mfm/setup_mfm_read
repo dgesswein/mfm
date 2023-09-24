@@ -2,6 +2,20 @@
 
 KERNEL_VER=$(uname -r | cut -f1 -d.)
 
+#Files are in same directory as script
+dir="$(dirname "$BASH_SOURCE")"
+if [ "$(basename "$BASH_SOURCE")" == "setup_mfm_write" ]; then
+   DTBOAB="mfm_write-00A0"
+   BBIOAB="mfm_w_revab.bbio"
+   DTBOC="mfm_write-00C0"
+   BBIOC="mfm_w_revc.bbio"
+else
+   DTBOAB="mfm_read-00A0"
+   BBIOAB="mfm_r_revab.bbio"
+   DTBOC="mfm_read-00C0"
+   BBIOC="mfm_r_revc.bbio"
+fi
+   
 if [ "$KERNEL_VER" -lt "4" ]; then
    # Use legacy cape manager loading functionality
    if [ -e /sys/devices/platform/bone_capemgr/slots ]
@@ -22,12 +36,12 @@ REV=$(cat /sys/class/gpio/gpio61/value)
 if [ "$REV" == "0" ]; then
    echo Rev C Board
    if [ "$KERNEL_VER" -lt "4" ]; then
-      /usr/bin/dtc -O dtb -o mfm_read-00C0.dtbo -b 0 -@ mfm_read-00C0.dts
-      cp mfm_read-00C0.dtbo /lib/firmware
-      echo mfm_read:00C0 > $CAPE
+      /usr/bin/dtc -O dtb -o $dir/$DTBOC.dtbo -b 0 -@ $dir/$DTBOC.dts
+      cp $dir/$DTBOC.dtbo /lib/firmware
+      echo ${DTBOC/-/:} > $CAPE
    else
       # Batch configure all pins for mfm_rw
-      config-pin -c mfm_rw_revc.bbio
+      config-pin -c $dir/$BBIOC
    fi
    # Set inactive 31 recovery 46,15,26,27 Drive select, 110 write
    # 50 read transceiver enable, low enabled
@@ -40,17 +54,16 @@ if [ "$REV" == "0" ]; then
    # 14,30(C) drive selected LEDS
    # 60 emulation xcvr en 48 testing(C)
    pins_high="14 30 44 60"
-   pins_out="22 23"
 else
    if [ "$KERNEL_VER" -lt "4" ]; then
-      /usr/bin/dtc -O dtb -o mfm_read-00A0.dtbo -b 0 -@ mfm_read-00A0.dts
-      cp mfm_read-00A0.dtbo /lib/firmware
-      echo mfm_read:00A0 > $CAPE
+      /usr/bin/dtc -O dtb -o $dir/$DTBOAB.dtbo -b 0 -@ $dir/$DTBOAB.dts
+      cp $dir/$DTBOAB.dtbo /lib/firmware
+      echo ${DTBOAB/-/:} > $CAPE
       # Detect A/B PIN with P8_16
       echo 46 > /sys/class/gpio/export
       echo in > /sys/class/gpio/gpio46/direction
    else
-      config-pin -c mfm_rw_revab.bbio
+      config-pin -c $dir/$BBIOAB 
    fi
    REV=$(cat /sys/class/gpio/gpio46/value)
    if [ "$REV" == "0" ]; then
@@ -70,23 +83,18 @@ else
    pins_in="30"
 fi
 
-
 # With univeresal cape header, all pins are exported and set to in by default.
+# However, we now support reboot-less operation, so set them all anyway.
 if [ "$KERNEL_VER" -lt "4" ]; then
    for pin in $pins_in $pins_low $pins_high; do
       echo $pin > /sys/class/gpio/export
       echo in > /sys/class/gpio/gpio$pin/direction
    done
 else
-   for pin in $pins_in $pins_out; do
+   for pin in $pins_in; do
      if [ ! -d /sys/class/gpio/gpio$pin ]; then
         echo $pin > /sys/class/gpio/export
      fi
-   done
-   for pin in $pins_out; do
-     echo out > /sys/class/gpio/gpio$pin/direction
-   done
-   for pin in $pins_in; do
      echo in > /sys/class/gpio/gpio$pin/direction
    done
 fi

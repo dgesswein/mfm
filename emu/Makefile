@@ -35,7 +35,7 @@ endif
 
 # If local copy of PRU package exists use it. Currently the
 # package isn't provided for Angstrom and doesn't work for Debian
-PRU_PACKAGE_PATH = ../am335x_pru_package-master
+PRU_PACKAGE_PATH = ../am335x_pru_package
 PASM = pasm
 LIB_PATH =
 INCL_PATH = -I $(INCDIR)/  -I ../mfm/$(INCDIR)
@@ -62,7 +62,7 @@ pru : $(PRU)
 
 $(PROJECT) : $(OBJECTS)
 	$(CC)  $(OBJECTS) -Wl,-rpath=$(LIB_PATH) $(LIB_PATH:%=-L %) $(LIBRARIES:%=-l%) -o $@
-	$(SUDO) $(SETCAP) 'cap_sys_nice=eip' $(PROJECT)
+	if [ -f $(SETCAP) ]; then $(SUDO) $(SETCAP) 'cap_sys_nice=eip' $(PROJECT); fi
 
 clean :
 	echo $(OBJ)

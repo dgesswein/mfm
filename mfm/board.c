@@ -1,8 +1,10 @@
 // This module is routines for determing which version of the MFM board
-//    is present.
+//    is present. Also sets CPU speed for beaglebone
 // board_initialize sets up this module.
 // board_get_revision returns the revision of the MFM emulator board
 // 
+// 09/17/2023 DJG Moved set_restore_max_cpu_speed to this file as board_
+//   to only have one copy
 // 03/22/2019 DJG Added REV C support
 // 02/08/2017 DJG Fix incorrect format for print
 // 10/16/2016 DJG Improved error message
@@ -76,4 +78,70 @@ void board_initialize(void) {
 // Return board revision 
 int board_get_revision(void) {
    return board_revision;
+}
+
+// This routine will either set the CPU speed to maximum or restore it
+// back to the previous setting. The normal governor didn't boost the
+// processor sufficiently to prevent getting behind in processing.
+//
+// restore: 0 to set speed to maximum, 1 to restore value from previous
+//    call
+int board_set_restore_max_cpu_speed(int restore) {
+   FILE *file;
+   static char governor[100];
+   static int freq_changed = 0;
+   char maxfreq[100];
+
+   if (!restore) {
+      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "r");
+      if (file == NULL) {
+         return -1;
+      }
+      if (fscanf(file, "%100s", governor) < 1) {
+         return -1;
+      }
+      if (strcmp(governor, "performance") == 0) {
+         // performance *is* guaranteed max speed
+         return 0;
+      }
+      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
+      if (file == NULL) {
+         return -1;
+      }
+      if (fprintf(file,"userspace") < 1) {
+         return -1;
+      }
+      fclose(file);
+      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "r");
+      if (file == NULL) {
+         return -1;
+      }
+      if (fscanf(file, "%100s", maxfreq) < 1) {
+         return -1;
+      }
+      fclose(file);
+
+      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed", "w");
+      if (file == NULL) {
+         return -1;
+      }
+      if (fprintf(file,maxfreq) < 1) {
+         return -1;
+      }
+      fclose(file);
+      freq_changed = 1;
+   } else {
+      if (freq_changed) {
+         file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
+         if (file == NULL) {
+            return -1;
+         }
+         if (fprintf(file,governor) < 1) {
+            return -1;
+         }
+         fclose(file);
+      }
+      freq_changed = 0;
+   }
+   return 0;
 }

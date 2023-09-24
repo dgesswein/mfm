@@ -14,8 +14,11 @@
 // to let it fetch the next cylinder.
 //
 
-// Copyright 2021 David Gesswein.
+// Copyright 2023 David Gesswein.
 // This file is part of MFM disk utilities.
+// 09/17/23 Changed to calling pru_exec_program to set correct path for file 
+//    to load and board_set_restore_max_cpu_speed to have one copy
+// 09/12/23 JST Changes to support 5.10 kernel and --sync option
 // 05/17/2021 DJG Removed --fill and added optional argument after --initialize
 //    for Cromemco
 // 05/13/2021 DJG Improved messages. Add --fill to set value used to fill
@@ -209,75 +212,6 @@ table_rec_t bit_table[] = {
    { 0, 0, 0 }
 };
 
-// TODO Find a new home for this
-//
-// This routine will either set the CPU speed to maximum or restore it
-// back to the previous setting. The normal governor didn't boost the
-// processor sufficiently to prevent getting behind in processing.
-//
-// restore: 0 to set speed to maximum, 1 to restore value from previous
-//    call
-int set_restore_max_cpu_speed(int restore) {
-   FILE *file;
-   static char governor[100];
-   static int freq_changed = 0;
-   char maxfreq[100];
-
-   if (!restore) {
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "r");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fscanf(file, "%100s", governor) < 1) {
-         return -1;
-      }
-      if (strcmp(governor, "performance") == 0) {
-         // performance *is* guaranteed max speed
-         return 0;
-      }
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fprintf(file,"userspace") < 1) {
-         return -1;
-      }
-      fclose(file);
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "r");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fscanf(file, "%100s", maxfreq) < 1) {
-         return -1;
-      }
-      fclose(file);
-
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed", "w");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fprintf(file,maxfreq) < 1) {
-         return -1;
-      }
-      fclose(file);
-      freq_changed = 1;
-   } else {
-      if (freq_changed) {
-         file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
-         if (file == NULL) {
-            return -1;
-         }
-         if (fprintf(file,governor) < 1) {
-            return -1;
-         }
-         fclose(file);
-      }
-      freq_changed = 0;
-   }
-   return 0;
-}
-
-
 // This routine is for cleaning up when shutting down. Its installed as an
 // atexit routine and called by SIGINT handler.
 void shutdown(void)
@@ -296,7 +230,7 @@ void shutdown(void)
    clock_gettime(CLOCK, &tv_start);
    shutdown_start = tv_start.tv_sec + tv_start.tv_nsec / 1e9;
 
-   set_restore_max_cpu_speed(1);
+   board_set_restore_max_cpu_speed(1);
 
    // Command PRU code to termiate
    pru_write_word(MEM_PRU0_DATA,PRU0_EXIT, 1);
@@ -884,7 +818,7 @@ int main(int argc, char *argv[])
    // And start our code
    for (i = 0; i < ARRAYSIZE(pru_files[0]); i++) {
       char *fn = pru_files[board_get_revision()][i];
-      if (prussdrv_exec_program(i, fn) != 0) {
+      if (pru_exec_program(i, fn) != 0) {
          msg(MSG_FATAL, "Unable to execute %s\n", fn);
          exit(1);
       }
@@ -918,7 +852,7 @@ int main(int argc, char *argv[])
    // more than 2 revolutions per track due to the default governor not
    // increasing the CPU speed enough. We switch frequently between busy and
    // sleeping.
-   if (set_restore_max_cpu_speed(0)) {
+   if (board_set_restore_max_cpu_speed(0)) {
       msg(MSG_ERR, "Unable to set CPU to maximum speed\n");
    }
 #endif

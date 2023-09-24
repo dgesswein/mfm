@@ -3,6 +3,7 @@
 // the PRU. Only PRU 0 is currently used.
 //
 // Call pru_setup first to open PRU device and map memory.
+// Call pru_exec_program to load prucode code from directory of executable.
 // Call pru_shutdown when done to close PRU device.
 // These routines are specific to the code running on the PRU.
 // Call pru_exec_cmd to send a command to PRU and wait for response.
@@ -17,6 +18,8 @@
 //
 // TODO: Use cache control to make memory transfers faster with PRU
 //
+// 09/17/23 Added pru_exec_program to set correct path for file to load
+// 09/12/23 JST Changes to support 5.10 kernel and --sync option
 // 06/19/19 DJG Added support for 8.5 MHz --rate for Xerox Star and
 //    fixed typo in comment
 // 04/08/19 DJG Added support for 8.6 MHz --rate for WANG SVP
@@ -55,6 +58,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <errno.h>
+#include <libgen.h>
 
 #include <prussdrv.h>
 #include <pruss_intc_mapping.h>
@@ -184,6 +188,31 @@ int  pru_setup(int num_pru_in)
    pru_write_word(MEM_PRU1_DATA, PRU_DDR_SIZE,  ddr_mem_size - 1);
 
    return ddr_mem_size;
+}
+
+
+// Append path of executable running to filename to load pru code
+// pru: number of pru to load
+// filename: filename to load
+// return: prussdrv_exec_program return code
+int pru_exec_program(int pru, char *filename)
+{
+   #define PATH_MAX 4096
+   char pbuf[PATH_MAX];
+   char buf[PATH_MAX + strlen(filename) + 1];
+   int rc;
+
+   rc = readlink("/proc/self/exe", pbuf, PATH_MAX);
+   if (rc < 0 || rc == PATH_MAX) {
+      msg(MSG_FATAL, "Failed getting path for pru");
+      exit(1);
+   }
+   strcpy(buf, dirname(pbuf));
+   strcat(buf, "/");
+   strcat(buf, filename);
+   rc = prussdrv_exec_program(pru, buf);
+
+   return rc;
 }
 
 // Wait for completion from PRU and shut down device.

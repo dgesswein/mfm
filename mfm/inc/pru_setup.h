@@ -16,6 +16,7 @@ typedef enum {
 } MEM_TYPE;
 
 int  pru_setup(int num_pru_in);
+int pru_exec_program(int pru, char *filename);
 void pru_shutdown(void);
 int pru_exec_cmd(uint32_t cmd, uint32_t data);
 uint32_t pru_get_cmd_status(void);

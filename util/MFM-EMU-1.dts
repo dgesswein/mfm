@@ -115,9 +115,10 @@
 
     BONE_PIN(P9_13, mfm, P9_13(PIN_OUTPUT | MUX_MODE7))
 
-    BONE_PIN(P9_14, mfm_emu, P9_14(PIN_OUTPUT | MUX_MODE7))
+    BONE_PIN(P9_14, mfm, P9_14(PIN_OUTPUT | MUX_MODE7))
 
-    BONE_PIN(P9_15, mfm, P9_15(PIN_OUTPUT | MUX_MODE7))
+// Only used for test point for mfm_emu
+    BONE_PIN(P9_15, mfm_emu, P9_15(PIN_OUTPUT | MUX_MODE7))
 
     BONE_PIN(P9_16, mfm_emu, P9_16(PIN_OUTPUT | MUX_MODE7))
     BONE_PIN(P9_16, mfm_rw, P9_16(PIN_INPUT | PULL_UP | MUX_MODE7))
@@ -165,7 +166,8 @@
     BONE_PIN(P9_30, mfm_rw, P9_30(PIN_INPUT_PULLUP | MUX_MODE6))
 
     BONE_PIN(P9_31, mfm_emu, P9_31(PIN_INPUT | PULL_UP | MUX_MODE6))
-    BONE_PIN(P9_31, mfm_rw, P9_31(PIN_OUTPUT_PULLDOWN | MUX_MODE7))
+    BONE_PIN(P9_31, mfm_r, P9_31(PIN_OUTPUT_PULLDOWN | MUX_MODE7))
+    BONE_PIN(P9_31, mfm_w, P9_31(PIN_OUTPUT_PULLDOWN | MUX_MODE5))
 
     BONE_PIN(P9_91, mfm_emu, P9_91(PIN_INPUT | MUX_MODE6))
     BONE_PIN(P9_91, mfm_rw, P9_91(PULL_DISABLE | INPUT_EN | MUX_MODE5))
@@ -280,12 +282,12 @@
         pinctrl-5 = <&P9_13_mfm_pin>;
     };
     P9_14_pinmux {
-        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu";
-        pinctrl-5 = <&P9_14_mfm_emu_pin>;
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm";
+        pinctrl-5 = <&P9_14_mfm_pin>;
     };
     P9_15_pinmux {
-        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm";
-        pinctrl-5 = <&P9_15_mfm_pin>;
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu";
+        pinctrl-5 = <&P9_15_mfm_emu_pin>;
     };
     P9_16_pinmux {
         pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "pwm", "mfm_emu", "mfm_rw";
@@ -358,9 +360,10 @@
         pinctrl-9 = <&P9_30_mfm_rw_pin>;
     };
     P9_31_pinmux {
-        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi_sclk", "pwm", "pruout", "pruin", "mfm_emu", "mfm_rw";
+        pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "spi_sclk", "pwm", "pruout", "pruin", "mfm_emu", "mfm_r", "mfm_w";
         pinctrl-8 = <&P9_31_mfm_emu_pin>;
-        pinctrl-9 = <&P9_31_mfm_rw_pin>;
+        pinctrl-9 = <&P9_31_mfm_r_pin>;
+        pinctrl-10 = <&P9_31_mfm_w_pin>;
     };
     P9_91_pinmux {
         pinctrl-names = "default", "gpio", "gpio_pu", "gpio_pd", "eqep", "pruout", "pruin", "mfm_emu", "mfm_rw";

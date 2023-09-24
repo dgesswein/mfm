@@ -4,9 +4,10 @@
 // Call parse_print_cmdline to print drive parameter information in command
 //   line format
 //
-// 05/17/2021 DJG removed --fill and optional argument after --initialize
+// 09/12/23 JST Changes to support 5.10 kernel and --sync option
+// 05/17/21 DJG removed --fill and added optional argument after --initialize
 //    with controller type
-// 05/13/2021 DJG Add --fill to set value used to fill emulator data for 
+// 05/13/21 DJG Add --fill to set value used to fill emulator data for 
 //    --initialize
 // 04/15/19 DJG Added RPM option
 // 01/04/15 DJG Changed buffer to pool, added begin_time and rate options.

@@ -1,21 +1,20 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!DOCTYPE html>
 <html>
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
 	<title></title>
-	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
+	<meta name="generator" content="LibreOffice 7.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2021-05-17T20:43:30.133927592"/>
+	<meta name="changed" content="2023-09-15T12:03:44.115678407"/>
 	<style type="text/css">
-		@page { margin: 0.79in }
-		p { margin-bottom: 0.08in }
+		@page { size: 8.5in 11in; margin: 0.79in }
+		p { margin-bottom: 0.08in; background: transparent }
 	</style>
 </head>
-<body lang="en-US" dir="ltr">
-<p style="margin-bottom: 0in">mfm_emu emulates a MFM disk drive. It
-can use a data file created from a real drive by mfm_read or can
-create a empty emulation file.</p>
+<body lang="en-US" link="#000080" vlink="#800000" dir="ltr"><p style="margin-bottom: 0in">
+mfm_emu emulates a MFM disk drive. It can use a data file created
+from a real drive by mfm_read or can create a empty emulation file.</p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
@@ -24,7 +23,7 @@ create a empty emulation file.</p>
 nanoseconds to delay from index to start reading track Only needed if
 initialize specified. Default is zero if not specified.</p>
 <p style="margin-bottom: 0in">--cylinders  -c #</p>
-<p style="margin-left: 0.5in; margin-bottom: 0in; page-break-before: auto">
+<p style="margin-left: 0.5in; margin-bottom: 0in; background: transparent; page-break-before: auto">
 The number of cylinders. Only needed if initialize specified.</p>
 <p style="margin-bottom: 0in">--drive  -d #[,#]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Drive number to
@@ -77,6 +76,10 @@ specify 8680000. Only needed when –initialize specified.</p>
 is 3600 unless rate is close to 8680000 where the default is 3125 for
 SA1000 drives. For Quantum Q2000 drives specify 3000 if you wish to
 emulate the real drive RPM. Only needed when –initialize specified.</p>
+<p style="margin-bottom: 0in">--sync</p>
+<p style="margin-left: 0.49in; margin-bottom: 0in">Opens emulator
+file with O_DSYNC to flush data to disk after write. With hold up
+capacitors and powerfail shouldn’t be needed.</p>
 <p style="margin-bottom: 0in">--version -v</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Print program
 version number.</p>
@@ -135,12 +138,12 @@ a drive on select line 1.</i></p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
-<p style="margin-bottom: 0in; font-style: normal">    mfm_emu –drive
+<p style="font-style: normal; margin-bottom: 0in">    mfm_emu –drive
 1 –file disk_file –initialize –cylinders 306 -heads 4 –note
 “Games disk” --options “--sectors 17,0 --heads 6 --cylinders
 640 --header_crc 0x2605fb9c,0x104c981,32,0 --data_crc 
 0xd4d7ca20,0x104c981,32,0 --format OMTI_5510”</p>
-<p style="margin-bottom: 0in; font-style: normal"><br/>
+<p style="font-style: normal; margin-bottom: 0in"><br/>
 
 </p>
 <p style="margin-bottom: 0in"><i>This creates/overwrites file
@@ -215,7 +218,7 @@ to.</i></p>
 <p style="margin-bottom: 0in"><br/>
 
 </p>
-<p style="margin-bottom: 0in; font-style: normal">I have found that
+<p style="font-style: normal; margin-bottom: 0in">I have found that
 if unrecoverable read errors occur operating the drive in a different
 orientation may allow the data to be read. I have also had some luck
 especially on Seagate drives with pushing on the shaft of the head

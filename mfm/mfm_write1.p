@@ -25,7 +25,7 @@
 // See drive_write.c for PRU1_BIT_TABLE format.
 
 //
-// Copyright 2016 David Gesswein.
+// Copyright 2023 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -40,6 +40,8 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
+
+// 09/12/23 JST Changes to support 5.10 kernel and --sync option
 
 .setcallreg r19.w0
 #define RETREG r19

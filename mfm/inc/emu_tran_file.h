@@ -1,6 +1,7 @@
 /*
  * emu_tran_file.h
  *
+ * 09/12/23 JST Changes to support 5.10 kernel and --sync option
  * 11/09/14 DJG Added new function prototypes for emulator file
  * 	buffering and structure changes for buffering and other new
  *     command line options	

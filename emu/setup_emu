@@ -2,6 +2,8 @@
 
 KERNEL_VER=$(uname -r | cut -f1 -d.)
 
+#Files are in same directory as script
+dir="$(dirname "$BASH_SOURCE")"
 if [ "$KERNEL_VER" -lt "4" ]; then
    # Use legacy cape manager loading functionality
    if [ -e /sys/devices/platform/bone_capemgr/slots ]
@@ -22,12 +24,12 @@ REV=$(cat /sys/class/gpio/gpio61/value)
 if [ "$REV" == "0" ]; then
    echo Rev C Board
    if [ "$KERNEL_VER" -lt "4" ]; then
-      /usr/bin/dtc -O dtb -o emu-00C0.dtbo -b 0 -@ emu-00C0.dts
-      cp emu-00C0.dtbo /lib/firmware
+      /usr/bin/dtc -O dtb -o $dir/emu-00C0.dtbo -b 0 -@ $dir/emu-00C0.dts
+      cp $dir/emu-00C0.dtbo /lib/firmware
       echo emu:00C0 > $CAPE
    else
       # Batch configure all pins for mfm_emu
-      config-pin -c mfm_emu_revc.bbio
+      config-pin -c $dir/mfm_emu_revc.bbio
    fi
    # 31 drive1 select/recovery, 51 write fault(C)
    # 60 emulation xcvr en
@@ -38,14 +40,14 @@ if [ "$REV" == "0" ]; then
    pins_high="14 30 50"
 else
    if [ "$KERNEL_VER" -lt "4" ]; then
-      /usr/bin/dtc -O dtb -o emu-00A0.dtbo -b 0 -@ emu-00A0.dts
-      cp emu-00A0.dtbo /lib/firmware
+      /usr/bin/dtc -O dtb -o $dir/emu-00A0.dtbo -b 0 -@ $dir/emu-00A0.dts
+      cp $dir/emu-00A0.dtbo /lib/firmware
       echo emu:00A0 > $CAPE
       # Detect A/B PIN with P8_16
       echo 46 > /sys/class/gpio/export
       echo in > /sys/class/gpio/gpio46/direction
    else
-      config-pin -c mfm_emu_revab.bbio
+      config-pin -c $dir/mfm_emu_revab.bbio
    fi
    REV=$(cat /sys/class/gpio/gpio46/value)
    if [ "$REV" == "0" ]; then

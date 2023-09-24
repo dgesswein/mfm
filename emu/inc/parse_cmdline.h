@@ -1,6 +1,7 @@
 /*
  * parse_cmdline.h
  *
+ * 09/12/23 JST Changes to support 5.10 kernel and --sync option
  * 05/17/21 DJG Added option to initialize
  * 11/09/14 DJG Added new command line options
  * 10/24/14 DJG Changed needed to support mfm_emu write buffer

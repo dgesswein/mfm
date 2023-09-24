@@ -3,6 +3,7 @@ UNAME_R = $(shell uname -r)
 SYSTEMCTL = /bin/systemctl
 SYSTEMD_UNIT = /etc/systemd/system/mfm_emu.service
 SYSTEMD_UNIT_CONF = /etc/mfm_emu.conf
+BASH_ALIASES = /home/debian/.bash_aliases
 
 all clean:
 
@@ -16,6 +17,7 @@ $(SYSTEMD_UNIT): | $(SYSTEMD_UNIT_CONF)
 	$(SUDO) $(SYSTEMCTL) --system daemon-reload
 
 $(SYSTEMD_UNIT_CONF):
-	$(SUDO) cp mfm_emu.conf /etc/mfm_emu.conf
+	$(SUDO) cp mfm_emu.conf $@
 
-.SILENT:
+$(BASH_ALIASES):
+	$(SUDO) cp bash_aliases $@

@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 09/12/23 JST Changes to support 5.10 kernel and --sync option
 // 04/26/23 DJG Really fixed EC1841 ext2emu with new sync pattern bytes. Also
 //   switched marking last sector to physcially last sector.
 // 04/17/23 DJG Add ext2emu support for EC1841

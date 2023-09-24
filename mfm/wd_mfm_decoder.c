@@ -207,6 +207,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Same as WD_1006 except uses 16 sectors per track. A 17th sector
 //      has sector number 0xff and is likely used as spare sector. Didn't
 //      find any used. Code ignores the sector. Drive is Quantum Q20xx type.
+//      When bad block is set sector number is 0xff and head field may
+//      be xored with 0xf. The sector number on bad blocks is also set
+//      to 0xff so sector ignored by the code. Sectors marked bad or spare
+//      will be reported as 0.
 //
 //   CONTROLLER ISBC_214_128 ISBC_214_256 ISBC_214_512 ISBC_214_1024
 //   http://www.bitsavers.org/pdf/intel/iSBC/134910-001_iSBC_214_Peripheral_Controller_Subsystem_Hardware_Reference_Manual_Aug_85.pdf

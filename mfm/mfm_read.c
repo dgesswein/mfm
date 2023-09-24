@@ -6,6 +6,8 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 09/17/23 Changed to calling pru_exec_program to set correct path for file 
+// to load and board_set_restore_max_cpu_speed to have one copy
 // 01/20/21 DJG Fixed call
 // 07/07/19 DJG Turn off recovery line when exiting
 // 03/22/19 DJG Added REV C support
@@ -66,70 +68,6 @@
 
 #include "cmd.h"
 
-// This routine will either set the CPU speed to maximum or restore it
-// back to the previous setting. The normal governor didn't boost the
-// processor sufficiently to prevent getting behind in processing.
-//
-// restore: 0 to set speed to maximum, 1 to restore value from previous
-//    call
-int set_restore_max_cpu_speed(int restore) {
-   FILE *file;
-   static char governor[100];
-   static int freq_changed = 0;
-   char maxfreq[100];
-
-   if (!restore) {
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "r");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fscanf(file, "%100s", governor) < 1) {
-         return -1;
-      }
-      fclose(file);
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fprintf(file,"userspace") < 1) {
-         return -1;
-      }
-      fclose(file);
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "r");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fscanf(file, "%100s", maxfreq) < 1) {
-         return -1;
-      }
-      fclose(file);
-
-      file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed", "w");
-      if (file == NULL) {
-         return -1;
-      }
-      if (fprintf(file,maxfreq) < 1) {
-         return -1;
-      }
-      fclose(file);
-      freq_changed = 1;
-   } else {
-      if (freq_changed) {
-         file = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "w");
-         if (file == NULL) {
-            return -1;
-         }
-         if (fprintf(file,governor) < 1) {
-            return -1;
-         }
-         fclose(file);
-      }
-      freq_changed = 0;
-   }
-   return 0;
-}
-
-
 // This routine is for cleaning up when shutting down. It is installed as an
 // atexit routine and called by SIGINT handler.
 void shutdown(void)
@@ -143,7 +81,7 @@ void shutdown(void)
    // Turn off recovery mode
    drive_enable_recovery(0);
 
-   set_restore_max_cpu_speed(1);
+   board_set_restore_max_cpu_speed(1);
    // Turn off selected light on drive
    drive_select(0);
 
@@ -199,7 +137,7 @@ int main(int argc, char *argv[])
    }
 
    // And start our code
-   if (prussdrv_exec_program(0, "prucode0.bin") != 0) {
+   if (pru_exec_program(0, "prucode0.bin") != 0) {
       msg(MSG_FATAL, "Unable to execute prucode0.bin\n");
       exit(1);
    }
@@ -220,7 +158,7 @@ int main(int argc, char *argv[])
    // more than 2 revolutions per track due to the default governor not
    // increasing the CPU speed enough. We switch frequently between busy and
    // sleeping.
-   if (set_restore_max_cpu_speed(0)) {
+   if (board_set_restore_max_cpu_speed(0)) {
       msg(MSG_ERR, "Unable to set CPU to maximum speed\n");
    }
 
