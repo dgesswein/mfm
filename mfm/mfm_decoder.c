@@ -665,6 +665,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
+        drive_params->controller == CONTROLLER_ND100_3041 ||
         drive_params->controller == CONTROLLER_SUPERBRAIN)  {
       rc = northstar_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
@@ -779,8 +780,8 @@ static void fix_ext_alt_tracks(DRIVE_PARAMS *drive_params) {
    while (alt_info != NULL) { 
       uint8_t bad_data[alt_info->length];
       uint8_t good_data[alt_info->length];
-      msg(MSG_DEBUG,"Swapping start bad offset %d good offset %d\n",
-         alt_info->bad_offset, alt_info->good_offset);
+      msg(MSG_DEBUG,"Swapping start bad offset %d good offset %d length %d\n",
+         alt_info->bad_offset, alt_info->good_offset, alt_info->length);
       if (pread(drive_params->ext_fd, bad_data, sizeof(bad_data),
              alt_info->bad_offset) != sizeof(bad_data)) {
          msg(MSG_FATAL, "bad alt pread failed\n");
@@ -1489,6 +1490,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);
       } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
+            drive_params->controller == CONTROLLER_ND100_3041 ||
             drive_params->controller == CONTROLLER_SUPERBRAIN) {
          status |= northstar_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,

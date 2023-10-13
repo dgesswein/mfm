@@ -1,21 +1,21 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!DOCTYPE html>
 <html>
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
 	<title></title>
-	<meta name="generator" content="LibreOffice 4.4.7.2 (Linux)"/>
+	<meta name="generator" content="LibreOffice 7.4.7.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2021-01-17T14:30:52.893050424"/>
+	<meta name="changed" content="2023-10-09T22:02:08.568551792"/>
 	<style type="text/css">
-		@page { margin: 0.79in }
-		p { margin-bottom: 0.08in }
+		@page { size: 8.5in 11in; margin: 0.79in }
+		p { margin-bottom: 0.08in; background: transparent }
 		p.hanging-indent { margin-left: 0.39in; text-indent: -0.2in }
-		a:link { so-language: zxx }
+		a:link { color: #000080; so-language: zxx; text-decoration: underline }
+		a:visited { color: #800000; so-language: zxx; text-decoration: underline }
 	</style>
 </head>
-<body lang="en-US" dir="ltr">
-<p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
+<body lang="en-US" link="#000080" vlink="#800000" dir="ltr"><p class="hanging-indent" style="margin-left: 0.2in; margin-bottom: 0in">
 Ext2emu converts an extracted data file to an emulator file.</p>
 <p class="hanging-indent" style="margin-left: 0in; text-indent: 0in; margin-bottom: 0in">
 <br/>
@@ -36,13 +36,27 @@ Use --format help to list all currently supported formats.</p>
 <p style="margin-bottom: 0in">--heads  -h #</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The number of
 heads.</p>
-<p style="margin-bottom: 0in">--interleave  -i #,#</p>
+<p style="margin-bottom: 0in">--interleave  -i #[,#]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The sector
-interleave and track interleave. Both parameters must be specified if
-interleave specified. The first parameter is the value to increment
-sector number by between sectors on the same track. The second
-parameter is the value to increment the first sector by for track on
-the same cylinder.</p>
+interleave and track interleave. The first parameter is the value to
+increment sector number by between sectors on the same track. If
+interleave is not specified default of 1 is used. The second
+parameter is the value to increment the first sector by for next
+track on the same cylinder. Default is zero.</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">You can use
+–analyze on an existing disk or image to determine the proper
+value. Subtract the first two number printed for interleave and use
+that value. For example below use 7. 
+</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Interleave (not
+checked): 0 7 14 4 11 1 8 15 5 12 2 9 16 6 13 3 10</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">If you get a
+message like “Interleave mismatch previous entry...” it may
+indicate the second parameter should be non zero. You would need to
+use mfm_read/mfm_util –quiet 1 to see the sector values and
+manually determine the proper value. Getting the second parameter
+wrong will only have a small impact on performance. Getting the first
+value wrong can significantly reduce performance.</p>
 <p style="margin-bottom: 0in">--mark_bad  -M #,#,#:#,#,#...</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">The
 cylinder,head,sector to mark bad by complementing the CRC/Check code.

@@ -1,6 +1,8 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 10/09/23 DJG Remove interleave option except from ext2emu so ext2emu
+//    version can be parsed better
 // 09/12/23 JST Changes to support 5.10 kernel and --sync option
 // 04/26/23 DJG Really fixed EC1841 ext2emu with new sync pattern bytes. Also
 //   switched marking last sector to physcially last sector.
@@ -162,7 +164,7 @@ int main (int argc, char *argv[])
 
    // Now parse the full command line. This allows overriding options that
    // were in the transition file header.
-   parse_cmdline(argc, argv, &drive_params, "Mrd", 0, 0, 0, 0);
+   parse_cmdline(argc, argv, &drive_params, "Mrdi", 0, 0, 0, 0);
    // Save final parameters
    drive_params.cmdline = parse_print_cmdline(&drive_params, 0, 0);
 
@@ -1034,7 +1036,7 @@ void mfm_encode(uint8_t data[], int length, uint32_t mfm_data[], int mfm_length,
 
 // Convert an extracted data file to an emulator file
 // 
-//TODO: handle marking bad sectors. Is interleave handling sufficient?
+//TODO: Is interleave handling sufficient?
 //   Think about handle DEC_RQDX3 format where tracks vary. Having format
 //   vary between sectors on same track is really annoying.
 void ext2emu(int argc, char *argv[])

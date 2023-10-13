@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/13/23 DJG Added CONTROLLER_ND100_3041
 // 09/01/23 DJG Added WD_MICROENGINE support
 // 08/31/23 DJG Added DIMENSION_68000 support
 // 07/08/23 DJG Added Fujitsu-K-10R and changed all poly 0x00a00805 to shorter
@@ -259,6 +260,7 @@ typedef struct {
       CONTROLLER_VECTOR4_ST506,
       CONTROLLER_STRIDE_440,
       CONTROLLER_SAGA_FOX,
+      CONTROLLER_ND100_3041,
       CONTROLLER_PERQ_T2
    } controller;
    // The sector numbering used. This will vary from the physical order if
@@ -3330,6 +3332,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 20,
          {0x0,0,16,0},{0x0,0x0,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"ND100_3041",             256, 10000000,  300000,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 1024, 9, 0, 5209,
+         0, 20,
+         {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"PERQ_T2",              256, 10000000,    754000, 

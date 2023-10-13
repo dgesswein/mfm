@@ -6,6 +6,7 @@
 // to track is -1 or 16)
 // TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 10/09/23 Remove interleave as option so ext2emu can be parsed better
 // 09/17/23 Changed to calling pru_exec_program to set correct path for file 
 // to load and board_set_restore_max_cpu_speed to have one copy
 // 01/20/21 DJG Fixed call
@@ -116,7 +117,8 @@ int main(int argc, char *argv[])
    board_initialize();
 
    // Find out what we should do
-   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0, 0);
+   // M is only for ext2emu. i no longer used by mfm_read/util
+   parse_cmdline(argc, argv, &drive_params, "Mi", 1, 0, 0, 0);
    parse_validate_options(&drive_params, 1);
 
    // If they specified a file name then we read the disk

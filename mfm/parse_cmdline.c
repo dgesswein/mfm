@@ -9,6 +9,8 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/09/23 DJG Only support ext2emu interleave parameters. Drop old mfm_read,
+//    mfm_util format.
 // 03/11/23 DJG Fix for EC1841 decoding
 // 12/19/21 DJG crc_length now allowed to be 0 so unset length is -1.
 // 01/18/21 DJG Only print valid formats for ext2emu
@@ -308,13 +310,11 @@ static int parse_controller(char *arg, int ignore_invalid_options,
 static uint8_t *parse_interleave(char *arg, DRIVE_PARAMS *drive_params) {
    // Must be static since we return pointer. Sector numbers for interleave
    static uint8_t sectors[MAX_SECTORS];
-   // Sector numbers already used.
-   uint8_t used_sectors[MAX_SECTORS];
    int i;
    char *str, *tok;
-   int interleave, sectnum;
 
    str = arg;
+   // Only first 2 now used for ext2emu
    for (i = 0; i < MAX_SECTORS; i++) {
       tok = strtok(str,",");
       if (tok == NULL) {
@@ -323,32 +323,12 @@ static uint8_t *parse_interleave(char *arg, DRIVE_PARAMS *drive_params) {
       str = NULL;
       sectors[i] = atoi(tok);
    }
-   // If one parameter it is interleave value so we calculate the sector
-   // numbers for each sector
    if (i == 1) {
-      if (drive_params->num_sectors == 0) {
-         msg(MSG_FATAL, "Number of sectors must be set before interleave is specified\n");
-         exit(1);
-      }
-      interleave = sectors[0];
-      sectnum = 0;
-      memset(used_sectors, 0, sizeof(used_sectors));
-      for (i = 0; i < drive_params->num_sectors; i++) {
-         // Find next unused sector number if already used.
-         while (used_sectors[sectnum]) {
-            sectnum = (sectnum + 1) % drive_params->num_sectors +
-                  drive_params->first_sector_number;
-         }
-         sectors[i] = sectnum;
-         used_sectors[sectnum] = 1;
-         sectnum = (sectnum + interleave) % drive_params->num_sectors +
-               drive_params->first_sector_number;
-      }
+      sectors[1] = 0; // Default cylinder to cylinder interleave
    } else {
       // allow 2 values for ext2emu
-      if (drive_params->num_sectors != 0 && i != 0 && i != 2 &&
-            drive_params->num_sectors != i) {
-         msg(MSG_FATAL, "Number of sectors in interleave list doesn't match number of sectors\n");
+      if (i != 2) {
+         msg(MSG_FATAL, "Interleave takes one or two comma separated values\n");
          exit(1);
       }
    }

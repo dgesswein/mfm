@@ -1,21 +1,8 @@
 // This routine decodes NorthStar formated disks and other with similar format. 
-// Track format information 
-//   http://www.classiccmp.org/dunfield/miscpm/advtech.pdf (pg 3-47)
-// The format is 187 0xff, 3 0x55, 40 0xff at start of track.
-// Each sector starts with 67 0x00, 0x01, 9 byte header, 512 data bytes,
-// 4 byte crc, 45 unspecified bytes
-// The 3 0x55 is used to syncronize finding the sector locations. The
-// controller uses fixed delays from where it finds that pattern to start
-// looking for the sector headers.
-// It appears the controller uses the time from index to the 0x55 pattern
-// as an estimate of drive RPM and ajusts the time it looks for the
-// sector based on it. This code does not implement that method.
-//
-// The timing doesn't match real captures with the above formatting. The
-// data in mfm_decoder.h has been adjusted to match captured data. 
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 10/13/23 DJG Added CONTROLLER_ND100_3041
 // 12/08/22 DJG Changed error message
 // 10/02/22 DJG Suppress false reporting of needing --begin_time
 // 03/17/22 DJG Handle large deltas and improved error message
@@ -79,6 +66,12 @@ static inline float filter(float v, float *delay)
    return out;
 }
 
+// Compare two uint16_t values
+int cmp_uint16_t(const void *p1, const void *p2)
+{
+   return memcmp(p1, p2, 2);
+}
+
 // Decode bytes into header or sector data for the various formats we know about.
 // The decoded data will be written to a file if one was specified.
 // Since processing a header with errors can overwrite other good sectors this 
@@ -99,6 +92,20 @@ static inline float filter(float v, float *delay)
 //      512 bytes data
 //      16 bit checksum of data
 //      16 bit complement of checksum of data
+//   Track format information 
+//      http://www.classiccmp.org/dunfield/miscpm/advtech.pdf (pg 3-47)
+//   The format is 187 0xff, 3 0x55, 40 0xff at start of track.
+//   Each sector starts with 67 0x00, 0x01, 9 byte header, 512 data bytes,
+//   4 byte crc, 45 unspecified bytes
+//   The 3 0x55 is used to syncronize finding the sector locations. The
+//   controller uses fixed delays from where it finds that pattern to start
+//   looking for the sector headers.
+//   It appears the controller uses the time from index to the 0x55 pattern
+//   as an estimate of drive RPM and ajusts the time it looks for the
+//   sector based on it. This code does not implement that method.
+//
+//   The timing doesn't match real captures with the above formatting. The
+//   data in mfm_decoder.h has been adjusted to match captured data. 
 //      
 //   CONTROLLER_SUPERBRAIN
 //    superbrain2.trans
@@ -115,6 +122,23 @@ static inline float filter(float v, float *delay)
 //        byte 0 0xf8
 //        256 bytes data
 //        2 byte crc
+//
+//   CONTROLLER_ND100_3041
+//    micropolis1325_nd100
+//    Not Northstar but seemed to match this logic the best of the decoders.
+//    ND-11.015.01-Winchester Disk Controller
+//    4 byte header + 2 checksum bytes
+//       byte 0 0
+//       byte 1 head low 4 bits. Bit 4 is 1 if bad track or spare track.
+//           For bad track data had cylinder and head remapped to repeated
+//           in the sector data. Lower 5 bits is head. Upper 11 bits is cylinder
+//       byte 2 upper bits of cylinder
+//       byte 3 low 5 bits sector, upper 3 bits low bits cylinder
+//       bytes 4-5 CRC
+//    Data
+//        1024 bytes data
+//        2 byte crc
+//    Both header and data are marked with strings of 0's and then a 1 bit.
 SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
          int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -125,8 +149,12 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
    static int sector_size;
    static int bad_block;
    static SECTOR_STATUS sector_status;
+   // Set if track has flag set that it may have an alternate assigned. Need
+   // to process sector data to get remapping info
+   static int alt_assigned = 0; 
 
    if (*state == PROCESS_HEADER) {
+      alt_assigned = 0;
       memset(&sector_status, 0, sizeof(sector_status));
       sector_status.status |= init_status | SECT_HEADER_FOUND;
       sector_status.ecc_span_corrected_header = ecc_span;
@@ -174,6 +202,49 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
 	       seek_difference, &sector_status, drive_params, sector_status_list);
 
 	 *state = DATA_SYNC2;
+      } else if (drive_params->controller == CONTROLLER_ND100_3041) {
+	 sector_status.cyl = (bytes[2] << 3) | (bytes[3] >> 5);
+	 sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[1] & 0xf);
+	 sector_status.sector = bytes[3] & 0x1f;
+         int spare = bytes[1] & 0xf0;
+         if (!(spare == 0 || spare == 0x10)) {
+            msg(MSG_INFO, "Spare flag %02x on cyl %d head %d sector %d\n",
+                  spare, sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+         // Same flag used for bad track and spare track. Bad track has
+         // spare track cylinder and head repeated through the sector data.
+         if (spare == 0x10) {
+            alt_assigned = 1;
+         }
+
+	 // Not encoded in header
+	 sector_size = drive_params->sector_size;
+
+	 bad_block = 0;
+
+         if (bytes[0] != 0x0) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[0], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+
+
+         // This drive uses CRC initial value of 0 so all zeros data is valid
+         // CRC. Reject if all zero data and head or cylinder is non zero
+         if ((exp_cyl != 0 || exp_head != 0) && bytes[1] == 0 && bytes[2] == 0
+              && bytes[3] == 0) {
+	    *state = HEADER_SYNC;
+         } else {
+	    msg(MSG_DEBUG,
+	       "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
+	          exp_cyl, exp_head, sector_status.cyl, sector_status.head, 
+	          sector_status.sector, sector_size, bad_block);
+
+	    mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
+	       seek_difference, &sector_status, drive_params, sector_status_list);
+
+	    *state = DATA_SYNC2;
+         }
       }
    } else if (*state == PROCESS_DATA) {
       if (crc != 0) {
@@ -189,6 +260,64 @@ SECTOR_DECODE_STATUS northstar_process_data(STATE_TYPE *state, uint8_t bytes[],
             msg(MSG_INFO, "Invalid data id byte %02x on cyl %d head %d sector %d\n",
                bytes[0], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_DATA;
+         }
+      }
+
+      // Try to determine if this is a bad track that was remapped or is a
+      // spare cylinder
+      if (drive_params->controller == CONTROLLER_ND100_3041 && alt_assigned &&
+           !(sector_status.status & SECT_BAD_HEADER)) {
+         uint16_t remap[sector_size/2];
+         uint16_t last;
+         int count;
+         uint16_t new_map = 0;
+         static int last_remap = 0;
+
+         for (int i = 0; i < sector_size/2; i++) {
+            remap[i] = (bytes[i*2] << 8) | bytes[i*2+1];
+         }
+         qsort(&remap, sector_size/2, sizeof(uint16_t), cmp_uint16_t);
+         last = remap[0];
+         count = 1;
+         // Real controller knows where alternate cylinders start
+         // For one sample they started at 1011. Since that may be
+         // different on different drives we say if we find all except 
+         // max_different repeated values its the remapping data otherwise
+         // its a spare cylinder. Not guaranteed to get it correct.
+         int max_different = 30;
+         for (int i = 1; i < sector_size/2; i++) {
+            if (remap[i] == last) {
+               count++;
+            } else {
+               if (count >= (sector_size/2 - max_different)) {
+                  new_map = last;
+                  break;
+               } else {
+                  count = 1;
+                  last = remap[i];
+               }
+            }
+         }
+         if (count >= sector_size/2 - max_different) {
+            new_map = last;
+         }
+         if (new_map != 0) {
+            int new_head = new_map & 0x1f;
+            int new_cyl = new_map >> 5;
+            if (new_cyl > sector_status.cyl && 
+                 new_head < drive_params->num_head) {
+               mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+                 sector_status.head,  new_cyl, new_head);
+               if (new_map != last_remap) {
+                  msg(MSG_INFO, "Remapping cyl,track %d,%d to %d,%d\n",
+                      sector_status.cyl, sector_status.head,  new_cyl, new_head);
+               }
+               last_remap = new_map;
+            } else {
+               msg(MSG_ERR, "Ignored invalid bad track remap of %d,%d to %d,%d\n",
+                   sector_status.cyl, sector_status.head,  new_cyl, new_head);
+               
+            }
          }
       }
 
@@ -291,6 +420,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       next_header_time = 74000;
    } else if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
       next_header_time = 55000;
+   } else if (drive_params->controller == CONTROLLER_ND100_3041) {
+      next_header_time = 4230;
    } else {
       msg(MSG_FATAL,"northstart_mfm_decoder got unknwon controller %d\n", 
          drive_params->controller);
@@ -366,7 +497,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          tot_raw_bit_cntr += int_bit_pos;
          raw_bit_cntr += int_bit_pos;
 
-//printf("Raw %08x %d %d %d %d\n", raw_word, state, sync_count, track_time, next_header_time);
+//printf("Raw %08x %d %d %d %d %d\n", raw_word, state, sync_count, tot_raw_bit_cntr, track_time, next_header_time);
          // Are we looking for a mark code?
          if (state == MARK_ID) {
             // These patterns are MFM encoded all zeros or all ones.
@@ -401,6 +532,12 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                if ((raw_word & 0xf) == 0x9) {
                   sync_count = 0;
                   raw_bit_cntr = 2;
+                  found = 1;
+               }
+            } else if (drive_params->controller == CONTROLLER_ND100_3041) {
+               if ((raw_word & 0xf) == 0x9) {
+                  sync_count = 0;
+                  raw_bit_cntr = 0;
                   found = 1;
                }
             }
@@ -455,6 +592,14 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                //if ((raw_word & 0xfff) == 0xa89 && sync_count > 80) {
                if ((raw_word & 0xf) == 0x9 && sync_count > 80) {
 		  raw_bit_cntr = 2;
+		  found = 1;
+               }
+            } else if (drive_params->controller == CONTROLLER_ND100_3041) {
+               if (raw_word == 0x55555555 || raw_word == 0xaaaaaaaa) {
+                  sync_count++;
+               }
+               if ((raw_word & 0xf) == 0x9 && sync_count > 20) {
+		  raw_bit_cntr = 0;
 		  found = 1;
                }
             }
@@ -513,6 +658,8 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         next_header_time = track_time + 55 * 8 * 40; 
                      } else if (drive_params->controller == CONTROLLER_SUPERBRAIN) {
                         next_header_time = track_time + 5 * 8 * 40; 
+                     } else if (drive_params->controller == CONTROLLER_ND100_3041) {
+                        next_header_time = track_time + 20 * 40; 
                      }
                   }
                   decoded_bit_cntr = 0;
