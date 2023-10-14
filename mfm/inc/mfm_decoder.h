@@ -474,6 +474,7 @@ DEF_EXTERN int mfm_lba_num_sectors[]
 ;
 
 // This defines fields that aren't whole multiples of bytes.
+// Filling starts with the most significant bit
 typedef struct bit_l {
       // Start bit, bits are numbered with most significant bit of the
       // first byte 0
@@ -1586,6 +1587,49 @@ DEF_EXTERN TRK_L trk_northstar[]
    },
    //{121, TRK_FILL, 0xff, NULL},
    {64, TRK_FILL, 0xff, NULL},
+   {-1, 0, 0, NULL}
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_nd100_3041[] 
+#ifdef DEF_DATA
+ = 
+{ { 9, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        { 62, TRK_FILL, 0x00, NULL},
+        { 1, TRK_FILL, 0x01, NULL},  // 1 marking header start
+        { 32, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x00, OP_SET, 0, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 3, NULL},
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 16, 8},
+                    { 24, 3},
+                    { -1, -1},
+                 }
+              },
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 4, NULL},
+              {26, FIELD_FILL, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           },
+        },
+        { 1, TRK_FILL, 0x01, NULL},  // 1 marking data start
+        { 1026, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1024, FIELD_SECTOR_DATA, 0x00, OP_SET, 0, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 1024, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {-1, 0, 0, NULL},
+     }
+   },
+   {320, TRK_FILL, 0x00, NULL},
    {-1, 0, 0, NULL}
 }
 #endif
@@ -3334,11 +3378,11 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0x0,0,16,0},{0x0,0x0,16,0}, CONT_MODEL,
          0, 0, 0
       },
-      {"ND100_3041",             256, 10000000,  300000,
+      {"ND100_3041",             256, 10000000,  0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 1024, 9, 0, 5209,
+         0, 1, trk_nd100_3041, 1024, 9, 0, 5209,
          0, 20,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
          0, 0, 0

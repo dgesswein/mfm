@@ -131,7 +131,7 @@ int cmp_uint16_t(const void *p1, const void *p2)
 //       byte 0 0
 //       byte 1 head low 4 bits. Bit 4 is 1 if bad track or spare track.
 //           For bad track data had cylinder and head remapped to repeated
-//           in the sector data. Lower 5 bits is head. Upper 11 bits is cylinder
+//           in the sector data as lower 5 bits head, Upper 11 bits cylinder
 //       byte 2 upper bits of cylinder
 //       byte 3 low 5 bits sector, upper 3 bits low bits cylinder
 //       bytes 4-5 CRC
