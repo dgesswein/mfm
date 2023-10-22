@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/18/23 SWE Added David Junior II 210 and 301
 // 10/13/23 DJG Added CONTROLLER_ND100_3041
 // 09/01/23 DJG Added WD_MICROENGINE support
 // 08/31/23 DJG Added DIMENSION_68000 support
@@ -237,10 +238,12 @@ typedef struct {
       CONTROLLER_XEROX_8010,
       CONTROLLER_ROHM_PBX,
       CONTROLLER_DIMENSION_68000,
+      CONTROLLER_DJ_II_210,
+      CONTROLLER_DJ_II_301,
+      CONTROLLER_DJ_II,
       CONTROLLER_ADAPTEC, 
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, 
-      CONTROLLER_DJ_II,
       CONTROLLER_SM1040,
       CONTROLLER_SYMBOLICS_3640, 
       CONTROLLER_MIGHTYFRAME, 
@@ -1592,6 +1595,11 @@ DEF_EXTERN TRK_L trk_northstar[]
 #endif
 ;
 
+// Disk sample had cylinders marked spare starting at 1011. Unclear where ended
+// due to disk read errors. 1021 head 7 had cylinder field set
+// to 2045. 1022 and 1023 are unformatted. Formatting a new emulator file
+// cylinders starting at 1011 weren't marked spare. Otherwise the same
+// None of these are implemented by this format definition. Seems to work anyway
 DEF_EXTERN TRK_L trk_nd100_3041[] 
 #ifdef DEF_DATA
  = 
@@ -2558,7 +2566,7 @@ DEF_EXTERN TRK_L trk_EC1841[]
 // CHECK_NONE is used for header formats where some check that is specific
 // to the format is used so can't be generalized. If so the check will need
 // to be done in the header decode and ext2emu as special cases.
-typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR16,
+typedef enum {CHECK_CRC, CHECK_CHKSUM, CHECK_PARITY, CHECK_XOR8, CHECK_XOR16,
               CHECK_NONE} CHECK_TYPE;
 
 typedef struct {
@@ -3147,6 +3155,34 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
          0, 0, 0
       },
+      {"DJ_II_210",            256, 10000000,      0,
+         0, 0, 4, ARRAYSIZE(mfm_all_poly),
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 2, CHECK_NONE, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"DJ_II_301",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, 0, CINFO_CHS,
+         6, 2, 2, 2, CHECK_XOR8, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0,0,8,0},{0,0x5140c101,32,6}, CONT_ANALYZE,
+         0, 0, 0
+      },
+      // Header is either 6 or 10 bytes
+      {"DJ_II",            256, 10000000,      0,
+         0, 0, 4, ARRAYSIZE(mfm_all_poly),
+         0, 0, CINFO_CHS,
+         6, 2, 0, 2, CHECK_NONE, CHECK_CRC,
+         0, 1, NULL, 256, 32, 0, 5209,
+         0, 0,
+         {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
+         0, 0, 0
+      },
 //TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3174,16 +3210,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
-      },
-      // Header is either 6 or 10 bytes
-      {"DJ_II",            256, 10000000,      0,
-         0, 0, 4, ARRAYSIZE(mfm_all_poly),
-         0, 0, CINFO_CHS,
-         6, 2, 0, 2, CHECK_NONE, CHECK_CRC,
-         0, 1, NULL, 256, 32, 0, 5209,
-         0, 0,
-         {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
          0, 0, 0
       },
       {"SM1040",       256, 10000000,      0, 

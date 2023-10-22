@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/18/23 SWE Added David Junior II 210 and 301
 // 09/01/23 DJG Added WD_MICROENGINE support
 // 08/31/23 DJG Added DIMENSION_68000 support
 // 07/08/23 DJG Added Fujitsu-K-10R format
@@ -603,6 +604,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
          drive_params->controller == CONTROLLER_DEC_RQDX3 ||
          drive_params->controller == CONTROLLER_DJ_II ||
+         drive_params->controller == CONTROLLER_DJ_II_210 ||
+         drive_params->controller == CONTROLLER_DJ_II_301 ||
          drive_params->controller == CONTROLLER_MYARC_HFDC ||
          drive_params->controller == CONTROLLER_SHUGART_1610 ||
          drive_params->controller == CONTROLLER_MVME320 ||
@@ -1261,6 +1264,14 @@ SECTOR_DECODE_STATUS mfm_crc_bytes(DRIVE_PARAMS *drive_params,
       }
    } else if (check_type == CHECK_NONE) {
       crc = 0;
+   // TODO: Probably should make these use CRC length field and put in crc_ecc.c
+   } else if (check_type == CHECK_XOR8) {
+      uint8_t x1 = 0;
+      int i;
+      for (i = start; i < bytes_crc_len; i++) {
+         x1 ^= bytes[i];
+      }
+      crc = x1 ^ 0xff ;
    } else if (check_type == CHECK_XOR16) {
       uint8_t x1 = 0, x2 = 0;
       int i;
@@ -1422,6 +1433,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SHUGART_SA1400 ||
             drive_params->controller == CONTROLLER_DEC_RQDX3 ||
             drive_params->controller == CONTROLLER_DJ_II ||
+            drive_params->controller == CONTROLLER_DJ_II_210 ||
+            drive_params->controller == CONTROLLER_DJ_II_301 ||
             drive_params->controller == CONTROLLER_MYARC_HFDC ||
             drive_params->controller == CONTROLLER_SHUGART_1610 ||
             drive_params->controller == CONTROLLER_MVME320 ||

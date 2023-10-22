@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/18/23 SWE Added David Junior II 210 and 301
 // 09/01/23 DJG Added WD_MICROENGINE support
 // 08/31/23 DJG Added DIMENSION_68000 support
 // 07/08/23 DJG Added Fujitsu-K-10R format
@@ -1019,6 +1020,8 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      CRC/ECC code
 //      
 //   CONTROLLER_DJ_II
+//   CONTROLLER_DJ_II_210
+//   CONTROLLER_DJ_II_301
 //      Format info 
 //      http://bitsavers.org/pdf/konan/Konan_David_Junior_II_Reference_Aug83.pdf
 //      image catnet1.6_micropolis_1304.trans
@@ -1285,7 +1288,70 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_MYARC_HFDC) {
+      } else if (drive_params->controller == CONTROLLER_DJ_II_210 || drive_params->controller == CONTROLLER_DJ_II_301 ) {
+         // File martensson/trans_file.zip
+         // Controller David Junior II DJ 210 and maybe DJ 301
+         // Data format of a header is 4 bytes not including 0xa1, 0xfd
+         // -------------------------------------------------------------------------
+         // |   H4   |   H3   |   H2   |   H1   |   H0   |   T10   |   T9   |   T8   |
+         // |   T7   |   T6   |   T5   |   T4   |   T3   |   T2    |   T1   |   S0   |
+         // |   X1   |   X0   |   S5   |   S4   |   S3   |   S2    |   S1   |   S0   | 
+         // |  Check Code                                                            |
+         // -------------------------------------------------------------------------
+         //
+         // X1   X0
+         //  0    0     Normal user track
+         //  0    1     Alternativ track
+         //  1    0     Bad track
+         //  1    1     mapped track 
+
+         //When a drive is f l:rst formatted, all tracks are
+         //normal user tracks. A track can be formatted as a
+         //"bad track•, disallowing any further access to it.
+         //When a track is mapped, it becomes a "mapped track"
+         //which contains pointers to an "alternate track•. An
+         //alternate track is accessed through a request to a
+         //mapped track. 
+ 
+
+         int cyl_high;
+
+         sector_size = drive_params->sector_size; // Sectore size need from user
+         bad_block = 0;
+         
+	      cyl_high = (bytes[2]   & 0x07); // Get high from byte 2
+         sector_status.cyl = cyl_high << 8;
+         sector_status.cyl |= bytes[3]; // Adding low cyl
+
+         if (bytes[4] >> 6 == 0x01){  //alternativ track
+            int new_cyl = sector_status.cyl;
+            int new_head = (bytes[7] & 0xe0) >> 5;
+
+            bad_block=0;
+            sector_status.cyl = cyl_high << 8;
+            sector_status.cyl |= bytes[6];
+            sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[7] & 0xe0) >> 5 );
+            sector_status.sector = (bytes[7] & 0x1f);
+
+            mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+               sector_status.head, new_cyl, new_head);
+         }else if(bytes[4] >> 6 == 0x02) {
+            // Handle bad
+            bad_block=1;
+         }else{
+            sector_status.head = mfm_fix_head(drive_params, exp_head, (bytes[2] & 0xF8) >> 3 );
+            sector_status.sector = (bytes[4] & 0x3f) ; // Get sectors from byte 4
+         }
+
+
+         if (bytes[1] != 0xfd) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+         
+         
+         } else if (drive_params->controller == CONTROLLER_MYARC_HFDC) {
          int ecc_size[] = { 4, -1, -1, -1,  -1, -1, -1 ,-1 ,
                            -1, -1, -1, -1,  -1,  7,  6,  5};
          sector_status.cyl = (bytes[3] & 0xf0) << 4;
@@ -2078,6 +2144,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_DJ_II) {
          id_byte_expected = 0xf8;
+      } else if (drive_params->controller == CONTROLLER_DJ_II_210) {
+         id_byte_expected = 0xf8;
+      } else if (drive_params->controller == CONTROLLER_DJ_II_301) {
+         id_byte_expected = 0xf9;
       } else if (drive_params->controller == CONTROLLER_IBM_3174) {
          id_byte_expected = 0xfb;
       } else if (drive_params->controller == CONTROLLER_MVME320) {
