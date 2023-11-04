@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
 // 09/01/23 DJG Added WD_MICROENGINE support
 // 08/31/23 DJG Added DIMENSION_68000 support
@@ -642,6 +643,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DIMENSION_68000 ||
          drive_params->controller == CONTROLLER_ROHM_PBX ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+         drive_params->controller == CONTROLLER_OMTI_20L ||
          drive_params->controller == CONTROLLER_SM1040 ||
          drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
       rc = wd_decode_track(drive_params, cyl, head, deltas, seek_difference,
@@ -1471,6 +1473,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DIMENSION_68000 ||
             drive_params->controller == CONTROLLER_ROHM_PBX ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3620 ||
+            drive_params->controller == CONTROLLER_OMTI_20L ||
             drive_params->controller == CONTROLLER_SM1040 ||
             drive_params->controller == CONTROLLER_SYMBOLICS_3640) {
          status |= wd_process_data(state, bytes, total_bytes, crc, cyl, 
@@ -1701,6 +1704,12 @@ void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count) {
       data_word_ndx--;
    }
    data_tot_bit_count = tot_bit_count - bit_offset;
+}
+
+// This returns the bit count for the start of the last data area
+// Only valid after mfm_mark_data_location called
+int mfm_get_data_bit_count() {
+   return data_tot_bit_count;
 }
 
 // Mark start of header type to be determined later

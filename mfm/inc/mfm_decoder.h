@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
 // 10/13/23 DJG Added CONTROLLER_ND100_3041
 // 09/01/23 DJG Added WD_MICROENGINE support
@@ -246,6 +247,7 @@ typedef struct {
       CONTROLLER_SYMBOLICS_3620, 
       CONTROLLER_SM1040,
       CONTROLLER_SYMBOLICS_3640, 
+      CONTROLLER_OMTI_20L,
       CONTROLLER_MIGHTYFRAME, 
       CONTROLLER_DG_MV2000, 
       CONTROLLER_SOLOSYSTEMS, 
@@ -3230,6 +3232,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0x0,0x0,0,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
+      {"OMTI_20L",            256, 10000000,      0,
+         0, 0, 4, ARRAYSIZE(mfm_all_poly),
+         0, 0, CINFO_CHS,
+         20, 1, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 37, 0, 5209,
+         16, 0,
+         {0x85271cf0,0x0104c981,32,6},{0x3b4292c3,0x0104c981,32,6}, CONT_MODEL,
+         0, 0, 0
+      },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number. It should not be part of a normal search
 // since it will match wd_1006 for drives less than 8 heads
@@ -3596,6 +3607,8 @@ void mfm_mark_header_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_data_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_location(int bit_count, int bit_offset, int tot_bit_count);
 void mfm_mark_end_data(int bit_count, DRIVE_PARAMS *drive_params, int cyl, int head);
+int mfm_get_data_bit_count();
+
 void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
 int mfm_fix_head(DRIVE_PARAMS *drive_params, int exp_head, int head);

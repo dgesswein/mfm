@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
 // 09/01/23 DJG Added WD_MICROENGINE support
 // 08/31/23 DJG Added DIMENSION_68000 support
@@ -1044,6 +1045,23 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xf8
+//      Sector data for sector size
+//      32 bit CRC
+//
+//   CONTROLLER_OMTI_20L
+//   MFMREAD.tran
+//   
+//   Only one header at the start of the track. Followed by 37 256 byte data
+//   sectors.
+//   20 byte header + 4 byte crc
+//      byte 0 0xa1
+//      byte 1 cylinder high
+//      byte 2 cylinder low
+//      byte 3 head
+//      byte 4-19 Unknown. 
+//      byte 20-23 CRC
+//   Data
+//      byte 0 0xa1
 //      Sector data for sector size
 //      32 bit CRC
 //
@@ -2078,6 +2096,18 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_OMTI_20L) {
+         sector_status.cyl = bytes[2] | (bytes[1] << 8);
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
+         sector_size = drive_params->sector_size;
+         bad_block = 0;
+
+         sector_status.sector = 0;
+
+         if (!(sector_status.status & SECT_BAD_HEADER)) {
+            mfm_write_metadata(&bytes[4], drive_params, &sector_status);
+         }
+
       } else {
          msg(MSG_FATAL,"Unknown controller type %d\n",drive_params->controller);
          exit(1);
@@ -2203,6 +2233,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_EDAX_PV9900) {
          id_byte_expected = 0;
          id_byte_index = -1;
+      } else if (drive_params->controller == CONTROLLER_OMTI_20L) {
+         id_byte_expected = 0;
+         id_byte_index = -1;
+         // No header so calculate sector number from position on track
+         sector_status.sector = round((mfm_get_data_bit_count() - 5210) / 4298.0);
+         if (sector_status.sector < 0) {
+            sector_status.sector = 0;
+         }
       } else if (drive_params->controller == CONTROLLER_DSD_5217_512B) {
          if (bytes[1] == 0xf8) {
             id_byte_expected = 0xf8;
@@ -2284,7 +2322,16 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          msg(MSG_INFO,"Assigned alternate track not corrected on cyl %d, head %d, sector %d\n",
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
-      *state = MARK_ID;
+      // OMTI_20L only has one sector header so stay in MARK_DATA and inc
+      // sector count
+      if (drive_params->controller == CONTROLLER_OMTI_20L) {
+         (*sector_index)++;
+         *state = MARK_DATA;
+         // Clear status for next sector
+         sector_status.status = init_status | SECT_HEADER_FOUND;
+      } else {
+         *state = MARK_ID;
+      }
    }
 
    return sector_status.status;
@@ -2523,7 +2570,13 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                   first_addr_mark_ns = track_time * CLOCKS_TO_NS;
                }
                if (header_raw_bit_count != 0) {
-                  header_raw_bit_delta = tot_raw_bit_cntr - header_raw_bit_count;
+                  if (drive_params->controller == CONTROLLER_OMTI_20L) {
+                     // For this drive normal header location check doesn't work
+                     // since only one header per track
+                     header_raw_bit_delta = 0;
+                  } else {
+                     header_raw_bit_delta = tot_raw_bit_cntr - header_raw_bit_count;
+                  }
                }
                header_raw_bit_count = tot_raw_bit_cntr;
                zero_count = 0;
@@ -2551,7 +2604,12 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
                         mfm_controller_info[drive_params->controller].data_trailer_bytes + 
                         drive_params->sector_size +
                         drive_params->data_crc.length / 8;
-                  bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+                  if (drive_params->controller == CONTROLLER_OMTI_20L) {
+                     // DATA_IGNORE_BYTES too bit for this format
+                     bytes_needed = 3 + bytes_crc_len;
+                  } else {
+                     bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;
+                  }
                   if (bytes_needed >= sizeof(bytes)) {
                      msg(MSG_FATAL,"Too many bytes needed %d\n", bytes_needed);
                      exit(1);
