@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
 // 09/01/23 DJG Added WD_MICROENGINE support
@@ -204,6 +205,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Last cylinder is 16 sector instead of 18 sector and has different
 //      sector size value. Code changed to ignore sector size. Two missing
 //      sectors will be reported as error
+//
+//   CONTROLLER_SOUYZ_NEON
+//      Like WD_1006 except Sector number has multiples of 32 added to
+//         mark the partitions on the disk.
 //
 //   CONTROLLER_WD_MICROENGINE
 //      Same as WD_1006 except uses 16 sectors per track. A 17th sector
@@ -1476,6 +1481,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 || 
+            drive_params->controller == CONTROLLER_SOUYZ_NEON || 
             drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             drive_params->controller == CONTROLLER_TANDY_16B || 
@@ -1487,6 +1493,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
+         static int last_sector_group = 0;
 
          cyl_high = cyl_high_lookup[(bytes[1] & 0xf) ^ 0xe];
          sector_status.cyl = 0;
@@ -1517,6 +1524,14 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (drive_params->controller == CONTROLLER_WD_3B1) {
             sector_status.head = sector_status.head | ((sector_status.sector & 0xe0) >> 2);
             sector_status.sector &= 0x1f;
+         }
+         if (drive_params->controller == CONTROLLER_SOUYZ_NEON) {
+            sector_status.sector = bytes[4] % 32;
+            if (bytes[4] / 32 != last_sector_group) {
+               last_sector_group = bytes[4] / 32;
+               msg(MSG_INFO, "New sector group found %d,%d at head %d cylinder %d\n",
+                bytes[4], last_sector_group, sector_status.head, sector_status.cyl);
+            }
          }
 
          if (cyl_high == -1) {

@@ -21,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON and printed more accurate bad
+//    sector information when --ignore_seek_errors used.
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
 // 09/01/23 DJG Added WD_MICROENGINE support
@@ -183,6 +185,21 @@ void update_emu_track_words(DRIVE_PARAMS * drive_params,
       SECTOR_STATUS sector_status_list[], int write_track, int new_track,
       int cyl, int head);
 static void print_missing_cyl(DRIVE_PARAMS *drive_params);
+static void dump_bad(void);
+
+// This is used with --ignore_seek_errors to show what sectors were good/bad
+// for the entire disk. It also makes sure a good sector won't be overwritten with a
+// bad sector. A disk I was reading you saw multiple cylinders when
+// reading a track so track at a time error information wasn't accurate.
+//  sector_good 0 = not good, 1 = good, ECC_OFFSET + bits corrected = good 
+//    but ECC corrected
+#define ECC_OFFSET 5
+static char sector_good[MAX_CYL][MAX_HEAD][MAX_SECTORS];
+// CRC of sector data. This detects if good or ECC corrected data differs between
+// reads
+static uint64_t sector_crc[MAX_CYL][MAX_HEAD][MAX_SECTORS];
+static int num_cyl, num_head, num_sectors;
+
 
 // These are various PLL constants I was trying. For efficiency the
 // filter routine is put in the decoders so it can inline and has the
@@ -584,6 +601,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_RQDX2 ||
+         drive_params->controller == CONTROLLER_SOUYZ_NEON ||
          drive_params->controller == CONTROLLER_ES7978 ||
          drive_params->controller == CONTROLLER_WD_MICROENGINE ||
          drive_params->controller == CONTROLLER_ISBC_214_128B ||
@@ -718,6 +736,12 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    last_cyl = -1;
    last_lba_addr = -1;
    memset(cyl_found, 0, sizeof(cyl_found));
+
+   num_cyl = drive_params->num_cyl;
+   num_head = drive_params->num_head;
+   num_sectors = drive_params->num_sectors;
+   memset(sector_good, 0, sizeof(sector_good));
+   memset(sector_crc, 0, sizeof(sector_crc));
 
    if (drive_params->emulation_output && drive_params->ignore_seek_errors) {
       msg(MSG_ERR, "Ignore seek errors is invalid if generating emulation file. Option turned off\n");
@@ -874,6 +898,10 @@ void mfm_decode_done(DRIVE_PARAMS * drive_params)
       }
    }
    emu_file_close(drive_params->emu_fd, drive_params->emulation_output);
+
+   if (drive_params->ignore_seek_errors) {
+      dump_bad();
+   }
 }
 
 // This checks that the sector header values are reasonable and match the
@@ -1010,6 +1038,39 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
    }
 }
 
+// Dump overall bad sector information for --ignore_seek_error
+static void dump_bad(void) {
+   int bad_sector_count = 0;
+   int ecc_sector_count = 0;
+
+   msg(MSG_INFO, "BAD data with E is data was ECC corrected, likely no error\n");
+   for (int cyl = 0; cyl < num_cyl; cyl++) {
+      for (int head = 0; head < num_head; head++) {
+         int printed = 0;
+         for (int sect = 0; sect < num_sectors; sect++) {
+            if (sector_good[cyl][head][sect] != 1) {
+               if (!printed) {
+                  msg(MSG_INFO, "BAD cyl %d head %d: ", cyl, head) ;
+                  printed = 1;
+               }
+               if (sector_good[cyl][head][sect] == 2) {
+                  msg(MSG_INFO, "%dE(%d) ", sect, sector_good[cyl][head][sect] - ECC_OFFSET);
+                  ecc_sector_count++;
+               } else {
+                  msg(MSG_INFO, "%d ", sect);
+                  bad_sector_count++;
+               }
+            }
+         }
+         if (printed) {
+            msg(MSG_INFO, "\n");
+         }
+      }
+   }
+   printf("%d BAD sectors, %d sectors corrected with ECC\n", bad_sector_count,
+      ecc_sector_count);
+}
+
 // Write the sector data to file. We only write the best data so if the
 // caller retries read with error we won't overwrite good data if this
 // read has an error for this sector but the previous didn't.
@@ -1106,6 +1167,51 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
    // the best data to write
    update_emu_track_sector(drive_params, sector_status, sect_rel0, 
       all_bytes, all_bytes_len, update);
+
+   // Only write best sector when in ignore_seek_error mode. Since can get
+   // same sector from reads that are supposed to be from different cylinders
+   // the normal check can't determine which is best.
+   if (update && (drive_params->ignore_seek_errors)) {
+      CRC_INFO crc_info = {0x12345678, 0x140a0445000101ll, 56, 0};
+   
+      uint64_t crc = crc64(bytes, drive_params->sector_size, &crc_info);
+      offset = (sect_rel0) * drive_params->sector_size +
+          sector_status->head * (drive_params->sector_size *
+          drive_params->num_sectors) +
+          (off_t) sector_status->cyl * (drive_params->sector_size *
+          drive_params->num_sectors *
+          drive_params->num_head);
+      // If good read or previous good read see if data different. Good is CRC
+      // matches with or without ECC correction
+      if (!(sector_status->status & SECT_BAD_DATA) && sector_good[sector_status->cyl][sector_status->head][sect_rel0] != 0) {
+         if (crc != sector_crc[sector_status->cyl][sector_status->head][sect_rel0]) {
+            msg(MSG_INFO, "Miscorrected ECC cyl %d head %d sect %d\n",sector_status->cyl,
+                sector_status->head,sect_rel0);
+         }
+      }
+      // Span is only set if we don't have CRC error after correction
+      if (sector_status_list[sect_rel0].ecc_span_corrected_data > 0) {
+         int new_good = ECC_OFFSET + sector_status_list[sect_rel0].ecc_span_corrected_data;
+         // Update CRC so we can see if we are getting false ECC corrections
+         sector_crc[sector_status->cyl][sector_status->head][sect_rel0] = crc;
+         if (sector_good[sector_status->cyl][sector_status->head][sect_rel0] <= new_good) {
+            //printf("Not replacing better sector with ecc error");
+            update = 0;
+         } else {
+            sector_good[sector_status->cyl][sector_status->head][sect_rel0] = new_good;
+         }
+      } else {
+         if ( !(sector_status->status & SECT_BAD_DATA)) {
+            sector_good[sector_status->cyl][sector_status->head][sect_rel0] = 1;
+            sector_crc[sector_status->cyl][sector_status->head][sect_rel0] = crc;
+         } else {
+            // If we had a read without error don't overwrite with bad data
+            if (sector_good[sector_status->cyl][sector_status->head][sect_rel0] > 0) { 
+               update = 0;
+            }
+         }
+      }
+   }
    if (update) {
       if (drive_params->ext_fd >= 0) {
          if (sector_status->is_lba) {
@@ -1414,6 +1520,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 ||
+            drive_params->controller == CONTROLLER_SOUYZ_NEON ||
             drive_params->controller == CONTROLLER_ES7978 ||
             drive_params->controller == CONTROLLER_WD_MICROENGINE ||
             drive_params->controller == CONTROLLER_ISBC_214_128B ||
