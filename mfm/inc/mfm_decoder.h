@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
@@ -3247,7 +3248,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 4, ARRAYSIZE(mfm_all_poly),
          0, 0, CINFO_CHS,
          20, 1, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 256, 37, 0, 5209,
+         0, 1, NULL, 256, 38, 0, 5209,
          16, 0,
          {0x85271cf0,0x0104c981,32,6},{0x3b4292c3,0x0104c981,32,6}, CONT_MODEL,
          0, 0, 0

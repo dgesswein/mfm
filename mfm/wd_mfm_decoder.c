@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
 // 10/18/23 SWE Added David Junior II 210 and 301
@@ -2252,10 +2253,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          id_byte_expected = 0;
          id_byte_index = -1;
          // No header so calculate sector number from position on track
-         sector_status.sector = round((mfm_get_data_bit_count() - 5210) / 4298.0);
-         if (sector_status.sector < 0) {
-            sector_status.sector = 0;
-         }
+         sector_status.sector = round((mfm_get_data_bit_count() - 936) / 4298.0);
       } else if (drive_params->controller == CONTROLLER_DSD_5217_512B) {
          if (bytes[1] == 0xf8) {
             id_byte_expected = 0xf8;
@@ -2600,7 +2598,9 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
               
                header_bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes + 
                         drive_params->header_crc.length / 8;
-               if (drive_params->controller == CONTROLLER_DSD_5217_512B) {
+               if (drive_params->controller == CONTROLLER_OMTI_20L) {
+                  header_bytes_needed = header_bytes_crc_len + 3;
+               } else if (drive_params->controller == CONTROLLER_DSD_5217_512B) {
                   header_bytes_needed = header_bytes_crc_len + 5;
                } else {
                   header_bytes_needed = header_bytes_crc_len + HEADER_IGNORE_BYTES;
