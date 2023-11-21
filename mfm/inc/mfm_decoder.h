@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
@@ -222,6 +223,7 @@ typedef struct {
       CONTROLLER_SHUGART_SA1400,
       CONTROLLER_ES7978, 
       CONTROLLER_WD_MICROENGINE, 
+      CONTROLLER_NEC_4800,
       CONTROLLER_SOUYZ_NEON, 
       CONTROLLER_SM_1810_512B,
       CONTROLLER_DSD_5217_512B, 
@@ -2978,6 +2980,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"NEC_4800",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 256, 33, 0, 5209,
+         0, 0,
+         {0x0,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0
       },
       {"Souyz-Neon",              256, 10000000,      0, 

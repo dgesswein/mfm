@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
@@ -1071,6 +1072,24 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      32 bit CRC
 //
+//   CONTROLLER_NEC_4800 PublishPro
+//   d3124_trans.7z
+//   5 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfc exclusive ored with cyl11 0 cyl10 cyl9
+//      byte 2 low 8 bits of cylinder
+//      byte 3 bits 0-3 head number. Bit 7 is bad sector. Sector header has 
+//           address of replacement sector. Replaces all sectors in track.
+//           Bit 6 is set for bad sector and replacement sector. For
+//           replacement header has address of bad sector its replacing.
+//      byte 4 sector number
+//      bytes 5-6 16 bit CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size
+//      CRC/ECC code
+//
 // state: Current state in the decoding
 // bytes: bytes to process
 // crc: The crc of the bytes
@@ -1532,6 +1551,50 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                last_sector_group = bytes[4] / 32;
                msg(MSG_INFO, "New sector group found %d,%d at head %d cylinder %d\n",
                 bytes[4], last_sector_group, sector_status.head, sector_status.cyl);
+            }
+         }
+
+         if (cyl_high == -1) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_NEC_4800) {
+         int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
+         int cyl_high;
+
+         cyl_high = cyl_high_lookup[(bytes[1] & 0xf) ^ 0xc];
+         sector_status.cyl = 0;
+         if (cyl_high != -1) {
+            sector_status.cyl = cyl_high << 8;
+         }
+         sector_status.cyl |= bytes[2];
+
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
+         sector_size = drive_params->sector_size;
+         sector_status.sector = bytes[4];
+
+         alt_assigned = (bytes[3] & 0x80) >> 7;
+
+         if (alt_assigned) {
+            // Each sector is marked separatly but looks like all sectors are
+            // assigned alternate track.
+            mfm_handle_alt_track_ch(drive_params, 
+               exp_cyl, exp_head,
+               sector_status.cyl, sector_status.head);
+            alt_assigned_handled = 1;
+            sector_status.cyl = exp_cyl;
+            sector_status.head = exp_head;
+            if (drive_params->ignore_seek_errors) {
+               msg(MSG_INFO, "--ignore_seek_error may make alternate track replacement replace wrong track\n");
+            }
+         } else {
+            is_alternate = (bytes[3] & 0x40) >> 6;
+            if (is_alternate) {
+               // Set to actual cylinder and head
+               sector_status.cyl = exp_cyl;
+               sector_status.head = exp_head;
             }
          }
 

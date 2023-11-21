@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON and printed more accurate bad
 //    sector information when --ignore_seek_errors used.
 // 10/30/23 DJG Added CONTROLLER_OMTI_20L
@@ -602,6 +603,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_RQDX2 ||
          drive_params->controller == CONTROLLER_SOUYZ_NEON ||
+         drive_params->controller == CONTROLLER_NEC_4800 ||
          drive_params->controller == CONTROLLER_ES7978 ||
          drive_params->controller == CONTROLLER_WD_MICROENGINE ||
          drive_params->controller == CONTROLLER_ISBC_214_128B ||
@@ -1521,6 +1523,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 ||
             drive_params->controller == CONTROLLER_SOUYZ_NEON ||
+            drive_params->controller == CONTROLLER_NEC_4800 ||
             drive_params->controller == CONTROLLER_ES7978 ||
             drive_params->controller == CONTROLLER_WD_MICROENGINE ||
             drive_params->controller == CONTROLLER_ISBC_214_128B ||
@@ -1975,7 +1978,7 @@ int mfm_save_raw_word(DRIVE_PARAMS *drive_params, int all_raw_bits_count,
 
 // This adds to alternate track link list the data that needs to be
 // swapped to put the good data in the proper location in the extracted
-// data file.
+// data file for replacing entire track.
 //
 // drive_params: Drive parameters
 // bad_cyl: Cylinder that has alterinate track assigned for
