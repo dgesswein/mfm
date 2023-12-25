@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+wait_writeable() {
+   while [ ! -w "/sys/class/gpio/gpio$1/direction" ]; do
+      sleep .01
+   done
+}
+
 KERNEL_VER=$(uname -r | cut -f1 -d.)
 
 #Files are in same directory as script
@@ -26,12 +32,16 @@ if [ "$KERNEL_VER" -lt "4" ]; then
       # Enable A/D
       echo cape-bone-iio > $CAPE
    fi
-   # Depending on default pullup since we haven't loaded the overlay
-   echo 61 > /sys/class/gpio/export
-   echo in > /sys/class/gpio/gpio61/direction
 fi
 
-REV=$(cat /sys/class/gpio/gpio61/value)
+pin='61'
+if [ ! -d /sys/class/gpio/gpio$pin ]; then
+   # Depending on default pullup since we haven't loaded the overlay
+   echo $pin > /sys/class/gpio/export
+   wait_writeable "$pin"
+   echo in > /sys/class/gpio/gpio$pin/direction
+fi
+REV=$(cat /sys/class/gpio/gpio$pin/value)
 
 if [ "$REV" == "0" ]; then
    echo Rev C Board
@@ -59,13 +69,18 @@ else
       /usr/bin/dtc -O dtb -o $dir/$DTBOAB.dtbo -b 0 -@ $dir/$DTBOAB.dts
       cp $dir/$DTBOAB.dtbo /lib/firmware
       echo ${DTBOAB/-/:} > $CAPE
-      # Detect A/B PIN with P8_16
-      echo 46 > /sys/class/gpio/export
-      echo in > /sys/class/gpio/gpio46/direction
    else
       config-pin -c $dir/$BBIOAB 
    fi
-   REV=$(cat /sys/class/gpio/gpio46/value)
+   # Detect A/B PIN with P8_16
+   pin='46'
+   if [ ! -d /sys/class/gpio/gpio$pin ]; then
+      # Depending on default pullup since we haven't loaded the overlay
+      echo $pin > /sys/class/gpio/export
+      wait_writeable "$pin"
+      echo in > /sys/class/gpio/gpio$pin/direction
+   fi
+   REV=$(cat /sys/class/gpio/gpio$pin/value)
    if [ "$REV" == "0" ]; then
       echo Rev B Board
    else
@@ -83,21 +98,15 @@ else
    pins_in="30"
 fi
 
-# With univeresal cape header, all pins are exported and set to in by default.
+# With universal cape header, all pins are exported and set to in by default.
 # However, we now support reboot-less operation, so set them all anyway.
-if [ "$KERNEL_VER" -lt "4" ]; then
-   for pin in $pins_in $pins_low $pins_high; do
+for pin in $pins_in $pins_low $pins_high; do
+   if [ ! -d /sys/class/gpio/gpio$pin ]; then
       echo $pin > /sys/class/gpio/export
-      echo in > /sys/class/gpio/gpio$pin/direction
-   done
-else
-   for pin in $pins_in; do
-     if [ ! -d /sys/class/gpio/gpio$pin ]; then
-        echo $pin > /sys/class/gpio/export
-     fi
-     echo in > /sys/class/gpio/gpio$pin/direction
-   done
-fi
+   fi
+   wait_writeable "$pin"
+   echo in > /sys/class/gpio/gpio$pin/direction
+done
 
 for pin in $pins_low; do
    echo out > /sys/class/gpio/gpio$pin/direction
@@ -108,3 +117,4 @@ for pin in $pins_high; do
    echo out > /sys/class/gpio/gpio$pin/direction
    echo 1 > /sys/class/gpio/gpio$pin/value
 done
+

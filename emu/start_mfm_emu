@@ -52,6 +52,15 @@ for fnum in $files ; do
       cp "$base" "$base.0"
    fi
 done
+KERNEL_VER=$(uname -r | cut -f1 -d.)
+if [ "$KERNEL_VER" -ge "4" ]; then
+   # The sytem start of these is 7 seconds after this script starts so
+   # delays emulator starting. Didn't figure out where they are loaded
+   # to try to start sooner so forcing them to load here
+   modprobe uio
+   modprobe uio_pruss
+   modprobe uio_pdrv_genirq 
+fi
 for (( i=i ; i < 100; i++ )); do
    if [ -e /dev/uio1 ]; then
       break
