@@ -10,7 +10,7 @@ all clean:
 install: | $(SYSTEMD_UNIT)
 	$(SUDO) cp -r etc/* /etc
 	pwd
-	$(SUDO) cp MFM-EMU-1.dts /opt/source/$(shell ./getdtb.sh 5.15.137-bone41)/src/arm/overlays
+	$(SUDO) cp MFM-EMU-1.dts /opt/source/$(shell ./getdtb.sh $(UNAME_R))/src/arm/overlays
 	$(SUDO) chmod +x /etc/kernel/postinst.d/zzz-mfm-emu
 	$(SUDO) /etc/kernel/postinst.d/zzz-mfm-emu $(UNAME_R)
 
