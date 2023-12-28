@@ -44,7 +44,7 @@ fi
 REV=$(cat /sys/class/gpio/gpio$pin/value)
 
 if [ "$REV" == "0" ]; then
-   echo Rev C Board
+   echo Rev C or D Board
    if [ "$KERNEL_VER" -lt "4" ]; then
       /usr/bin/dtc -O dtb -o $dir/$DTBOC.dtbo -b 0 -@ $dir/$DTBOC.dts
       cp $dir/$DTBOC.dtbo /lib/firmware
