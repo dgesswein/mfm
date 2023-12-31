@@ -27,9 +27,8 @@ if [ ! -d /sys/class/gpio/gpio$pin ]; then
    # Depending on default pullup since we haven't loaded the overlay
    echo $pin > /sys/class/gpio/export
    wait_writeable "$pin"
-   echo in > /sys/class/gpio/gpio$pin/direction
 fi
-
+echo in > /sys/class/gpio/gpio$pin/direction
 REV=$(cat /sys/class/gpio/gpio$pin/value)
 
 if [ "$REV" == "0" ]; then
@@ -66,9 +65,9 @@ else
    if [ ! -d /sys/class/gpio/gpio$pin ]; then
       echo $pin > /sys/class/gpio/export
       wait_writeable "$pin"
-      echo in > /sys/class/gpio/gpio$pin/direction
-      REV=$(cat /sys/class/gpio/gpio$pin/value)
    fi
+   echo in > /sys/class/gpio/gpio$pin/direction
+   REV=$(cat /sys/class/gpio/gpio$pin/value)
    if [ "$REV" == "0" ]; then
       echo Rev B Board
    else
