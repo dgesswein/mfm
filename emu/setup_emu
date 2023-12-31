@@ -40,7 +40,9 @@ if [ "$REV" == "0" ]; then
       echo emu:00C0 > $CAPE
    else
       # Batch configure all pins for mfm_emu
-      config-pin -c $dir/mfm_emu_revc.bbio
+      # Shouldn't need sudo but sometimes get 
+      # ERROR: open() for /sys/devices/platform/ocp/ocp:P9_13_pinmux/state failed, Permission denied
+      sudo config-pin -c $dir/mfm_emu_revc.bbio
    fi
    # 31 drive1 select/recovery, 51 write fault(C)
    # 60 emulation xcvr en
@@ -55,7 +57,9 @@ else
       cp $dir/emu-00A0.dtbo /lib/firmware
       echo emu:00A0 > $CAPE
    else
-      config-pin -c $dir/mfm_emu_revab.bbio
+      # Shouldn't need sudo but sometimes get 
+      # ERROR: open() for /sys/devices/platform/ocp/ocp:P9_13_pinmux/state failed, Permission denied
+      sudo config-pin -c $dir/mfm_emu_revab.bbio
    fi
    # Detect A/B PIN with P8_16
    pin='46'

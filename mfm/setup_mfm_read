@@ -51,7 +51,9 @@ if [ "$REV" == "0" ]; then
       echo ${DTBOC/-/:} > $CAPE
    else
       # Batch configure all pins for mfm_rw
-      config-pin -c $dir/$BBIOC
+      # Shouldn't need sudo but sometimes get 
+      # ERROR: open() for /sys/devices/platform/ocp/ocp:P9_13_pinmux/state failed, Permission denied
+      sudo config-pin -c $dir/$BBIOC
    fi
    # Set inactive 31 recovery 46,15,26,27 Drive select, 110 write
    # 50 read transceiver enable, low enabled
@@ -70,7 +72,9 @@ else
       cp $dir/$DTBOAB.dtbo /lib/firmware
       echo ${DTBOAB/-/:} > $CAPE
    else
-      config-pin -c $dir/$BBIOAB 
+      # Shouldn't need sudo but sometimes get 
+      # ERROR: open() for /sys/devices/platform/ocp/ocp:P9_13_pinmux/state failed, Permission denied
+      sudo config-pin -c $dir/$BBIOAB 
    fi
    # Detect A/B PIN with P8_16
    pin='46'
