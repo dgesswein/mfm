@@ -1,1 +1,124 @@
-setup_mfm_read
+#!/usr/bin/env bash
+
+wait_writeable() {
+   while [ ! -w "/sys/class/gpio/gpio$1/direction" ]; do
+      sleep .01
+   done
+}
+
+KERNEL_VER=$(uname -r | cut -f1 -d.)
+
+#Files are in same directory as script
+dir="$(dirname "$BASH_SOURCE")"
+if [ "$(basename "$BASH_SOURCE")" == "setup_mfm_write" ]; then
+   DTBOAB="mfm_write-00A0"
+   BBIOAB="mfm_w_revab.bbio"
+   DTBOC="mfm_write-00C0"
+   BBIOC="mfm_w_revc.bbio"
+else
+   DTBOAB="mfm_read-00A0"
+   BBIOAB="mfm_r_revab.bbio"
+   DTBOC="mfm_read-00C0"
+   BBIOC="mfm_r_revc.bbio"
+fi
+   
+if [ "$KERNEL_VER" -lt "4" ]; then
+   # Use legacy cape manager loading functionality
+   if [ -e /sys/devices/platform/bone_capemgr/slots ]
+   then
+      CAPE=/sys/devices/platform/bone_capemgr/slots
+   else
+      CAPE=/sys/devices/bone_capemgr.*/slots
+      # Enable A/D
+      echo cape-bone-iio > $CAPE
+   fi
+fi
+
+pin='61'
+if [ ! -d /sys/class/gpio/gpio$pin ]; then
+   # Depending on default pullup since we haven't loaded the overlay
+   echo $pin > /sys/class/gpio/export
+   wait_writeable "$pin"
+fi
+echo in > /sys/class/gpio/gpio$pin/direction
+REV=$(cat /sys/class/gpio/gpio$pin/value)
+
+if [ "$REV" == "0" ]; then
+   echo Rev C or D Board
+   if [ "$KERNEL_VER" -lt "4" ]; then
+      /usr/bin/dtc -O dtb -o $dir/$DTBOC.dtbo -b 0 -@ $dir/$DTBOC.dts
+      cp $dir/$DTBOC.dtbo /lib/firmware
+      echo ${DTBOC/-/:} > $CAPE
+   else
+      # Batch configure all pins for mfm_rw
+      # Shouldn't need sudo but sometimes get 
+      # ERROR: open() for /sys/devices/platform/ocp/ocp:P9_13_pinmux/state failed, Permission denied
+      sudo config-pin -c $dir/$BBIOC
+   fi
+   # Set inactive 31 recovery 46,15,26,27 Drive select, 110 write
+   # 50 read transceiver enable, low enabled
+   # 8-11 rev B head, all low is head 0 after inversion
+   pins_low="8 9 10 11 31 46 15 26 27 110 50"
+   # 113 TRACK 0
+   pins_in="113"
+   # 44 emu second driver emulation, disable
+   # 60 MFM emulation tranceiver enable, high is disabled
+   # 14,30(C) drive selected LEDS
+   # 60 emulation xcvr en 48 testing(C)
+   pins_high="14 30 44 60"
+else
+   if [ "$KERNEL_VER" -lt "4" ]; then
+      /usr/bin/dtc -O dtb -o $dir/$DTBOAB.dtbo -b 0 -@ $dir/$DTBOAB.dts
+      cp $dir/$DTBOAB.dtbo /lib/firmware
+      echo ${DTBOAB/-/:} > $CAPE
+   else
+      # Shouldn't need sudo but sometimes get 
+      # ERROR: open() for /sys/devices/platform/ocp/ocp:P9_13_pinmux/state failed, Permission denied
+      sudo config-pin -c $dir/$BBIOAB 
+   fi
+   # Detect A/B PIN with P8_16
+   pin='46'
+   if [ ! -d /sys/class/gpio/gpio$pin ]; then
+      # Depending on default pullup since we haven't loaded the overlay
+      echo $pin > /sys/class/gpio/export
+      wait_writeable "$pin"
+   fi
+   echo in > /sys/class/gpio/gpio$pin/direction
+   REV=$(cat /sys/class/gpio/gpio$pin/value)
+   if [ "$REV" == "0" ]; then
+      echo Rev B Board
+   else
+      echo Rev A Board
+   fi
+   # Set inactive 22,23,26,27 Drive select, 31 recovery, 110 write
+   # 50 read transceiver enable, low enabled
+   # 2-5 rev A head, 8-11 rev B head, all low is head 0 after inversion
+   pins_low="2 3 4 5 8 9 10 11 22 23 26 27 31 110 50"
+   # 14,15 drive selected LEDS
+   # 44 emu second driver emulation, disable
+   # 60 MFM emulation tranceiver enable, high is disabled
+   pins_high="14 15 44 60"
+   # 30 TRACK 0
+   pins_in="30"
+fi
+
+# With universal cape header, all pins are exported and set to in by default.
+# However, we now support reboot-less operation, so set them all anyway.
+for pin in $pins_in $pins_low $pins_high; do
+   if [ ! -d /sys/class/gpio/gpio$pin ]; then
+      echo $pin > /sys/class/gpio/export
+   fi
+   wait_writeable "$pin"
+   echo in > /sys/class/gpio/gpio$pin/direction
+done
+
+for pin in $pins_low; do
+   echo out > /sys/class/gpio/gpio$pin/direction
+   echo 0 > /sys/class/gpio/gpio$pin/value
+done
+
+for pin in $pins_high; do
+   echo out > /sys/class/gpio/gpio$pin/direction
+   echo 1 > /sys/class/gpio/gpio$pin/value
+done
+
