@@ -1,5 +1,15 @@
 #define MEASURE_QUEUE_FULL_WRITEx
 #define MEASURE_QUEUE_FULL_READx
+
+// Debug stuff
+#define DPTR r13
+#define DTEMP r14
+#define DMASK r15
+#define DMASKVAL 0x5ff
+#define DSTART 0x400
+#define DPLAST 0xa0
+
+
 // TODO: Allow operation of one drive in parallel with seek on other.
 //
 // This code is for emulating a MFM disk. The ARM puts into the
@@ -371,6 +381,10 @@ START:
    SBCO     RZERO, CONST_PRURAM, PRU0_ECAP_OVERRUN, 4
    MOV      CUR_DRIVE_SEL, 0
 
+   MOV      DPTR, DSTART
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+   MOV      DMASK, DMASKVAL
+
       // Set multiply only mode. Only needs to be done once
    MOV      r25, 0                 
    XOUT     0, r25, 1
@@ -502,6 +516,13 @@ headok2:
 #endif
 
 wait_cmd:
+   MOV      DTEMP, 5
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
+wait_cmdb:
       // Let select_head & step know we are waiting for a command
    MOV      r0, 1
    SBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
@@ -519,13 +540,20 @@ wait_cmd:
    CALL     set_index
       // Get command and branch to correct routine. 
    LBCO     r1, CONST_PRURAM, PRU0_CMD, 4 
-   QBNE     wait_cmd, r1, CMD_START
+   QBNE     wait_cmdb, r1, CMD_START
    CALL     do_cmd_start
       // If the cylinder hasn't changed start sending MFM data otherwise
       // tell the arm to fetch us the correct data
    LBBO     r0, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_LAST_ARM_CYL, 4
    QBEQ     next_mfm, r0, r3
+
+   MOV      DTEMP, 2
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
    CALL     send_arm_cyl
    JMP      wait_cmd
 
@@ -540,6 +568,12 @@ do_cmd_start:
    RET
 
 next_mfm:
+   MOV      DTEMP, 11
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
       // Turn on signals (active low) driven by inverter. These are turned 
       // off if drive not selected which then goes here when selected again
    CALL     set_track0
@@ -646,6 +680,12 @@ filled:
       // of MFM bit times the word generates. Bits 27-24 should be ignored.
       // Needs to be less than 40. currently around 27 cycles
 read:
+   MOV      DTEMP, 12
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+readb:
    LBCO     PWM_WORD, CONST_PRUSHAREDRAM, PRU0_BUF_OFFSET, 4 // 3 cycles
       // Increment and wrap if needed 
    ADD      PRU0_BUF_OFFSET, PRU0_BUF_OFFSET, 4 
@@ -702,7 +742,7 @@ loadit:
       // past end of data. If this increments past last bit the next
       // word we see in read should be a zero which will reset
    ADD      TRACK_BIT, TRACK_BIT, r3          // Update bit count
-   JMP      read
+   JMP      readb
 end_track:
       // Starting a new track at the beginning. Reset time and counters to
       // beginning.
@@ -734,11 +774,17 @@ end_track:
    SBBO     r24, r25, 0, 4
 #endif
    LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
-   QBEQ     read, r1, 0
+   QBEQ     readb, r1, 0
    JMP      EXIT
 
 #ifdef REVC
 select:
+   MOV      DTEMP, 6
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
       // Stop PRU 1. We will check stopped later
    MOV      PRU0_STATE, STATE_READ_DONE
    XOUT     10, PRU0_BUF_STATE, 4
@@ -852,6 +898,12 @@ waitsel:
    JMP      waitsel
 
 handle_head:
+   MOV      DTEMP, 7
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
       // Stop PRU 1. We will check stopped later
    MOV      PRU0_STATE, STATE_READ_DONE
    XOUT     10, PRU0_BUF_STATE, 4
@@ -1031,6 +1083,12 @@ glitch:
    JMP      restart_lp
 
 handle_start:
+   MOV      DTEMP, 8
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
    CALL     do_cmd_start
       // For unbuffered seeks if after we started the first seek we get
       // more step pulses and then the drive is deselected this logic will
@@ -1047,6 +1105,13 @@ handle_start:
    MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
 handle_cyl_change: 
+
+   MOV      DTEMP, 3
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
    CALL     send_arm_cyl
    MOV      DRIVE_DATA, 1    // Mark as not selected to reset DRIVE_DATA
    JMP      waitsel
@@ -1056,6 +1121,12 @@ handle_cyl_change:
       // direction signal. After we have final cylinder we tell the ARM to
       // get us the cylinder data. 
 step:
+   MOV      DTEMP, 9
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
    SBCO     RZERO, CONST_ECAP, CAP2, 4        // Turn off data
    CLR      r30, R30_SEEK_COMPLETE_BIT        // Indicate seek in progress
 
@@ -1143,11 +1214,31 @@ seek_wait_done:
    CALL     limit_cyl
       // Update track zero signal in case it changed
    CALL     set_track0
+
+   MOV      DTEMP, 10
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
       // If we were waiting for a command don't send interrupt, go back
       // to waiting for command
    LBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
    QBNE     wait_cmd, r0, 0
       // Update data and send interrupt to ARM
+   MOV      DTEMP, 1
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
+wait_arm:
+   MOV      DTEMP, 4
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
    CALL     send_arm_cyl
    JMP      wait_cmd
 
@@ -1166,7 +1257,7 @@ cyl_ok:
    RET
 
 send_arm_cyl:
-      // Save cylinder we sent to ARN so we can detect if more seeks done
+      // Save cylinder we sent to ARM so we can detect if more seeks done
       // while waiting.
    LBBO     r25, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    SBBO     r25, DRIVE_DATA, PRU0_DRIVE0_LAST_ARM_CYL, 4
@@ -1297,6 +1388,12 @@ storeh1:
       // Capture write data from the controller.
       // We switch the ECAP from PWM mode to capture mode
 write:
+   MOV      DTEMP, 13
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
    XOUT     10, TRACK_BIT, 4        // Send current bit count.
 SBCO TRACK_BIT, CONST_PRURAM, 0xe0, 4
 LBBO     r0, CYCLE_CNTR, 0, 4     // Get time
@@ -1439,6 +1536,12 @@ checkstuff:
    
       // Done write, switch back to read
 write_done:
+   MOV      DTEMP, 14
+   SBCO     DTEMP, CONST_PRURAM, DPTR, 4
+   ADD      DPTR, DPTR, 4
+   AND      DPTR, DPTR, DMASK
+   SBCO     DPTR, CONST_PRURAM, DPLAST, 4
+
 // If it writes only zeros at the end we don't handle it. Halt if this occurs
 LBCO     r0, CONST_ECAP, TSCTR, 4     // Get time since last edge on MFM data
 MOV      r1, 2000/5                   // Check if more than 10 microseconds
@@ -1490,7 +1593,7 @@ EXIT:
    SBCO     r0, CONST_PRURAM, PRU0_DRIVE1_CUR_CYL, 4
       // Tell ARM to read CYL
    MOV      r31.b0, PRU0_ARM_INTERRUPT+16
-wait_arm:
+
    // Wait for ARM to service the previous interrupt before we
    // send one for exiting. ARM sets DRIVE0_CUR_CYL to zero.
    LBCO     r0, CONST_PRURAM, PRU0_DRIVE0_CUR_CYL, 4

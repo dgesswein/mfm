@@ -447,6 +447,7 @@ static void *emu_proc(void *arg)
       // Wait for request from PRU
       prussdrv_pru_wait_event (PRU_EVTOUT_0);
       prussdrv_pru_clear_event (PRU_EVTOUT_0, PRU0_ARM_INTERRUPT);
+      msg(MSG_INFO,"## %x\n", pru_read_word(MEM_PRU0_DATA,0xa0));
       // If no data to write we don't delay
       delay_time = 0;
       num_used_buf = 0;
@@ -461,6 +462,7 @@ static void *emu_proc(void *arg)
          if (new_cyl[i] == -1) {
             done = 1;
          }
+         printf("cyl %d new %d drive %d\n",cyl[i], new_cyl[i], i);
          if (cyl[i] != new_cyl[i]) {
             int sel, head, write_err;
             get_sel_head(&sel, &head, &write_err);
@@ -899,6 +901,7 @@ int main(int argc, char *argv[])
 #endif
 #if 1
       int sel, head, write_err;
+      static int last_a = 0x400;
       
       if (get_sel_head(&sel, &head, &write_err)) {
          msg(MSG_INFO, "select %d head %d\n", sel, head);
@@ -929,8 +932,15 @@ int main(int argc, char *argv[])
          fclose(log_file);
          _exit(1);
       }
+      a = pru_read_word(MEM_PRU0_DATA,0xa0);
+      if (a != last_a) {
+         while (last_a != a) {
+            msg(MSG_INFO, "# %03x %d\n",last_a, pru_read_word(MEM_PRU0_DATA, last_a));
+            last_a = (last_a + 4) & 0x5ff;
+         }
+      }
       //printf("PC %x %x\n", pru_get_pc(0), pru_get_pc(1));
-      usleep(1000000);
+      usleep(1000);
    }
 
    // Not reached, exit called to terminate
