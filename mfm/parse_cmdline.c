@@ -6,9 +6,10 @@
 // Call parse_validate_options to perform some validation on options that
 //   both mfm_util and mfm_read need
 //
-// Copyright 2021 David Gesswein.
+// Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 02/20/24 DJG Set controller to CONTROLLER_NONE if not valid in file
 // 10/09/23 DJG Only support ext2emu interleave parameters. Drop old mfm_read,
 //    mfm_util format.
 // 03/11/23 DJG Fix for EC1841 decoding
@@ -281,6 +282,7 @@ static int parse_controller(char *arg, int ignore_invalid_options,
    if (controller == -1) {
       if (ignore_invalid_options) {
          msg(MSG_INFO, "Unknown controller %s.\n",arg);
+         controller = CONTROLLER_NONE;
       } else {
          msg(MSG_FATAL, "Unknown controller %s. Choices are\n",arg);
          for (i = 0; mfm_controller_info[i].name != NULL; i++) {

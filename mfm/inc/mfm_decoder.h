@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18Sector_512B (ACB-4000)
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
@@ -247,7 +248,8 @@ typedef struct {
       CONTROLLER_DJ_II_210,
       CONTROLLER_DJ_II_301,
       CONTROLLER_DJ_II,
-      CONTROLLER_ADAPTEC, 
+      CONTROLLER_ADAPTEC,
+      CONTROLLER_ADAPTEC_4000_18Sector_512B,  
       CONTROLLER_MVME320,
       CONTROLLER_SYMBOLICS_3620, 
       CONTROLLER_SM1040,
@@ -2570,6 +2572,64 @@ DEF_EXTERN TRK_L trk_EC1841[]
 #endif
 ;
 
+
+// 512B 18 sectors per track from Adaptec controller manual
+// http://www.bitsavers.org/pdf/adaptec/ACB-4000/400003-00A_ACB-4000A_Users_Manual_Oct85.pdf
+
+DEF_EXTERN TRK_L trk_Adaptec_4000_18sector_512b[]
+#ifdef DEF_DATA
+ = 
+{ { 10, TRK_FILL, 0x4e, NULL }, // GAP 1
+  { 18, TRK_SUB, 0x00,
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00,
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 4-6 of
+              // byte 3 and the rest in byte 2. 
+              {0, FIELD_LBA, 0x00, OP_SET, 24, 
+                 (BIT_L []) {
+                    { 16, 8}, // Byte 2 bits 6-4 gets upper 8 bits
+                    { 24, 8}, // byte 3 gets middle 8 bits
+                    { 32, 8}, // byte 4 gets low 8 bits
+                    { -1, -1},
+                 }
+              },
+              // This is flag byte. Should have values for disk format
+              // in header for cylinder 0.
+              {1, FIELD_FILL, 0x00, OP_SET, 5, NULL},
+
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+// 3+12 Gap2
+        {3, TRK_FILL, 0x00, NULL},
+        {12, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00,
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+// 2+9 Gap3
+        {2, TRK_FILL, 0x00, NULL},
+        {9, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {220, TRK_FILL, 0x4e, NULL}, // GAP4, 2 longer due to emulator timing
+   {-1, 0, 0, NULL},
+}
+#endif
+;
 // CHECK_NONE is used for header formats where some check that is specific
 // to the format is used so can't be generalized. If so the check will need
 // to be done in the header decode and ext2emu as special cases.
@@ -3208,7 +3268,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
          0, 0, 0
       },
-//TODO, this won't analyze properly
       {"Adaptec",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
@@ -3216,6 +3275,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         0, 0, 0
+      },
+      {"Adaptec_4000_18sector_512b",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_Adaptec_4000_18sector_512b, 512, 18, 0, 5209,
+         0, 0,
+         {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
          0, 0, 0
       },
       {"MVME320",        256, 10000000,      0,

@@ -14,8 +14,9 @@
 // to let it fetch the next cylinder.
 //
 
-// Copyright 2023 David Gesswein.
+// Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
+// 02/20/24 DJG Cleanly shutdown with SIGTERM for systemctl stop
 // 09/17/23 Changed to calling pru_exec_program to set correct path for file 
 //    to load and board_set_restore_max_cpu_speed to have one copy
 // 09/12/23 JST Changes to support 5.10 kernel and --sync option
@@ -824,8 +825,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Cleanup when we exit
+   // Cleanup when we exit. INT is control-c systemctl stop used TERM
    signal(SIGINT,(__sighandler_t) shutdown_signal);
+   signal(SIGTERM,(__sighandler_t) shutdown_signal);
    atexit(shutdown);
 
    sem_init(&write_sem, 0, 0);
