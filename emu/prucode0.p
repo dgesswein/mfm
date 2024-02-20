@@ -428,7 +428,7 @@ wait_initial_cmd:
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4
    LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
    QBEQ     noexit, r1, 0
-   JMP      EXIT        // Out of ranage of relative jump
+   JMP      EXIT        // Out of range of relative jump
 noexit:
    LBCO     r1, CONST_PRURAM, PRU0_CMD, 4 
    QBEQ     mfm_setup, r1, CMD_START
@@ -804,6 +804,11 @@ finish2:
    SET      r30, R30_DRIVE0_SEL  
 selected:
 restart_lp:
+      // Prevent PRU0-PRU1 deadlock from unusual external signals
+   LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4
+   QBEQ     not_exiting, r1, 0
+   JMP      EXIT                      // Out of range of relative jump
+not_exiting:
    XIN      10, PRU1_BUF_STATE, 4
    QBNE     selected, PRU1_STATE, STATE_READ_DONE
    XOUT     10, DRIVE_DATA, 4       // Send currently selected drive offset.
@@ -1108,6 +1113,11 @@ waitstephigh2:
 #else
    QBBS     select_head, r31, 30       // Select or head line change interrupt? 
 #endif
+      // Prevent infinite loop when shutdown has been requested
+   LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4
+   QBEQ     waitstephigh3, r1, 0
+   JMP      EXIT                      // Out of range of relative jump
+waitstephigh3:
    QBBC     waitstephigh2, r31, R31_STEP_BIT  
       // Check we didn't step past end of disk. We shouldn't have stepped
       // at all here but check just in case the controller does weird things
