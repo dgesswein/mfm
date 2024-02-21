@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON
@@ -461,6 +462,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xfb
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_ADAPTEC_4000_18SECTOR_512B is same as above except fixed to
+//   the specific paramters for ext2emu
 //      
 //   CONTROLLER_NEWBURYDATA
 //   4 byte header + 2 byte CRC
@@ -1838,7 +1842,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);
          sector_status.sector = bytes[4];
          sector_size = drive_params->sector_size;
-      } else if (drive_params->controller == CONTROLLER_ADAPTEC) {
+      } else if (drive_params->controller == CONTROLLER_ADAPTEC ||
+            drive_params->controller == CONTROLLER_ADAPTEC_4000_18SECTOR_512B) {
          uint32_t lba_addr;
          lba_addr = (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
          sector_status.lba_addr = lba_addr;

@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON and printed more accurate bad
 //    sector information when --ignore_seek_errors used.
@@ -640,6 +641,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_MIGHTYFRAME ||
          drive_params->controller == CONTROLLER_DG_MV2000 ||
          drive_params->controller == CONTROLLER_ADAPTEC ||
+         drive_params->controller == CONTROLLER_ADAPTEC_4000_18SECTOR_512B ||
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
@@ -1560,6 +1562,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_MIGHTYFRAME ||
             drive_params->controller == CONTROLLER_DG_MV2000 ||
             drive_params->controller == CONTROLLER_ADAPTEC ||
+            drive_params->controller == CONTROLLER_ADAPTEC_4000_18SECTOR_512B ||
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
