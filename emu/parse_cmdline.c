@@ -4,6 +4,7 @@
 // Call parse_print_cmdline to print drive parameter information in command
 //   line format
 //
+// 02/23/24 DJG Changed default buffers to match autostart script values
 // 09/12/23 JST Changes to support 5.10 kernel and --sync option
 // 05/17/21 DJG removed --fill and added optional argument after --initialize
 //    with controller type
@@ -91,7 +92,7 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params)
    // Set defaults
    memset(drive_params, 0, sizeof(*drive_params));
    // Default number of buffers and maximum seek delay time
-   drive_params->buffer_count = 75;
+   drive_params->buffer_count = 200;
    drive_params->buffer_max_time = .6;
    drive_params->sample_rate_hz = 10000000;
    drive_params->sync = 0;

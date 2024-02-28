@@ -16,6 +16,9 @@
 
 // Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
+// 02/23/24 DJG Increase priority of main thread to process seeks as timely as
+//    possible. When controllers do unbuffered seeks they may not check
+//    seek complete.
 // 02/20/24 DJG Cleanly shutdown with SIGTERM for systemctl stop
 // 09/17/23 Changed to calling pru_exec_program to set correct path for file 
 //    to load and board_set_restore_max_cpu_speed to have one copy
@@ -847,6 +850,13 @@ int main(int argc, char *argv[])
    params.sched_priority = sched_get_priority_max(SCHED_FIFO);
    if (pthread_setschedparam(read_thread, SCHED_FIFO, &params) != 0) {
       msg(MSG_ERR, "Unable to set thread priority\n");
+   }
+
+   // When doing unbuffered seeks controllers don't wait for seek complete.
+   // Handle as quickly as possible though allow writing to flash to preempt.
+   params.sched_priority = params.sched_priority - 10;
+   if (sched_setscheduler(getpid(), SCHED_FIFO, &params) != 0) {
+      msg(MSG_ERR, "Unable to set main process priority\n");
    }
 #if 1
    // TODO: Should this drop speed when idle?

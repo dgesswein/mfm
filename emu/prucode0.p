@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 02/24/24 DJG Fix seek time wrong if another seek received while waiting
+//   for ARM. Unbuffered seeks controller doesn't need to wait for seek complete
 // 04/09/21 DJG Pass select state to C code for printing on REV C boards.
 // 01/28/21 DJG Ignore write with illegal head and output data in head entry 15
 //   location when reading. Head 15  is be pattern we want for when illegal
@@ -232,6 +234,10 @@
 #define START_INDEX_TIME r11
    // Cycle counter time to turn off index pulse
 #define END_INDEX_TIME r12
+
+   // IEP counter reused for timing step pulses. This holds time lost
+   // when counter reset
+#define EXTRA_SEEK_TIME r16
 
    // Address of cycle counter
 #define CYCLE_CNTR   r17
@@ -426,6 +432,7 @@ wait_initial_cmd:
       // Keep our time cleared. Cycle counter stops if it overflows
    SBBO     RZERO, CYCLE_CNTR, 0, 4
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4
+   MOV      EXTRA_SEEK_TIME, 0
    LBCO     r1, CONST_PRURAM, PRU0_EXIT, 4 
    QBEQ     noexit, r1, 0
    JMP      EXIT        // Out of range of relative jump
@@ -534,6 +541,7 @@ do_cmd_start:
       // This measures time from when we signaled the ARM we needed a different
       // cylinder to when we got it. For performance monitoring.
    LBCO     r0, CONST_IEP, IEP_COUNT, 4
+   ADD      r0, r0, EXTRA_SEEK_TIME
    SBCO     r0, CONST_PRURAM, PRU0_SEEK_TIME, 4
    MOV      r0, CMD_STATUS_OK
    SBCO     r0, CONST_PRURAM, PRU0_CMD, 4
@@ -1082,6 +1090,9 @@ step_done:
 step_done_lp:
    XIN      10, PRU1_BUF_STATE, 4
    QBNE     step_done_lp, PRU1_STATE, STATE_READ_DONE   
+      // Keep track of time lost by resetting IEP counter
+   LBCO     r0, CONST_IEP, IEP_COUNT, 4
+   ADD      EXTRA_SEEK_TIME, EXTRA_SEEK_TIME, r0
       // Reset timer for step pulse timeout
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4
       // Wait this long for step to go inactive
@@ -1129,6 +1140,9 @@ waitstephigh3:
 stephigh:
       // Good seek, update cylinder
    SBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
+      // Keep track of time lost by resetting IEP counter
+   LBCO     r0, CONST_IEP, IEP_COUNT, 4
+   ADD      EXTRA_SEEK_TIME, EXTRA_SEEK_TIME, r0
       // Reset timer for step pulse timeout
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4
       // Wait this long for more pulse for buffered seek
@@ -1176,7 +1190,7 @@ cyl_ok:
    RET
 
 send_arm_cyl:
-      // Save cylinder we sent to ARN so we can detect if more seeks done
+      // Save cylinder we sent to ARM so we can detect if more seeks done
       // while waiting.
    LBBO     r25, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    SBBO     r25, DRIVE_DATA, PRU0_DRIVE0_LAST_ARM_CYL, 4
@@ -1185,6 +1199,7 @@ send_arm_cyl:
 
       // Reset timer for seek time measurement
    SBCO     RZERO, CONST_IEP, IEP_COUNT, 4
+   MOV      EXTRA_SEEK_TIME, 0
    RET
    
       // Set/clear index signal based on rotation time
