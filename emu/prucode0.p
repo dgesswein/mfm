@@ -147,6 +147,8 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/12/24 DJG Fix enabling interrupt on head lines to prevent glitch print
+//   when head line changes that we aren't using.
 // 02/24/24 DJG Fix seek time wrong if another seek received while waiting
 //   for ARM. Unbuffered seeks controller doesn't need to wait for seek complete
 // 04/09/21 DJG Pass select state to C code for printing on REV C boards.
@@ -456,6 +458,7 @@ mfm_setup:
    SET       r0, r1 
 no_drive1:
    MOV       r2, GPIO_DRIVE_HEAD_LINES
+   NOT       r4, r2     // Make mask for head lines
    LBCO      r1, CONST_PRURAM, PRU0_DRIVE0_NUM_HEAD, 4
    LBCO      r3, CONST_PRURAM, PRU0_DRIVE1_NUM_HEAD, 4
    // Use maximum for the two drives. We don't support one drive using 
@@ -476,12 +479,13 @@ headok2:
    OR        r0, r0, r2
    MOV       r1, GPIO0 | GPIO_RISINGDETECT
    LBBO      r2, r1, 0, 4
-      // Combine with what's already in the register
-   OR        r2, r0, r2
+   AND       r2, r4, r2      // Clear all head lines
+   OR        r2, r0, r2      // Add head lines we want to monitor
    SBBO      r2, r1, 0, 4
    MOV       r1, GPIO0 | GPIO_FALLINGDETECT
    LBBO      r2, r1, 0, 4
-   OR        r2, r0, r2
+   AND       r2, r4, r2      // Clear all head lines
+   OR        r2, r0, r2      // Add head lines we want to monitor
    SBBO      r2, r1, 0, 4
       // AND CLEAR INTERRUPT 0
    MOV       r1, GPIO0 | GPIO_IRQSTATUS_0
@@ -1037,6 +1041,10 @@ waitsel:
 
 
 glitch:
+   MOV      r24, (1 << GPIO1_TEST)
+   MOV      r25, GPIO1 | GPIO_SETDATAOUT
+   SBBO     r24, r25, 0, 4
+
    SBCO     r24, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
    LBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
    ADD      r1, r1, 1
