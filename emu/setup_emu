@@ -108,3 +108,11 @@ for pin in $pins_high; do
    echo out > /sys/class/gpio/gpio$pin/direction
    echo 1 > /sys/class/gpio/gpio$pin/value
 done
+
+# hide dmesg warnings about unhandled IRQs
+# (IRQs are being handled by the PRUs directly, not Linux)
+if [ "$KERNEL_VER" -ge "4" ]; then
+   gpiomon gpiochip0 8 9 10 11 12 13 > /dev/null 2>&1 &
+   sleep 0.5
+   kill $!
+fi
