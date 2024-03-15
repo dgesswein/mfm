@@ -16,6 +16,7 @@
 
 // Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
+// 03/13/24 DJG Fix detection of mfm_emu script not run
 // 02/23/24 DJG Increase priority of main thread to process seeks as timely as
 //    possible. When controllers do unbuffered seeks they may not check
 //    seek complete.
@@ -566,38 +567,48 @@ static void *emu_proc_write(void *arg)
 // Verify first drive select pin is set to input
 void check_select_input()
 {
-   char *drive_pins[] = {
-         "/sys/class/gpio/gpio22/direction",
-         "/sys/class/gpio/gpio23/direction",
-         "/sys/class/gpio/gpio26/direction",
-         "/sys/class/gpio/gpio27/direction"
-   };
-   static int fd[4];
-   int i;
+   char *ocp_pin = "/sys/devices/platform/ocp/ocp:P8_19_pinmux/state";
+   char *drive_pin = "/sys/class/gpio/gpio22/direction";
+   char *mfm_emu_str = "mfm_emu";
+   static int fd;
    char buf[100];
    int rc;
 
-   i = 0;
-   fd[i] = open(drive_pins[i], O_RDONLY);
-   if (fd[i] < 0) {
-      msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pins[i]);
-      exit(1);
-   }
-   // Make sure correct setup run
-   rc = read(fd[i], buf, sizeof(buf));
-   if (rc != 3) {
-      if (rc < 0) {
-         msg(MSG_FATAL, "Error reading pin %s, did you run the setup script?\n", drive_pins[i]);
+   fd = open(ocp_pin, O_RDONLY);
+   if (fd >= 0) {
+      // Make sure correct setup run
+      rc = read(fd, buf, sizeof(buf));
+      close(fd);
+      if (rc != 8 || memcmp(buf, mfm_emu_str, sizeof(mfm_emu_str)-1) != 0) { // mfm_emu with newline is 8 characters.
+         // Remove newline
+         if (rc > 1) {
+            buf[rc-1] = 0;
+         }
+         msg(MSG_FATAL, "Wrong pin setting pin %s - %s, run setup_emu.\n", ocp_pin, buf);
          exit(1);
       }
-      // Remove newline
-      if (rc > 1) {
-         buf[rc-1] = 0;
+   } else { // For older OS. With new OS pin is input before running setup_emu so need different test
+      fd = open(drive_pin, O_RDONLY);
+      if (fd < 0) {
+         msg(MSG_FATAL, "Unable to open pin %s, did you run the setup script?\n", drive_pin);
+         exit(1);
       }
-      msg(MSG_FATAL, "Wrong pin setting pin %s - %s, must reboot between reading and emulation.\n", drive_pins[i], buf);
-      exit(1);
+      // Make sure correct setup run
+      rc = read(fd, buf, sizeof(buf));
+      close(fd);
+      if (rc != 3) { // IN with newline is 3 characters. Other values different length
+         if (rc < 0) {
+            msg(MSG_FATAL, "Error reading pin %s, did you run the setup script?\n", drive_pin);
+            exit(1);
+         }
+         // Remove newline
+         if (rc > 1) {
+            buf[rc-1] = 0;
+         }
+         msg(MSG_FATAL, "Wrong pin setting pin %s - %s, must reboot between reading and emulation.\n", drive_pin, buf);
+         exit(1);
+      }
    }
-   close(fd[i]);
 } 
 
 int main(int argc, char *argv[])
