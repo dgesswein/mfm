@@ -859,10 +859,10 @@ waitsel:
    QBEQ     handle_start, r1, CMD_START  // And start, update seek time
       // Keep track of drive rotation while waiting
    CALL     check_rotation             
-#ifdef REVC
+
       // Update select state for C code to print.
    SBCO     r31, CONST_PRURAM, PRU0_R31, 4
-#endif
+
       // Are we selected?
    QBBC     select, r31, R31_SEL1_BIT
    QBBC     select, r31, R31_SEL2_BIT
@@ -897,7 +897,7 @@ handle_head:
    QBEQ     glitch, r24, r1
    JMP      selected
 
-#else
+#else	// not REVC
 
       // Handle GPIO interrupt from head or select lines changing
       // This routine needs to be under 1us from head change to
