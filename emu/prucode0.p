@@ -147,6 +147,9 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 03/20/24 DJG Pulled code cleanup change, deleted some testing code.
+//   Fixed glitch reported if head lines change while not selected or
+//   same time as select
 // 03/12/24 DJG Fix enabling interrupt on head lines to prevent glitch print
 //   when head line changes that we aren't using.
 // 02/24/24 DJG Fix seek time wrong if another seek received while waiting
@@ -225,6 +228,10 @@
 #include "prucode.hp"
 
 #include "inc/cmd.h"
+
+.macro NOP
+   MOV r1,r1
+.endm
 
 // These are registers that are used globally. Check registers defined in 
 // cmd.h if looking for free registers.
@@ -864,9 +871,34 @@ waitsel:
    SBCO     r31, CONST_PRURAM, PRU0_R31, 4
 
       // Are we selected?
-   QBBC     select, r31, R31_SEL1_BIT
-   QBBC     select, r31, R31_SEL2_BIT
+   QBBC     sel_get_head, r31, R31_SEL1_BIT
+   QBBC     sel_get_head, r31, R31_SEL2_BIT
    JMP      waitsel
+
+sel_get_head:
+      // Give another 30 ns for head lines to update after select.
+      // No idea if need or sufficient. 
+   NOP  
+   NOP
+   NOP
+   NOP
+   NOP
+   NOP
+      // Clear GPIO 0 interrupt before reading value so if it changes we will
+      // get a new interrupt and not miss a change
+   MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
+      // Clear all the lines we use
+   MOV      r4, GPIO_DRIVE_HEAD_LINES
+   SBBO     r4, r1, 0, 4
+      // Get new head and select
+   CALL     get_select_head
+      // Clear interrupt status flag in interrupt controller
+   MOV      r0, GPIO0_EVT
+   SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
+   LBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
+   SBCO     r24, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4 // Update
+
+   JMP      select
 
 handle_head:
       // Stop PRU 1. We will check stopped later
@@ -1041,10 +1073,6 @@ waitsel:
 
 
 glitch:
-   MOV      r24, (1 << GPIO1_TEST)
-   MOV      r25, GPIO1 | GPIO_SETDATAOUT
-   SBBO     r24, r25, 0, 4
-
    SBCO     r24, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_VALUE, 4
    LBCO     r1, CONST_PRURAM, PRU0_HEAD_SELECT_GLITCH_COUNT, 4
    ADD      r1, r1, 1
@@ -1293,7 +1321,9 @@ settrack0:
 #endif
 
 // Get select and head value
-// Returns PRU0_CUR_SELECT_HEAD in r24
+// Returns PRU0_CUR_SELECT_HEAD in r24. For REVC PRU0_CUR_SELECT_HEAD is
+// only head. Select written to PRU0_R31. PRU0_CUR_HEAD also updated with
+// current head value limited to number of heads.
 get_select_head:
    MOV      r25, GPIO0 | GPIO_DATIN
    LBBO     r24, r25, 0, 4                   // Read bits

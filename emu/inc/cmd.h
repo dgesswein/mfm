@@ -63,6 +63,7 @@
    // for drive. Both are two bytes and BAD_HEAD must be high
 #define PRU0_CUR_HEAD                0x48
 #define PRU0_BAD_HEAD                0x4a
+// For A&B this had select and head lines. For C only had head lines.
 #define PRU0_CUR_SELECT_HEAD         0x4c
    // Time in 200 MHz clocks from ARM interrupt to data returned
 #define PRU0_SEEK_TIME               0x50
