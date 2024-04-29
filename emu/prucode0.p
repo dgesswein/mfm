@@ -876,6 +876,13 @@ waitsel:
    JMP      waitsel
 
 sel_get_head:
+      // Clear GPIO 0 interrupt before reading value so if it changes we will
+      // get a new interrupt and not miss a change
+   MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
+      // Clear all the lines we use
+   MOV      r4, GPIO_DRIVE_HEAD_LINES
+   SBBO     r4, r1, 0, 4
+
       // Give another 30 ns for head lines to update after select.
       // No idea if need or sufficient. 
    NOP  
@@ -884,12 +891,7 @@ sel_get_head:
    NOP
    NOP
    NOP
-      // Clear GPIO 0 interrupt before reading value so if it changes we will
-      // get a new interrupt and not miss a change
-   MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
-      // Clear all the lines we use
-   MOV      r4, GPIO_DRIVE_HEAD_LINES
-   SBBO     r4, r1, 0, 4
+
       // Get new head and select
    CALL     get_select_head
       // Clear interrupt status flag in interrupt controller
