@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06 format
 // 04/29/24 DJG Added TI_2223220 format
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
@@ -605,6 +606,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    if (drive_params->controller == CONTROLLER_WD_1006 ||
          drive_params->controller == CONTROLLER_RQDX2 ||
          drive_params->controller == CONTROLLER_SOUYZ_NEON ||
+         drive_params->controller == CONTROLLER_INFORT_PC02_06 ||
          drive_params->controller == CONTROLLER_NEC_4800 ||
          drive_params->controller == CONTROLLER_ES7978 ||
          drive_params->controller == CONTROLLER_WD_MICROENGINE ||
@@ -1527,6 +1529,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 ||
             drive_params->controller == CONTROLLER_SOUYZ_NEON ||
+            drive_params->controller == CONTROLLER_INFORT_PC02_06 ||
             drive_params->controller == CONTROLLER_NEC_4800 ||
             drive_params->controller == CONTROLLER_ES7978 ||
             drive_params->controller == CONTROLLER_WD_MICROENGINE ||

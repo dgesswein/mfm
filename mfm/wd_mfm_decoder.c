@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
@@ -212,6 +213,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   CONTROLLER_SOUYZ_NEON
 //      Like WD_1006 except Sector number has multiples of 32 added to
 //         mark the partitions on the disk.
+//
+//   CONTROLLER_INFORT_PC02_06
+//      Like WD_1006 except sector has 515 bytes of data. Last 3 bytes
+//      are always zero.
 //
 //   CONTROLLER_WD_MICROENGINE
 //      Same as WD_1006 except uses 16 sectors per track. A 17th sector
@@ -1506,6 +1511,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_WD_1006 ||
             drive_params->controller == CONTROLLER_RQDX2 || 
             drive_params->controller == CONTROLLER_SOUYZ_NEON || 
+            drive_params->controller == CONTROLLER_INFORT_PC02_06 || 
             drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             drive_params->controller == CONTROLLER_TANDY_16B || 

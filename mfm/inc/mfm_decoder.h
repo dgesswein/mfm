@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06 format
 // 04/29/24 DJG Added TI_2223220 format
 // 04/27/24 SM/DJG Added ext2emu support for AT&T 3B2
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18Sector_512B (ACB-4000)
@@ -228,6 +229,7 @@ typedef struct {
       CONTROLLER_WD_MICROENGINE, 
       CONTROLLER_NEC_4800,
       CONTROLLER_SOUYZ_NEON, 
+      CONTROLLER_INFORT_PC02_06,
       CONTROLLER_SM_1810_512B,
       CONTROLLER_DSD_5217_512B, 
       CONTROLLER_OMTI_5510, 
@@ -3118,6 +3120,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 18, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"INFORT-PC02.06",      128, 10000000,      617000,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 2, CHECK_CRC, CHECK_CRC,
+         3, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0x0,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0
       },
       // OMTI_5200 uses initial value 0x409e10aa for data
