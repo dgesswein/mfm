@@ -95,11 +95,8 @@ int main(int argc, char *argv[])
    board_initialize();
 
    // Find out what we should do
-   parse_cmdline(argc, argv, &drive_params, "M", 1, 0, 0, 0);
-   //parse_validate_options(&drive_params, 1);
-   drive_params.write_precomp_cyl = 512;
-   drive_params.early_precomp_ns = 10;
-   drive_params.late_precomp_ns = 10;
+   parse_cmdline(argc, argv, &drive_params, "", 1, 0, 0, 0);
+   parse_validate_options(&drive_params, 0);
 
    if (drive_params.emulation_filename == NULL) {
       msg(MSG_FATAL, "Emulation filenames must be specified\n");

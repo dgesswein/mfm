@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 04/29/24 DJG Added TI_2223220 format
 // 08/31/23 DJG Fixed message wording
 // 03/11/23 DJG Improved EC1841 sector number decoding
 // 12/08/22 DJG Changed error message
@@ -130,6 +131,9 @@ static inline float filter(float v, float *delay)
 //      Bit 4 is set on last cylinder. Unknow if bits 0 and 2 used.
 //      The offset from index of first header is 47,500 ns vs 125,000 for 
 //      512 byte sector 104786 and 104,000 for 256 byte sector XEBEC 1410A.
+//
+//   CONTROLLER_TI_2223220. Same as CONTROLLER_XEBEC_104527_512B except
+//   data compare byte is 0.
 //      
 //   CONTROLLER_EC1841 (Also seems to be Xebec S1410)
 //      Same as XEBEC_104786 except data compare byte is 0x00, not 0xc9
@@ -186,6 +190,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
             drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
+            drive_params->controller == CONTROLLER_TI_2223220 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841) {
          sector_status.cyl = bytes[3]<< 8;
@@ -318,7 +323,8 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
                sector_status.cyl, sector_status.head, sector_status.sector);
       }
       if (drive_params->controller == CONTROLLER_EC1841 ||
-          drive_params->controller == CONTROLLER_SOLOSYSTEMS) {
+          drive_params->controller == CONTROLLER_SOLOSYSTEMS ||
+          drive_params->controller == CONTROLLER_TI_2223220) {
          compare_byte = 0x00;
       } else {
          compare_byte = 0xc9;
@@ -642,7 +648,7 @@ if ((raw_word & 0xffff) == 0x4489) {
          ((bytes_needed - byte_cntr) * 16.0 *
              1e9/mfm_controller_info[drive_params->controller].clk_rate_hz
              + first_addr_mark_ns) / 2 + drive_params->start_time_ns;
-      msg(MSG_ERR, "Ran out of data on sector index %d, try adding --begin_time %.0f to mfm_read command line\n",
+      msg(MSG_ERR, "Ran out of data byte %d on sector index %d, try adding --begin_time %.0f to mfm_read command line\n", byte_cntr,
          sector_index, round(begin_time / 1000.0) * 1000.0);
    }
 

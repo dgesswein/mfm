@@ -28,7 +28,7 @@ SOURCES2 =  mfm_util.c mfm_decoder.c wd_mfm_decoder.c xebec_mfm_decoder.c \
 	northstar_mfm_decoder.c analyze.c deltas_read_file.c drive_file.c \
         tagged_mfm_decoder.c perq_mfm_decoder.c
 OBJECTS2 = $(addprefix $(OBJDIR)/, $(SOURCES2:.c=.o))
-SOURCES3 =  mfm_write.c msg.c parse_cmdline.c emu_tran_file.c \
+SOURCES3 =  mfm_write.c msg.c parse_cmdline_write.c emu_tran_file.c \
 	drive.c pru_setup.c crc_ecc.c board.c drive_write.c
 OBJECTS3 = $(addprefix $(OBJDIR)/, $(SOURCES3:.c=.o))
 INCLUDES = $(addprefix $(INCDIR)/, analyze.h cmd.h crc_ecc.h deltas_read.h \

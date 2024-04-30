@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 04/29/24 DJG Added TI_2223220 format
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/04/23 DJG Added CONTROLLER_SOUYZ_NEON and printed more accurate bad
@@ -678,6 +679,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
          drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
          drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
+         drive_params->controller == CONTROLLER_TI_2223220 ||
          drive_params->controller == CONTROLLER_XEBEC_S1420 ||
          drive_params->controller == CONTROLLER_EC1841 ||
          drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {
@@ -1603,6 +1605,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
             drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
+            drive_params->controller == CONTROLLER_TI_2223220 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||
             drive_params->controller == CONTROLLER_SOLOSYSTEMS)  {

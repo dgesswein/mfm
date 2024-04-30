@@ -147,9 +147,11 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 04/29/24 DJG/Elektraglide Adjusted code to avoid host OS errors on Tektronix 4404.
 // 03/20/24 DJG Pulled code cleanup change, deleted some testing code.
 //   Fixed glitch reported if head lines change while not selected or
-//   same time as select
+//   same time as select. Fixed occasional read/write errors with Adaptec 
+//   ACB-4000
 // 03/12/24 DJG Fix enabling interrupt on head lines to prevent glitch print
 //   when head line changes that we aren't using.
 // 02/24/24 DJG Fix seek time wrong if another seek received while waiting
@@ -883,15 +885,18 @@ sel_get_head:
    MOV      r4, GPIO_DRIVE_HEAD_LINES
    SBBO     r4, r1, 0, 4
 
-      // Give another 30 ns for head lines to update after select.
-      // No idea if need or sufficient. 
+      // Give another 50 ns for head lines to update after select.
+      // This code sequence is what worked best on Tektronix 4404.
+   NOP  
+   NOP
+   NOP
+   NOP
    NOP  
    NOP
    NOP
    NOP
    NOP
    NOP
-
       // Get new head and select
    CALL     get_select_head
       // Clear interrupt status flag in interrupt controller

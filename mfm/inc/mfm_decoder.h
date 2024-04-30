@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 04/29/24 DJG Added TI_2223220 format
+// 04/27/24 SM/DJG Added ext2emu support for AT&T 3B2
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18Sector_512B (ACB-4000)
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
 // 11/10/23 DJG Fixed missing first sector for CONTROLLER_OMTI_20L
@@ -263,6 +265,7 @@ typedef struct {
       CONTROLLER_XEBEC_104786, 
       CONTROLLER_XEBEC_104527_256B, 
       CONTROLLER_XEBEC_104527_512B, 
+      CONTROLLER_TI_2223220, 
       CONTROLLER_XEBEC_S1420, 
       CONTROLLER_EC1841, 
       CONTROLLER_CORVUS_H, 
@@ -336,7 +339,7 @@ typedef struct {
    int next_mark_bad;
    // Linked list of alternate tracks for fixing extracted data file
    ALT_INFO *alt_llist;
-   // Cylinder to start write precompensation at
+   // Cylinder to start write precompensation at. For mfm_write
    int write_precomp_cyl;
    // Precompensation time in nanoseconds
    int early_precomp_ns;
@@ -2572,6 +2575,63 @@ DEF_EXTERN TRK_L trk_EC1841[]
 #endif
 ;
 
+// 3B2 MFM Disks. Controller is a NEC uPD7261AD,
+// configured for soft sectors and CRCs.
+//
+// DTLH = 0xF2 (CRC polynomial inits with all 1's, 0x4E for ID/DATA pads)
+// CRC polynomial: (x^16 + x^12 + x^5 + 1)
+// GPL1 = 16
+// GPL2 = 13
+// GPL3 = 15
+
+DEF_EXTERN TRK_L trk_att_3b2[]
+#ifdef DEF_DATA
+ =
+{ { 16, TRK_FILL, 0x4e, NULL},        // GPL 1
+  { 18, TRK_SUB, 0x00,
+    (TRK_L [])
+    {
+        {13, TRK_FILL, 0x00, NULL },  // PLO SYNC (GPL 2)
+        {7, TRK_FIELD, 0x00,
+          (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              // Upper byte of cylinder is xored with 0xff
+              // Lower byte is unmodified
+              {1, FIELD_FILL, 0xff, OP_SET, 1, NULL},
+              {0, FIELD_CYL, 0x00, OP_XOR, 16, 
+                 (BIT_L []) {
+                    { 8, 16},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+          },
+        },
+	{3, TRK_FILL, 0x4e, NULL},    // ID PAD
+        {13, TRK_FILL, 0x00, NULL},   // PLO SYNC (GPL 2)
+        {516, TRK_FIELD, 0x00,
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {18, TRK_FILL, 0x4e, NULL},   // Data pad (3) + Inter-Record gap (GPL3)
+        {-1, 0, 0, NULL},
+      }
+  },
+  {142, TRK_FILL, 0x4e, NULL},
+  {-1, 0, 0, NULL},
+}
+#endif
+;
+
 
 // 512B 18 sectors per track from Adaptec controller manual
 // http://www.bitsavers.org/pdf/adaptec/ACB-4000/400003-00A_ACB-4000A_Users_Manual_Oct85.pdf
@@ -2938,9 +2998,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 0, 0, 0, 5209,
+         0, 1, trk_att_3b2, 512, 18, 0, 5209,
          0, 0,
-         {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
          0, 0, 0
       },
       {"CONVERGENT_AWS",       256, 10000000, 0, 
@@ -3410,6 +3470,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 0
       },
       {"Xebec_104527_512B",         256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
+         0, 0, 0
+      },
+      {"TI_2223220",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
