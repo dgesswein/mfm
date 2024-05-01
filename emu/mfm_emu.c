@@ -16,6 +16,7 @@
 
 // Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
+// 05/01/24 DJG Don't segfault if log file can't be opened
 // 03/13/24 DJG Fix detection of mfm_emu script not run
 // 02/23/24 DJG Increase priority of main thread to process seeks as timely as
 //    possible. When controllers do unbuffered seeks they may not check
@@ -248,14 +249,16 @@ void shutdown(void)
    // Wait for PRU to signal its done
    pru_shutdown();
 
-   clock_gettime(CLOCK, &tv_start);
-   shutdown_stop = tv_start.tv_sec + tv_start.tv_nsec / 1e9;
-   fprintf(log_file,"   Shutdown time %.1f seconds\n",
-      shutdown_stop - shutdown_start);
+   if (log_file) {
+      clock_gettime(CLOCK, &tv_start);
+      shutdown_stop = tv_start.tv_sec + tv_start.tv_nsec / 1e9;
+      fprintf(log_file,"   Shutdown time %.1f seconds\n",
+         shutdown_stop - shutdown_start);
 
-   stop_time = time(NULL);
-   fprintf(log_file,"Emulation stopped %.24s, duration %.3f days\n",ctime(&stop_time),
-      (stop_time - start_time)/60.0/60.0/24.0);
+      stop_time = time(NULL);
+      fprintf(log_file,"Emulation stopped %.24s, duration %.3f days\n",ctime(&stop_time),
+         (stop_time - start_time)/60.0/60.0/24.0);
+   }
 }
 
 // SIGINT/ control-c handler. Call our shutdown and exit
@@ -523,8 +526,10 @@ static void *emu_proc(void *arg)
    pru_write_word(MEM_PRU0_DATA,PRU0_DRIVE0_CUR_CYL, 0);
    update_buffer(drive_params->buffer_count, -1, 0, 0, 0);
 
-   fprintf(log_file,"   Max seek time %.1f ms min free buffers %d, %u seeks %u writes\n",
-      max_seek_time, min_free_buf, total_seeks, total_writes);
+   if (log_file) {
+      fprintf(log_file,"   Max seek time %.1f ms min free buffers %d, %u seeks %u writes\n",
+         max_seek_time, min_free_buf, total_seeks, total_writes);
+   }
 
    return NULL;
 }
@@ -706,10 +711,14 @@ int main(int argc, char *argv[])
       }
    }
    log_file = fopen("logfile.txt","a");
-   msg_set_logfile(log_file, MSG_FATAL);
-   start_time = time(NULL);
-   fprintf(log_file,"Emulation started %.24s\n",ctime(&start_time));
-   fflush(log_file);
+   if (log_file == NULL) {
+      msg(MSG_ERR, "Unable to open logfile.txt\n");
+   } else {
+      msg_set_logfile(log_file, MSG_FATAL);
+      start_time = time(NULL);
+      fprintf(log_file,"Emulation started %.24s\n",ctime(&start_time));
+      fflush(log_file);
+   }
 
    // Heads must be zero for unused drives
    for (i = 0; i < MAX_DRIVES; i++) {
@@ -949,7 +958,9 @@ int main(int argc, char *argv[])
          }
          pru_print_memory(MEM_PRU_SHARED, 0x0, 128);
          // With halted PRU we can't cleanly exit
-         fclose(log_file);
+         if (log_file) {
+            fclose(log_file);
+         }
          _exit(1);
       }
       //printf("PC %x %x\n", pru_get_pc(0), pru_get_pc(1));
