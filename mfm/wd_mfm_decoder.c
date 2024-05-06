@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 05/06/24 DJG Added handling of alternate tracks for DTC
 // 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
 // 11/20/23 DJG Added CONTROLLER_NEC_4800
@@ -421,6 +422,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      Sector data for sector size
 //      CRC/ECC code
 //   The two starting bytes are not used in the CRC
+//   If bad block bit is set 0xf8 header with valid CRC is in data area
+//      with alternate track assigned. Cylinder high is in upper 4 bits
+//         of byte 4 and low cylinder in byte 3. Head is in low 4 bits of
+//         byte 4. Don't know if all DTC controllers do this.
 //
 //   CONTROLLER_MACBOTTOM, Old MACBOTTOM serial drive for Mac
 //   5 byte header + 2 byte CRC
@@ -1812,11 +1817,21 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_DTC_520_256B ||
               drive_params->controller == CONTROLLER_DTC_520_512B ||
               drive_params->controller == CONTROLLER_DTC) {
+         int head_mask[] = {1, 1, 1, 3, 3, 7, 7, 7, 7};
+
+         bad_block = (bytes[3] & 0x80) >> 7;
+
          sector_status.cyl = bytes[2] | ((bytes[3] & 0x70) << 4);
 
-         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0xf);
+         int head = bytes[3] & 0xf;
+         // When bad block set in PC-X.7z additional bits were set. Also
+         // set on the alternate track. Only use number of bits valid for
+         // number of heads
+         if (drive_params->num_head < ARRAYSIZE(head_mask)) {
+            head = head & head_mask[drive_params->num_head];
+         }
+         sector_status.head = mfm_fix_head(drive_params, exp_head, head);
          sector_size = drive_params->sector_size;
-         bad_block = (bytes[3] & 0x80) >> 7;
 
          sector_status.sector = bytes[4];
 
@@ -2385,6 +2400,18 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
          alt_assigned_handled = 1;
       }
+      if ((drive_params->controller == CONTROLLER_DTC ||
+             drive_params->controller == CONTROLLER_DTC_520_256B ||
+             drive_params->controller == CONTROLLER_DTC_520_512B ) && bad_block) {
+         if (crc64(&bytes[2], 6, &drive_params->header_crc) == 0) {
+             mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
+               sector_status.head, bytes[2] << 4 | bytes[3], 
+               bytes[4] & 0xf);
+             alt_assigned = 1;
+             alt_assigned_handled = 1;
+         };
+      }
+
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
       }
