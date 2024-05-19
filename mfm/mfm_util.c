@@ -488,8 +488,9 @@ static void get_data(DRIVE_PARAMS *drive_params, uint8_t track[], int length) {
    }
    // This is a stupid format where the sector header sector field is
    // different than the actual sector. This adjusts for it.
-   if (drive_params->controller == CONTROLLER_EC1841) {
-      sector = (sector + 17 - sector_interleave) % drive_params->num_sectors;
+   if (drive_params->controller == CONTROLLER_EC1841 ||
+         drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B) {
+      sector = (sector + drive_params->num_sectors - sector_interleave) % drive_params->num_sectors;
    }
    block = (get_cyl() * drive_params->num_head + get_head()) *
        drive_params->num_sectors + sector -

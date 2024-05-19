@@ -4,6 +4,9 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
+//    to get stuck in state that will prevent decoding following tracks.
+// 05/19/24 DJG Added CONTROLLER_XEBEC_104527_C0_256B. 
 // 04/29/24 DJG Added TI_2223220 format
 // 08/31/23 DJG Fixed message wording
 // 03/11/23 DJG Improved EC1841 sector number decoding
@@ -95,7 +98,7 @@ static inline float filter(float v, float *delay)
 // The format names are arbitrarily assigned to the first controller found
 // writing that format.
 // The format is
-//   CONTROLLER_XEBEC_104786, 104527
+//   CONTROLLER_XEBEC_104786, 104527, CONTROLLER_XEBEC_104527_C0_256B
 //   Closest manuals found http://bitsavers.trailing-edge.com/pdf/xebec/
 //   http://technischmuseum.nl/documentation/documentation%20files/Holborn/Xebec%20S1410/Xebec%20S1410%20104524%20104526%20104527.pdf
 //   9 byte header + 4 byte CRC
@@ -112,7 +115,7 @@ static inline float filter(float v, float *delay)
 //      bytes 9-12 32 bit ECC
 //   Data
 //      byte 0 0x00
-//      byte 1 0xc9
+//      byte 1 0xc9 (00 For CONTROLLER_XEBEC_104527_C0_256B)
 //      Sector data for sector size
 //      4 byte ECC code
 //
@@ -190,38 +193,34 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
             drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B ||
             drive_params->controller == CONTROLLER_TI_2223220 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841) {
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5] & 0xf);
-         if (!drive_params->analyze_in_progress && drive_params->controller == CONTROLLER_EC1841) {
+         if (!drive_params->analyze_in_progress && 
+            (drive_params->controller == CONTROLLER_EC1841 ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B)) {
             // Controller shifts the sectors by 3 from what is recored
             // in the header. We only handle 17 512 byte and 32 256 byte
             // sectors per track. Using num_sectors doesn't work with analyze
             if (drive_params->first_logical_sector == -1) {
-               msg(MSG_FATAL, "EC1841 requires --analyze to determine proper sector mapping\n");
+               msg(MSG_FATAL, "%s requires --analyze to determine proper sector mapping\n",
+                  mfm_controller_info[drive_params->controller].name);
                exit(1);
             }
-            if (*sector_index == 1 && drive_params->first_logical_sector !=  bytes[6]) {
+            if (*sector_index == drive_params->num_sectors && drive_params->first_logical_sector !=  bytes[6]) {
                msg(MSG_ERR, "Found different first logical sector %d vs %d on cyl %d head %d\n",
                bytes[6], drive_params->first_logical_sector, exp_cyl, exp_head);
             }
-            if (bytes[6] < drive_params->first_logical_sector) {
-                if (drive_params->sector_size == 256) {
-                   sector_status.sector = bytes[6] + 32 - drive_params->first_logical_sector;
-                } else if (drive_params->sector_size == 512) {
-                   sector_status.sector = bytes[6] + 17 - drive_params->first_logical_sector;
-                } else {
-                   msg(MSG_ERR, "Unsupported sector size %d on cyl %d head %d sector %d\n",
-                     drive_params->sector_size,
-                     sector_status.cyl, sector_status.head, sector_status.sector);
-                   sector_status.status |= SECT_BAD_HEADER;
-                }
-            } else {
-                sector_status.sector = bytes[6] - drive_params->first_logical_sector;
-            }
+            // This format appears to transfer data from the following sector
+            // from the header matched. If we have 3 sectors 0 2 1 the data
+            // is from sectors 2 1 0. Since we don't know the previous sector
+            // for the first sector on the track or we miss a sector header we 
+            // need that to be found by analyze previously.
+            sector_status.sector = (bytes[6] + drive_params->first_logical_sector) % drive_params->num_sectors;
          } else {
             sector_status.sector = bytes[6];
          }
@@ -324,6 +323,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
       }
       if (drive_params->controller == CONTROLLER_EC1841 ||
           drive_params->controller == CONTROLLER_SOLOSYSTEMS ||
+          drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B ||
           drive_params->controller == CONTROLLER_TI_2223220) {
          compare_byte = 0x00;
       } else {
@@ -410,7 +410,7 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // PLL filter state. Static works better since next track bit timing
    // similar to previous though a bad track can put it off enough that
    // the next track has errors. Retry should fix. TODO: Look at
-   static float filter_state = 0;
+   float filter_state = 0;
    // Time in track for debugging
    int track_time = 0;
    // Counter for debugging
@@ -501,8 +501,8 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
 #if DEBUG
          //printf("track %d clock %f\n", track_time, clock_time);
          printf
-         ("  delta %d skew %.2f %.2f bit pos %.2f int bit pos %d avg_bit %.2f time %d\n",
-               delta_process, clock_time - track_time, skew, bit_pos,
+         ("  delta %d %.2f int bit pos %d avg_bit %.2f time %d\n",
+               delta_process, clock_time,
                int_bit_pos, avg_bit_sep_time, track_time);
 #endif
          if (all_raw_bits_count + int_bit_pos >= 32) {
@@ -592,8 +592,9 @@ if ((raw_word & 0xffff) == 0x4489) {
                   // 256 byte sectors have less gap so can't discard as many
                   // bytes at end of sector. For 512 byte sectors discarding
                   // more helps syncing at the right location
-                  if (drive_params->controller == CONTROLLER_SOLOSYSTEMS &&
-                        drive_params->sector_size == 256) {
+                  if ((drive_params->controller == CONTROLLER_SOLOSYSTEMS &&
+                        drive_params->sector_size == 256) ||
+                        drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B) {
                      bytes_needed = 1 + bytes_crc_len;
                   } else {
                      bytes_needed = DATA_IGNORE_BYTES + bytes_crc_len;

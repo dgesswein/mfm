@@ -9,6 +9,8 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 05/19/24 DJG Reread track if we change start_time_ns otherwise will get
+//    sector read errors
 // 06/02/23 DJG Fixed write fault error reading NEC drive
 // 03/11/23 DJG Improved EC1841 sector number decoding
 // 07/20/22 DJG Removed useless lines
@@ -223,8 +225,10 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
    int match_list[50];
    int best_match = 0;
    int best_match_count = 999;
+   int track_start_time_ns;
 
    drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+   track_start_time_ns = drive_params->start_time_ns;
 
    analyze_rate(drive_params, cyl, head, deltas, max_deltas);
 
@@ -244,6 +248,11 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
 //printf("Checking %s\n", mfm_controller_info[cont].name);
       parse_set_drive_params_from_controller(drive_params, cont);
 
+      // If we change start_time_ns we need to reread track
+      if (track_start_time_ns != drive_params->start_time_ns) {
+         drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
+         track_start_time_ns = drive_params->start_time_ns;
+      }
       mfm_init_sector_status_list(sector_status_list, MAX_SECTORS);
       msg_mask_hold = msg_set_err_mask(decode_errors);
       // Decode track
@@ -751,8 +760,9 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
     drive_params->num_head = last_good_head+1;
     drive_params->num_sectors = max_sector - min_sector + 1;
     drive_params->first_sector_number = min_sector;
-    if (drive_params->controller == CONTROLLER_EC1841) {
-       drive_params->first_logical_sector = interleave[1];
+    if (drive_params->controller == CONTROLLER_EC1841 || 
+        drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B) {
+       drive_params->first_logical_sector = interleave[drive_params->num_sectors-1];
        msg(MSG_INFO, "First logical sector %d\n", drive_params->first_logical_sector);
     }
 

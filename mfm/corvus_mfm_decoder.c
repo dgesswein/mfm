@@ -5,6 +5,8 @@
 //
 // Copyright 2022 David Gesswein.
 //
+// 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
+//    to get stuck in state that will prevent decoding following tracks.
 // 12/08/22 DJG Changed error message
 // 10/02/22 DJG Suppress false reporting of needing --begin_time
 // 07/20/22 DJG Process sector if bytes decoded exactly matches needed
@@ -351,7 +353,7 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // PLL filter state. Static works better since next track bit timing
    // similar to previous though a bad track can put it off enough that
    // the next track has errors. Retry should fix. TODO: Look at
-   static float filter_state = 0;
+   float filter_state = 0;
    // Time in track for debugging
    int track_time = 0;
    // Counter for debugging

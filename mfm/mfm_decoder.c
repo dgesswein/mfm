@@ -21,6 +21,9 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
+//    to get stuck in state that will prevent decoding following tracks.
+// 05/19/24 DJG Added CONTROLLER_XEBEC_104527_C0_256B. 
 // 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06 format
 // 04/29/24 DJG Added TI_2223220 format
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
@@ -539,7 +542,7 @@ static SECTOR_DECODE_STATUS mfm_decode_track_deltas(DRIVE_PARAMS *drive_params,
    // PLL filter state. Static works better since next track bit timing
    // similar to previous though a bad track can put it off enough that
    // the next track has errors. Retry should fix. TODO: Look at
-   static float filter_state = 0;
+   float filter_state = 0;
    // Time in track for debugging
    int track_time = 0;
    // Number of deltas available so far to process
@@ -681,6 +684,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
          drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
          drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
+         drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B ||
          drive_params->controller == CONTROLLER_TI_2223220 ||
          drive_params->controller == CONTROLLER_XEBEC_S1420 ||
          drive_params->controller == CONTROLLER_EC1841 ||
@@ -1608,6 +1612,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       } else if (drive_params->controller == CONTROLLER_XEBEC_104786 ||
             drive_params->controller == CONTROLLER_XEBEC_104527_256B ||
             drive_params->controller == CONTROLLER_XEBEC_104527_512B ||
+            drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B ||
             drive_params->controller == CONTROLLER_TI_2223220 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841 ||

@@ -2,6 +2,8 @@
 //
 // TODO: Too much code is being duplicated adding new formats. 
 //
+// 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
+//    to get stuck in state that will prevent decoding following tracks.
 // 10/13/23 DJG Added CONTROLLER_ND100_3041
 // 12/08/22 DJG Changed error message
 // 10/02/22 DJG Suppress false reporting of needing --begin_time
@@ -373,7 +375,7 @@ SECTOR_DECODE_STATUS northstar_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    // PLL filter state. Static works better since next track bit timing
    // similar to previous though a bad track can put it off enough that
    // the next track has errors. Retry should fix. TODO: Look at
-   static float filter_state = 0;
+   float filter_state = 0;
    // Time in track for debugging
    int track_time = 0;
    // Counter for debugging
