@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 05/20/24 DJG Added support for tracks formatted as bad track 
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
 // 05/19/24 DJG Added CONTROLLER_XEBEC_104527_C0_256B. 
@@ -110,7 +111,7 @@ static inline float filter(float v, float *delay)
 //      byte 6 sector number
 //      byte 7 flag bits. MSB is always set and bit 4 set on last sector
 //         bit 0 is set if alternate track assigned and bit 2 on alternate
-//         track.
+//         track. Bit 1 set for bad track that doesn't have alternate.
 //      byte 8 0x00
 //      bytes 9-12 32 bit ECC
 //   Data
@@ -124,6 +125,8 @@ static inline float filter(float v, float *delay)
 //         bytes 0-8. (Only seen on 1410A, others may use different
 //         format)
 //         The CRC at the end of the sector is not valid.
+//      For 1410 if bad block bit is set data area doesn't exist. Track
+//         only has headers. (PCB 104526 FW 104521D)
 //   There is a a1 dropped clock sync byte then zeros followed by a one
 //      to mark the start of the header then more zeros followed by a one to
 //      mark the data
@@ -226,7 +229,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          // Don't know how/if these are encoded in header
          sector_size = drive_params->sector_size;
-         bad_block = 0;
+         bad_block = (bytes[7] & 2) != 0;
          //Xebec S1410 sets the MSB on cylinder 132 on, not sure what
          //it indicates
          if ((bytes[5] & 0x70) != 0) {
@@ -266,7 +269,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          } else {
             compare_byte = 0x80; 
          }
-         if ((bytes[7] & 0xea) != compare_byte) {
+         if ((bytes[7] & 0xe8) != compare_byte) {
             msg(MSG_ERR, "Header flag byte not %02x value: %02x on cyl %d head %d sector %d\n",
                compare_byte, bytes[7],
                sector_status.cyl, sector_status.head, sector_status.sector);
@@ -309,6 +312,12 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          "Got exp %d,%d cyl %d head %d sector %d size %d bad block %d\n",
             exp_cyl, exp_head, sector_status.cyl, sector_status.head, sector_status.sector,
             sector_size, bad_block);
+
+      if (bad_block) {
+         sector_status.status |= SECT_SPARE_BAD;
+         msg(MSG_INFO,"Bad block set on cyl %d, head %d, sector %d\n",
+               sector_status.cyl, sector_status.head, sector_status.sector);
+      }
 
       mfm_check_header_values(exp_cyl, exp_head, sector_index, sector_size,
             seek_difference, &sector_status, drive_params, sector_status_list);
@@ -441,8 +450,10 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    uint8_t bytes[MAX_SECTOR_SIZE + 50];
    // How many we need before passing them to the next routine
    int bytes_needed = 0;
+   int header_bytes_needed = 0;
    // Length to perform CRC over
    int bytes_crc_len = 0;
+   int header_bytes_crc_len = 0;
    // how many we have so far
    int byte_cntr = 0;
    // Sequential counter for counting sectors
@@ -578,7 +589,9 @@ if ((raw_word & 0xffff) == 0x4489) {
                   // Figure out the length of data we should look for
                   bytes_crc_len = mfm_controller_info[drive_params->controller].header_bytes +
                         drive_params->header_crc.length / 8;
+                  header_bytes_crc_len = bytes_crc_len;
                   bytes_needed = bytes_crc_len;
+                  header_bytes_needed = bytes_needed;
                } else {
                   state = PROCESS_DATA;
                   mfm_mark_data_location(all_raw_bits_count, raw_bit_cntr, 
@@ -621,6 +634,39 @@ if ((raw_word & 0xffff) == 0x4489) {
                if (decoded_bit_cntr >= 8) {
                   // Do we have enough to further process?
                   if (byte_cntr < bytes_needed) {
+                     // If sufficent bits we may have missed a header
+                     // The Xebec 1410 when it formats bad track doesn't
+                     // write the data area so we will find a header looking
+                     // for next data. Will also find next header if we
+                     // missed data area
+                     if (byte_cntr == header_bytes_needed) {
+                        uint64_t crc;
+                        int ecc_span;
+                        SECTOR_DECODE_STATUS init_status = 0;
+
+                        // Don't perform ECC corrections. They can be
+                        // false corrections when not actually sector header.
+                        mfm_crc_bytes(drive_params, bytes,
+                           header_bytes_crc_len, PROCESS_HEADER, &crc,
+                           &ecc_span, &init_status, 0);
+
+                        // We will only get here if processing as data. If
+                        // we found a header with good CRC switch to processing
+                        // it as a header. Poly != 0 for my testing
+                        if (crc == 0 && !(init_status & SECT_AMBIGUOUS_CRC) && drive_params->header_crc.poly != 0) {
+//printf("Switched header %x\n", init_status);
+                           mfm_mark_header_location(MARK_STORED, 0, 0);
+                           mfm_mark_end_data(all_raw_bits_count, drive_params, cyl, head);
+                           state = PROCESS_HEADER;
+                           bytes_crc_len = header_bytes_crc_len;
+                           bytes_needed = header_bytes_needed;
+                           sector_status |= mfm_process_bytes(drive_params, bytes,
+                              bytes_crc_len, bytes_needed, &state, cyl, head,
+                              &sector_index, seek_difference, sector_status_list, 0);
+                              // Don't allow these bytes to be reprocessed below
+                              byte_cntr = 0;
+                        }
+                     }
                      bytes[byte_cntr++] = decoded_word;
                   } 
                   if (byte_cntr == bytes_needed) {

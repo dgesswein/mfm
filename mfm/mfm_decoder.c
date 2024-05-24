@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 05/24/24 DJG Added Seagate ST11MB support.
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
 // 05/19/24 DJG Added CONTROLLER_XEBEC_104527_C0_256B. 
@@ -651,6 +652,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_NEWBURYDATA ||
          drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
          drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+         drive_params->controller == CONTROLLER_SEAGATE_ST11MB ||
          drive_params->controller == CONTROLLER_ALTOS_586 ||
          drive_params->controller == CONTROLLER_ATT_3B2 ||
          drive_params->controller == CONTROLLER_WANG_2275 ||
@@ -973,6 +975,13 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
       }
       sector_status->status |= SECT_BAD_HEADER;
    }
+   // Adaptec_4000_18sector_512b was matching ST11MB. Verify LBA address
+   // is somewhat sensible. If not say wrong format for analyze
+   if (sector_status->is_lba && sector_status->lba_addr > 
+      2*((exp_cyl + 1) * drive_params->num_head * drive_params->num_sectors)) {
+         sector_status->status |= ANALYZE_WRONG_FORMAT;
+      
+   }
    // If we have expected sector ordering information check the sector numbers
    // TODO: make this handle more complex sector numbering where they vary
    // between tracks
@@ -1014,7 +1023,8 @@ void mfm_check_header_values(int exp_cyl, int exp_head,
    //  so sectors marked bad will be properly handled. Something cleaner
    //  would be good.
    int sect_rel0 = sector_status->sector - drive_params->first_sector_number;
-   if (sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) {
+   if ((sect_rel0 >= drive_params->num_sectors || sect_rel0 < 0) &&
+         !(sector_status->status & SECT_BAD_SECTOR_NUMBER)) {
       msg(MSG_ERR_SERIOUS, "Logical sector %d out of range 0-%d sector %d cyl %d head %d phys sector %d\n",
          sect_rel0, drive_params->num_sectors-1, sector_status->sector,
          sector_status->cyl,sector_status->head, *sector_index);
@@ -1575,6 +1585,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_NEWBURYDATA ||
             drive_params->controller == CONTROLLER_ELEKTRONIKA_85 ||
             drive_params->controller == CONTROLLER_SEAGATE_ST11M ||
+            drive_params->controller == CONTROLLER_SEAGATE_ST11MB ||
             drive_params->controller == CONTROLLER_ALTOS_586 ||
             drive_params->controller == CONTROLLER_ATT_3B2 ||
             drive_params->controller == CONTROLLER_WANG_2275 ||

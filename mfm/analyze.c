@@ -9,6 +9,8 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 05/24/24 DJG Added special code to check if spare sector exists to
+//    separate ST11M from ST11MB. Fix max cylinder detection.
 // 05/19/24 DJG Reread track if we change start_time_ns otherwise will get
 //    sector read errors
 // 06/02/23 DJG Fixed write fault error reading NEC drive
@@ -200,7 +202,8 @@ static void analyze_rate(DRIVE_PARAMS *drive_params, int cyl, int head,
 
 // Try to find match for existing fully defined format. Some of the formats
 // have all data defined such as CRC and other are just defining the header
-// format.
+// format. If CRC info is defined we treat as model even if not set to 
+// CONT_MODEL. Not sure why I did that.
 //
 // drive_params: Drive parameters determined so far and return what we have determined
 // Cyl and head: What track the data was from.
@@ -226,6 +229,7 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
    int best_match = 0;
    int best_match_count = 999;
    int track_start_time_ns;
+   int decode_status;
 
    drive_read_track(drive_params, cyl, head, deltas, max_deltas, 0);
    track_start_time_ns = drive_params->start_time_ns;
@@ -256,16 +260,20 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
       mfm_init_sector_status_list(sector_status_list, MAX_SECTORS);
       msg_mask_hold = msg_set_err_mask(decode_errors);
       // Decode track
-      mfm_decode_track(drive_params, cyl, head, deltas, NULL, 
+      decode_status = mfm_decode_track(drive_params, cyl, head, deltas, NULL, 
                   sector_status_list);
       msg_set_err_mask(msg_mask_hold);
       not_match = 0;
+      int bad = 0;
       for (i = 0; i < MAX_SECTORS; i++) {
          // If we find a good sector outside the range we expect or are
          // missing a sector then don't consider it a match. Read errors
          // can cause format match to fail.
          if (sector_status_list[i].status & ANALYZE_WRONG_FORMAT) {
             not_match = 1;
+         }
+         if (sector_status_list[i].status & SECT_SPARE_BAD) {
+            bad++;
          }
          if (sector_status_list[i].status & SECT_BAD_HEADER) {
             if (i < drive_params->num_sectors) {
@@ -279,6 +287,19 @@ static int analyze_model(DRIVE_PARAMS *drive_params, int cyl, int head,
                not_match = 1;
             }
          }
+      }
+      // This was for separating Adaptec_4000_18sector_512b from ST11MB
+      // The header decoded but interpreted as LBA addresses they weren't
+      // sensible
+      if (bad > 3) {
+         not_match = 1;
+      }
+      // This currently is for separating ST11M from ST11MB. ST11MB has
+      // spare sectors on each track.
+      int spare = decode_status & SECT_ANALYZE_SPARE;
+      if ((mfm_controller_info[cont].flag & FLAG_ANALYZE_SPARE_SECT && !spare) ||
+          (!(mfm_controller_info[cont].flag & FLAG_ANALYZE_SPARE_SECT) && spare)) {
+          not_match = 1;
       }
       int good_data_count = 0;
       for (i = 0; i < drive_params->num_sectors; i++) {
@@ -892,11 +913,14 @@ static void analyze_disk_size(DRIVE_PARAMS *drive_params, int start_cyl,
       for (i = 0; i < drive_params->num_sectors; i++) {
          if (sector_status_list[i].status & SECT_HEADER_FOUND) {
             any_header_found = 1;
-            max_cyl = MAX(max_cyl, sector_status_list[i].cyl);
-            if (cyl != sector_status_list[i].cyl && last_printed_cyl != cyl) {
-               msg(MSG_INFO, "Found cylinder %d expected %d\n",sector_status_list[i].cyl, cyl);
-               last_printed_cyl = cyl;
+            if (cyl != sector_status_list[i].cyl) {
+               if (last_printed_cyl != cyl) {
+                  msg(MSG_INFO, "Found cylinder %d expected %d\n",sector_status_list[i].cyl, cyl);
+                  last_printed_cyl = cyl;
+               }
                not_next_cyl = 1;
+            } else {
+               max_cyl = MAX(max_cyl, sector_status_list[i].cyl);
             }
          }
       }

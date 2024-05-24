@@ -669,6 +669,19 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      =0, Track 2 =1, Track 3 =2 and so on.
 //      Bits 9 and 8 of track number are stored in bits 7 and 6 of side byte.
 //
+//   CONTROLLER_SEAGATE_ST11MB
+//      This is from a drive separated from computer so no idea what controller
+//      used. Image IBMTRAN
+//      Similar to ST11M except:
+//      Has 18 sectors per track with last sector number 254. Assume it was 
+//      reserving one sector for spare. Content always 0x6b. None were used 
+//      so unable to determine how spare sector was used.
+//      Drive also has more tracks formatted that expected drive size. Extra
+//      tracks had 0x80 in byte 5 of sectors 254.
+//      Since it looks like it had spare sector on each track removed ST11M
+//      alternate track decoding.
+//      Bits set in header slightly different, see code.
+//
 //   CONTROLLER_ALTOS_586, Altos 586
 //   5 byte header + 2 byte CRC
 //      byte 0 0xa1
@@ -2013,6 +2026,40 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                      exp_head, sector_status.head, sector_status.sector);
             }
             sector_status.sector = bytes[4];
+            if (sector_status.sector == 254) {
+               sector_status.status |= SECT_ANALYZE_SPARE;
+            }
+         }
+         sector_size = drive_params->sector_size;
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d,%d head %d,%d sector %d\n",
+                  bytes[1], exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SEAGATE_ST11MB) {
+         if (bytes[2] == 0xff) {
+            // First track formatted differently. Controller uses.
+            // Controller area only had sector and possibly cylinder
+            sector_status.cyl = bytes[3];
+            sector_status.head = mfm_fix_head(drive_params, exp_head, exp_head);
+            sector_status.sector = bytes[4];
+         } else {
+            sector_status.cyl = (((bytes[2] & 0xc0) << 2) | bytes[3]) + 1;
+            sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0xf);
+            sector_status.sector = bytes[4];
+            if ((bytes[5] != 0x0 && bytes[5] != 0x80) || 
+                 ((bytes[4] & 0xe0) != 0 && (bytes[4] != 0xfe)) ||
+                 (bytes[2] & 0x30) != 0) {
+               msg(MSG_INFO, "Unexpected bytes  %02x, %02x, %02x on cyl %d,%d head %d,%d sector %d\n",
+                     bytes[2], bytes[4], bytes[5], exp_cyl, sector_status.cyl,
+                     exp_head, sector_status.head, sector_status.sector);
+            }
+         }
+         if ((bytes[4] & 0xe0) == 0xe0) {
+            sector_status.status |= SECT_SPARE_BAD;
+            sector_status.status |= SECT_BAD_SECTOR_NUMBER;
+            sector_status.status |= SECT_ANALYZE_SPARE;
          }
          sector_size = drive_params->sector_size;
          if (bytes[1] != 0xfe) {
@@ -2430,6 +2477,22 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (mfm_write_sector(&bytes[dheader_bytes], drive_params, &sector_status,
                sector_status_list, &bytes[1], total_bytes-1) == -1) {
             sector_status.status |= SECT_BAD_HEADER;
+         }
+      }
+      // Spare sectors normally are filled with same value if not used. This
+      // may show if sector is used but not detected.
+      if (sector_status.status & SECT_ANALYZE_SPARE && !(sector_status.status &
+          SECT_BAD_DATA) && id_byte_index >= 0) {
+         int spare_same = 1;
+         for (int i = id_byte_index+2; 
+               i < id_byte_index + drive_params->sector_size + 1; i++ ) {
+            if (bytes[i] != bytes[id_byte_index+1]) {
+               spare_same = 0; 
+            }
+         }
+         if (!spare_same) { 
+            msg(MSG_INFO,"Spare sectors not all same value cyl %d head %d sector %d\n",
+              sector_status.cyl, sector_status.head, sector_status.sector);
          }
       }
       if (alt_assigned && !alt_assigned_handled) {

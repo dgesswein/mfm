@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 05/24/24 DJG Added Seagate ST11MB support. Make bitfields unique.
 // 04/29/24 DJG Disabled TI_2223220 format. Duplicate of EC1841
 // 05/19/24 DJG Added CONTROLLER_XEBEC_104527_C0_256B. Compare byte 0.
 // 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06 format
@@ -244,6 +245,7 @@ typedef struct {
       CONTROLLER_MYARC_HFDC, 
       CONTROLLER_IBM_3174,
       CONTROLLER_SEAGATE_ST11M,
+      CONTROLLER_SEAGATE_ST11MB,
       CONTROLLER_ISBC_215_128B,
       CONTROLLER_ISBC_215_256B,
       CONTROLLER_ISBC_215_512B,
@@ -2823,6 +2825,10 @@ typedef struct {
    int header_min_delta_bits, data_min_delta_bits;
      // Minimum number of bits from index for first header
    int first_header_min_bits;
+     // Special decoding flags for analyze
+   int flag;
+     // We found a spare sector. Used to separate ST11M and ST11MB
+   #define FLAG_ANALYZE_SPARE_SECT 1
 } CONTROLLER;
 
 DEF_EXTERN CONTROLLER mfm_controller_info[]
@@ -2837,7 +2843,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, 0,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"NewburyData",          256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2846,7 +2852,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Altos",              256, 8680000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2855,7 +2861,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x551a,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Superbrain",  256, 10000000, 230000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly),
@@ -2865,7 +2871,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 33,
          {0,0x1021,16,0},{0,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"WD_1006",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2874,7 +2880,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"RQDX2",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2883,7 +2889,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 18, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_214_128B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2892,7 +2898,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC214_128b, 128, 54, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_214_256B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2901,7 +2907,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC214_256b, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_214_512B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2910,7 +2916,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC214_512b, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_214_1024B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2919,7 +2925,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC214_1024b, 1024, 9, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // TODO: Analyize currently can't separate this from Intel_iSBC_214_512B
       // since only different for heads >= 8
@@ -2930,7 +2936,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_tektronix_6130, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"NIXDORF_8870",         256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2939,7 +2945,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0,0x8222f0804bda23,56,22}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"TANDY_8MEG",              512, 8680000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2948,7 +2954,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"WD_3B1",          512, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2957,7 +2963,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_3B1, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"TANDY_16B",          512, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2966,7 +2972,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_tandy_16b, 512, 17, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Motorola_VME10",  256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2975,7 +2981,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0,0xa00805,32,4},{0,0xa00805,32,4}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DTC",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2984,7 +2990,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_dtc_pc_512b, 512, 17, 0, 5209,
          0, 0,
          {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DTC_520_256B",             256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -2993,7 +2999,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_dtc_520_256b, 256, 33, 0, 5209,
          0, 0,
          {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DTC_520_512B",             512, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3002,7 +3008,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_dtc_520_512b, 512, 18, 0, 5209,
          0, 0,
          {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"MacBottom",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3011,7 +3017,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Fujitsu-K-10R",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3020,7 +3026,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_fujitsu_k_10r, 256, 34, 0, 5209,
          0, 0,
          {0x0,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"CTM9016",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3029,7 +3035,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_CTM9016, 1024, 8, 0, 5209,
          0, 0,
          {0x0,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Acorn_A310_podule",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3038,7 +3044,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_acorn_a310_podule, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // Also DEC professional 350 & 380
       {"Elektronika_85",      256, 10000000,      0, 
@@ -3048,7 +3054,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          16, 1, trk_ELEKTROKIKA_85, 512, 16, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Altos_586",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3057,7 +3063,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"ATT_3B2",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3066,7 +3072,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_att_3b2, 512, 18, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"CONVERGENT_AWS",       256, 10000000, 0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3075,7 +3081,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_convergent_aws, 256, 32, 1, 5209,
          0, 0,
          {0x0,0x1021,16,0},{0x0,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"CONVERGENT_AWS_SA1000",       512, 8680000, 0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3084,7 +3090,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
          {0x920d65c0,0x140a0445,32,6},{0xef26129d,0x140a0445,32,6}, CONT_MODEL,
-         8700, 770, 350
+         8700, 770, 350, 0
       },
       {"WANG_2275",              256, 10000000,      0, 
          3, 4, 4, ARRAYSIZE(mfm_all_poly), 
@@ -3093,7 +3099,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"WANG_2275_B",            256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3102,7 +3108,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"CALLAN",            256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3111,7 +3117,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
 	 {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"IBM_5288",            256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3120,7 +3126,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"EDAX_PV9900",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3129,7 +3135,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"SHUGART_1610",          512, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3138,7 +3144,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_shugart_1610, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x10183031,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"SHUGART_SA1400",            256, 8680000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3147,7 +3153,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_shugart_1400, 256, 32, 0, 5209,
          0, 0,
          {0x0,0x24409,24,2},{0x0,0x24409,24,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"ES7978",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3156,7 +3162,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"WD-Microengine",              256, 8680000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3165,7 +3171,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 16, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"NEC_4800",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3174,7 +3180,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 33, 0, 5209,
          0, 0,
          {0x0,0x1021,16,0},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Souyz-Neon",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3183,7 +3189,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 18, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"INFORT-PC02.06",      128, 10000000,      617000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3192,7 +3198,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x0,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // OMTI_5200 uses initial value 0x409e10aa for data
       // Data CRC is really initial value 0 xor of final value of 0xffffffff.
@@ -3204,7 +3210,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_sm_1810, 512, 16, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0x03affc1d,0xa00805,32,4}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DSD_5217_512B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3213,7 +3219,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_DSD_5217_512B, 512, 17, 0, 5209,
          0, 0,
          {0xffffffff,0x105187,32,6},{0xffffffff,0x105187,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // For 20D controller 256 byte sectors polynomial is 0xe2277da8,0x104c981,32,6
       {"OMTI_5510",            256, 10000000,      0,
@@ -3223,7 +3229,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
          0, 0,
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Xerox_6085",           256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3232,7 +3238,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          20, 0,
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Telenex_Autoscope",           256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3241,7 +3247,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Morrow_MD11",            1024, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3250,7 +3256,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 1024, 9, 0, 5209,
          0, 0,
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Unknown1",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3259,7 +3265,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Unknown2",            256, 8680000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3268,7 +3274,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DEC_RQDX3",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3277,7 +3283,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // ext2emu not supported since it used deleted data 0xf8 on some
       // sectors which we currently don't have a good way to handle
@@ -3288,7 +3294,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_myarc_hfdc, 256, 32, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"IBM_3174",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3297,7 +3303,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 516, 17, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x8026,0x1021,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Seagate_ST11M",        256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3306,7 +3312,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_seagate_ST11M, 512, 17, 0, 5209,
          0, 0,
          {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
+      },
+      {"Seagate_ST11MB",        256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, NULL, 512, 17, 0, 5209,
+         0, 0,
+         {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
+         0, 0, 0, FLAG_ANALYZE_SPARE_SECT
       },
       {"Intel_iSBC_215_128B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3315,7 +3330,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC215_128b, 128, 54, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0xbe87fbf4,0xa00805,32,4}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_215_256B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3324,7 +3339,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC215_256b, 256, 31, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0xbe87fbf4,0xa00805,32,4}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_215_512B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3333,7 +3348,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC215_512b, 512, 17, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0xbe87fbf4,0xa00805,32,4}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Intel_iSBC_215_1024B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3342,7 +3357,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_ISBC215_1024b, 1024, 9, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0xbe87fbf4,0xa00805,32,4}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 // Quantum Q20#0 Xerox Star drive
 // SA100# 8" drives with similar format won't work properly with this
@@ -3354,7 +3369,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_xerox_8010, 512, 16, 0, 5425,
          24, 0,
          {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"ROHM_PBX",      256, 8680000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3363,7 +3378,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0}, {0, 0x88211, 24, 2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Dimension-68000",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3372,7 +3387,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DJ_II_210",            256, 10000000,      0,
          0, 0, 4, ARRAYSIZE(mfm_all_poly),
@@ -3381,7 +3396,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DJ_II_301",            256, 10000000,      0,
          0, 0, 4, ARRAYSIZE(mfm_all_poly),
@@ -3390,7 +3405,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0,0,8,0},{0,0x5140c101,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // Header is either 6 or 10 bytes
       {"DJ_II",            256, 10000000,      0,
@@ -3400,7 +3415,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 32, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0x5140c101,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Adaptec",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3409,7 +3424,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Adaptec_4000_18sector_512b",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3418,7 +3433,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_Adaptec_4000_18sector_512b, 512, 18, 0, 5209,
          0, 0,
          {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"MVME320",        256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3427,7 +3442,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_mvme320, 256, 32, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x10210191,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Symbolics_3620",       256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3437,7 +3452,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"SM1040",       256, 10000000,      0, 
          0, 1, 4, ARRAYSIZE(mfm_all_poly), 
@@ -3446,7 +3461,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0x6e958e56,0x140a0445,32,6},{0xcf2105e0,0x140a0445,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Symbolics_3640",       256, 10000000,      0, 
          0, 1, 4, ARRAYSIZE(mfm_all_poly), 
@@ -3455,7 +3470,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_symbolics_3640, 1160, 8, 0, 5209,
          0, 0,
          {0x0,0x0,0,0},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"OMTI_20L",            256, 10000000,      0,
          0, 0, 4, ARRAYSIZE(mfm_all_poly),
@@ -3464,7 +3479,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 256, 38, 0, 5209,
          16, 0,
          {0x85271cf0,0x0104c981,32,6},{0x3b4292c3,0x0104c981,32,6}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number. It should not be part of a normal search
@@ -3478,7 +3493,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 // This format is detected by special case code so it doesn't need to
 // be sorted by number. It should not be part of a normal search
@@ -3492,7 +3507,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 // END of WD type controllers
       {"SOLOsystems",         256, 10000000,      0,
@@ -3502,7 +3517,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DILOG_DQ614",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3511,7 +3526,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"DILOG_DQ604",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3520,7 +3535,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0,0x1,8,0},{0,0x1,8,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 //    Changed begin time from 0 to 100500 to work with 1410A. The sample
 //    I have of the 104786 says it should work with it also so changing default.
@@ -3532,7 +3547,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Xebec_104527_256B",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3541,7 +3556,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_Xebec_104527_256B, 256, 32, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Xebec_104527_512B",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3550,7 +3565,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       // This has data compare byte 0 vs 0xc9 for format above. Also
       // needs begin_time 225000
@@ -3561,7 +3576,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_Xebec_104527_C0_256B, 256, 32, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 #if 0
       {"TI_2223220",         256, 10000000,      0,
@@ -3571,7 +3586,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
 #endif
       {"Xebec_S1420",         256, 10000000,      0,
@@ -3581,7 +3596,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"EC1841",         256, 10000000,      220000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3590,7 +3605,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_EC1841, 512, 17, 0, 5209,
          0, 10,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Corvus_H",             512, 11000000,  312000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3601,7 +3616,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          // Only have one CRC. DATA_CRC needs to be non zero for analyze_model
          // to ignore this format. Also needed by ext2emu for mark_bad to work
          {0xffff,0x8005,16,0},{0xffff,0x8005,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"NorthStar_Advantage",  256, 10000000, 230000,
          1, 2, 2, 3,
@@ -3611,7 +3626,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 33,
          {0,0,16,0},{0,0,32,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Cromemco",             10240, 10000000,  6000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3621,7 +3636,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 0,
          {0,0x8005,16,0},{0,0x8005,16,0}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Vector4",             256, 10000000,  300000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3631,7 +3646,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 20,
          {0x0,0x104c981,32,6},{0x0,0x104c981,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Vector4_ST506",             256, 10000000,  300000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3641,7 +3656,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 20,
          {0x0,0x104c981,32,6},{0x0,0x104c981,32,6}, CONT_ANALYZE,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Stride_440",             256, 10000000,  300000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3650,7 +3665,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          1, 0, NULL, 8192, 1, 0, 5209,
          0, 20,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"Saga_Fox",             256, 10000000,  330000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3660,7 +3675,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // Should be model after data filled in
          0, 20,
          {0x0,0,16,0},{0x0,0x0,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"ND100_3041",             256, 10000000,  0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3669,7 +3684,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_nd100_3041, 1024, 9, 0, 5209,
          0, 20,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {"PERQ_T2",              256, 10000000,    754000, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3678,7 +3693,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          1, 1, trk_perq_t2, 512, 16, 0, 5209,
          16, 0,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
-         0, 0, 0
+         0, 0, 0, 0
       },
       {NULL, 0, 0, 0,
          0, 0, 0, 0,
@@ -3687,7 +3702,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, NULL, 0, 0, 0, 0,
          0, 0,
          {0,0,0,0},{0,0,0,0}, 0,
-         0, 0, 0
+         0, 0, 0, 0
       }
    }
 #endif
@@ -3696,19 +3711,21 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
 // The possible states from reading each sector.
 
 // These are ORed into the state
+// Flag for analyze format we must see spare sector.
+#define SECT_ANALYZE_SPARE 0x4000
 // This is set if information is found such as sector our of the expected
 // range. If MODEL controller mostly matches but say has one less sector than
 // the disk has it was being selected instead of going on to ANALYZE 
-#define ANALYZE_WRONG_FORMAT 0x1000
+#define ANALYZE_WRONG_FORMAT 0x2000
 // If this is set the data being CRC'd is zero so the zero CRC
 // result is ambiguous since any polynomial will match
-#define SECT_AMBIGUOUS_CRC 0x800
+#define SECT_AMBIGUOUS_CRC 0x1000
 // If set treat as error for analyze but otherwise ignore it
-#define SECT_ANALYZE_ERROR 0x400
+#define SECT_ANALYZE_ERROR 0x800
 // Set if the sector number is bad when BAD_HEADER is not set.
 // Some formats use bad sector numbers to flag bad blocks
-#define SECT_BAD_LBA_NUMBER 0x200
-#define SECT_BAD_SECTOR_NUMBER 0x100
+#define SECT_BAD_LBA_NUMBER 0x400
+#define SECT_BAD_SECTOR_NUMBER 0x200
 // This is used to mark sectors that are spare sectors or are marked
 // bad and don't contain user data. 
 // It suppresses counting as errors other errors seen.
