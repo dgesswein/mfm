@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/24/24 DJG Added Seagate ST11MB support.
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
@@ -627,6 +628,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SM_1810_512B ||
          drive_params->controller == CONTROLLER_DSD_5217_512B ||
          drive_params->controller == CONTROLLER_OMTI_5510 ||
+         drive_params->controller == CONTROLLER_OMTI_5200_18SECTOR_512B ||
          drive_params->controller == CONTROLLER_MORROW_MD11 ||
          drive_params->controller == CONTROLLER_UNKNOWN1 ||
          drive_params->controller == CONTROLLER_UNKNOWN2 ||
@@ -1560,6 +1562,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SM_1810_512B ||
             drive_params->controller == CONTROLLER_DSD_5217_512B ||
             drive_params->controller == CONTROLLER_OMTI_5510 ||
+            drive_params->controller == CONTROLLER_OMTI_5200_18SECTOR_512B ||
             drive_params->controller == CONTROLLER_MORROW_MD11 ||
             drive_params->controller == CONTROLLER_UNKNOWN1 ||
             drive_params->controller == CONTROLLER_UNKNOWN2 ||

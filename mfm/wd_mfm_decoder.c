@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/06/24 DJG Added handling of alternate tracks for DTC
 // 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06
 // 02/20/24 DJG Added CONTROLLER_ADAPTEC_4000_18SECTOR_512B
@@ -284,7 +285,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 4 bits 7-5 head 4-0 sector
 //      CRC/ECC code
 //
-//   CONTROLLER_OMTI_5510 (Also 20D)
+//   CONTROLLER_OMTI_5510 (Also 20D, 5200)
 //   Manual http://bitsavers.trailing-edge.com/pdf/sms/pc/
 //   20D image omti_20d.tran/zip
 //   6 byte header + 4 byte CRC
@@ -1161,7 +1162,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.status |= SECT_ECC_RECOVERED;
       }
 
-      if (drive_params->controller == CONTROLLER_OMTI_5510) {
+      if (drive_params->controller == CONTROLLER_OMTI_5510 ||
+            drive_params->controller == CONTROLLER_OMTI_5200_18SECTOR_512B) {
          sector_status.cyl = bytes[2]<< 8;
          sector_status.cyl |= bytes[3];
 
@@ -2442,7 +2444,9 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          }
          alt_assigned_handled = 1;
       }
-      if (drive_params->controller == CONTROLLER_OMTI_5510 && alt_assigned) {
+      if ((drive_params->controller == CONTROLLER_OMTI_5510 ||
+           drive_params->controller == CONTROLLER_OMTI_5200_18SECTOR_512B)
+              && alt_assigned) {
           mfm_handle_alt_track_ch(drive_params, sector_status.cyl, 
             sector_status.head, (bytes[2] << 8) + bytes[3], bytes[4]);
          alt_assigned_handled = 1;

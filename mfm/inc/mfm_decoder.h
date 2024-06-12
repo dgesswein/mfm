@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/24/24 DJG Added Seagate ST11MB support. Make bitfields unique.
 // 04/29/24 DJG Disabled TI_2223220 format. Duplicate of EC1841
 // 05/19/24 DJG Added CONTROLLER_XEBEC_104527_C0_256B. Compare byte 0.
@@ -236,6 +237,7 @@ typedef struct {
       CONTROLLER_SM_1810_512B,
       CONTROLLER_DSD_5217_512B, 
       CONTROLLER_OMTI_5510, 
+      CONTROLLER_OMTI_5200_18SECTOR_512B, 
       CONTROLLER_XEROX_6085, 
       CONTROLLER_TELENEX_AUTOSCOPE, 
       CONTROLLER_MORROW_MD11,
@@ -792,7 +794,7 @@ DEF_EXTERN TRK_L trk_ISBC214_256b[]
 }
 #endif
 ;
-DEF_EXTERN TRK_L trk_ISBC214_512b[] 
+DEF_EXTERN TRK_L trk_ISBC214_512B[] 
 #ifdef DEF_DATA
  = 
 { { 38, TRK_FILL, 0x4e, NULL },
@@ -1014,7 +1016,7 @@ DEF_EXTERN TRK_L trk_ISBC215_256b[]
 }
 #endif
 ;
-DEF_EXTERN TRK_L trk_ISBC215_512b[] 
+DEF_EXTERN TRK_L trk_ISBC215_512B[] 
 #ifdef DEF_DATA
  = 
 { { 38, TRK_FILL, 0x4e, NULL },
@@ -1412,7 +1414,7 @@ DEF_EXTERN TRK_L trk_DSD_5217_512B[]
 ;
 
 
-// From http://www.mirrorservice.org/sites/www.bitsavers.org/pdf/sms/asic/OMTI_5050_Programmable_Data_Sequencer_Jun86.pdf
+// From http://www.bitsavers.org/pdf/sms/asic/OMTI_5050_Programmable_Data_Sequencer_Jun86.pdf
 // Appendix A
 DEF_EXTERN TRK_L trk_omti_5510[] 
 #ifdef DEF_DATA
@@ -1450,6 +1452,47 @@ DEF_EXTERN TRK_L trk_omti_5510[]
      }
    },
    {717, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_omti_5200_18sector_512B[] 
+#ifdef DEF_DATA
+ = 
+{ { 11, TRK_FILL, 0x4e, NULL },
+  { 18, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {12, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {2, FIELD_CYL, 0x00, OP_SET, 2, NULL},
+              {1, FIELD_HEAD, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {14, TRK_FILL, 0x00, NULL},
+        {518, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {14, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {147, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -1786,7 +1829,7 @@ DEF_EXTERN TRK_L trk_cromemco_stdc[]
 ;
 
 // 512B 17 sectors per track from unknown DTC controller
-DEF_EXTERN TRK_L trk_dtc_pc_512b[] 
+DEF_EXTERN TRK_L trk_dtc_pc_512B[] 
 #ifdef DEF_DATA
  = 
 { { 16, TRK_FILL, 0x4e, NULL },
@@ -1840,7 +1883,7 @@ DEF_EXTERN TRK_L trk_dtc_pc_512b[]
 ;
 
 // 512B 18 sectors per track from DTC 520 controller manual
-DEF_EXTERN TRK_L trk_dtc_520_512b[] 
+DEF_EXTERN TRK_L trk_dtc_520_512B[] 
 #ifdef DEF_DATA
  = 
 { { 16, TRK_FILL, 0x4e, NULL },
@@ -2703,7 +2746,7 @@ DEF_EXTERN TRK_L trk_att_3b2[]
 // 512B 18 sectors per track from Adaptec controller manual
 // http://www.bitsavers.org/pdf/adaptec/ACB-4000/400003-00A_ACB-4000A_Users_Manual_Oct85.pdf
 
-DEF_EXTERN TRK_L trk_Adaptec_4000_18sector_512b[]
+DEF_EXTERN TRK_L trk_Adaptec_4000_18sector_512B[]
 #ifdef DEF_DATA
  = 
 { { 10, TRK_FILL, 0x4e, NULL }, // GAP 1
@@ -2913,7 +2956,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_ISBC214_512b, 512, 17, 0, 5209,
+         0, 1, trk_ISBC214_512B, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0, 0
@@ -2987,7 +3030,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_dtc_pc_512b, 512, 17, 0, 5209,
+         0, 1, trk_dtc_pc_512B, 512, 17, 0, 5209,
          0, 0,
          {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
          0, 0, 0, 0
@@ -3005,7 +3048,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_dtc_520_512b, 512, 18, 0, 5209,
+         0, 1, trk_dtc_520_512B, 512, 18, 0, 5209,
          0, 0,
          {0,0x24409,24,2},{0,0x24409,24,2}, CONT_MODEL,
          0, 0, 0, 0
@@ -3222,6 +3265,8 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0, 0, 0
       },
       // For 20D controller 256 byte sectors polynomial is 0xe2277da8,0x104c981,32,6
+      // Left as CONT_ANALYZE since 20D doesn't have CONT_MODEL format. ext2emu
+      // won't work for 20D. TODO: Add 20D and convert this to CONT_MODEL.
       {"OMTI_5510",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -3229,6 +3274,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_omti_5510, 512, 17, 0, 5209,
          0, 0,
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_ANALYZE,
+         0, 0, 0, 0
+      },
+      {"OMTI_5200_18sector_512B",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_omti_5200_18sector_512B, 512, 18, 0, 5209,
+         0, 0,
+         { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_MODEL,
          0, 0, 0, 0
       },
       {"Xerox_6085",           256, 10000000,      0,
@@ -3345,7 +3399,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          6, 2, 2, 2, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_ISBC215_512b, 512, 17, 0, 5209,
+         0, 1, trk_ISBC215_512B, 512, 17, 0, 5209,
          0, 0,
          {0xed800493,0xa00805,32,4},{0xbe87fbf4,0xa00805,32,4}, CONT_MODEL,
          0, 0, 0, 0
@@ -3426,11 +3480,11 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
          0, 0, 0, 0
       },
-      {"Adaptec_4000_18sector_512b",              256, 10000000,      0, 
+      {"Adaptec_4000_18sector_512B",              256, 10000000,      0, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_LBA,
          6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, trk_Adaptec_4000_18sector_512b, 512, 18, 0, 5209,
+         0, 1, trk_Adaptec_4000_18sector_512B, 512, 18, 0, 5209,
          0, 0,
          {0x0,0x41044185,32,6},{0x0,0x41044185,32,6}, CONT_MODEL,
          0, 0, 0, 0

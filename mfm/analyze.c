@@ -1145,7 +1145,7 @@ void analyze_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
    drive_params->analyze_in_progress = 1;
 
    if (!use_file) {
-      // Step through all the head selects to find the drive
+      // Step through all the drive selects to find the drive
       for (i = 1; i <= 4 && !ready; i++) {
          int wait_count = 0;
          drive_params->drive = i;

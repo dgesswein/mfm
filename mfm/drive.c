@@ -322,6 +322,7 @@ void drive_setup(DRIVE_PARAMS *drive_params)
    drive_select(drive_params->drive);
 
    if (pru_exec_cmd(CMD_CHECK_READY, 0)) {
+      msg(MSG_INFO,"Initial drive ready check failed\n");
       drive_print_drive_status(MSG_FATAL, drive_get_drive_status());
       exit(1);
    }
