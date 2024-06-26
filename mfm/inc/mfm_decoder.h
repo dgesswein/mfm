@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/26/24 DJG Added CONTROLLER_IMS_A820
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/24/24 DJG Added Seagate ST11MB support. Make bitfields unique.
 // 04/29/24 DJG Disabled TI_2223220 format. Duplicate of EC1841
@@ -285,7 +286,8 @@ typedef struct {
       CONTROLLER_STRIDE_440,
       CONTROLLER_SAGA_FOX,
       CONTROLLER_ND100_3041,
-      CONTROLLER_PERQ_T2
+      CONTROLLER_PERQ_T2,
+      CONTROLLER_IMS_A820 
    } controller;
 #define CONTROLLER_TI_2223220 9999
 
@@ -3747,6 +3749,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          1, 1, trk_perq_t2, 512, 16, 0, 5209,
          16, 0,
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      {"IMS_A820",              256, 10000000,    490000, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, NULL, 512, 18, 0, 5209,
+         0, 0,
+         {0xd1e92a5b,0x140a0445,32,0},{0xd1e92a5b,0x140a0445,32,0}, CONT_MODEL,
          0, 0, 0, 0
       },
       {NULL, 0, 0, 0,

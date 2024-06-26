@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 06/25/24 DJG Added CONTROLLER_IMS_A820
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/24/24 DJG Added Seagate ST11MB support.
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
@@ -700,7 +701,8 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
          drive_params->controller == CONTROLLER_VECTOR4 ||
          drive_params->controller == CONTROLLER_STRIDE_440 ||
-         drive_params->controller == CONTROLLER_SAGA_FOX)  {
+         drive_params->controller == CONTROLLER_SAGA_FOX ||
+         drive_params->controller == CONTROLLER_IMS_A820)  {
       rc = corvus_decode_track(drive_params, cyl, head, deltas, seek_difference,
             sector_status_list);
    } else if (drive_params->controller == CONTROLLER_NORTHSTAR_ADVANTAGE ||
@@ -1491,6 +1493,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
    SECTOR_DECODE_STATUS status = SECT_NO_STATUS;
    char *name;
 
+   status = mfm_crc_bytes(drive_params, bytes, bytes_crc_len, *state, &crc,
+      &ecc_span, &init_status, 1);
    if (*state == PROCESS_HEADER) {
 #if DUMP_HEADER
       static int dump_fd = 0;
@@ -1505,6 +1509,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
       write(dump_fd, bytes, bytes_crc_len);
 #endif
+      //if ((msg_get_err_mask() & MSG_DEBUG_DATA) && crc == 0) {
       if (msg_get_err_mask() & MSG_DEBUG_DATA) {
          mfm_dump_bytes(bytes, bytes_crc_len, cyl, head, *sector_index,
                MSG_DEBUG_DATA);
@@ -1530,8 +1535,6 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
       }
       name = "data";
    }
-   status = mfm_crc_bytes(drive_params, bytes, bytes_crc_len, *state, &crc,
-      &ecc_span, &init_status, 1);
    if (crc != 0 || ecc_span != 0) {
       msg(MSG_DEBUG,"Bad CRC %s cyl %d head %d sector index %d\n",
             name, cyl, head, *sector_index);
@@ -1639,7 +1642,8 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_VECTOR4_ST506 ||
             drive_params->controller == CONTROLLER_VECTOR4 ||
             drive_params->controller == CONTROLLER_STRIDE_440 ||
-            drive_params->controller == CONTROLLER_SAGA_FOX) {
+            drive_params->controller == CONTROLLER_SAGA_FOX ||
+            drive_params->controller == CONTROLLER_IMS_A820) {
          status |= corvus_process_data(state, bytes, total_bytes, crc, cyl,
                head, sector_index, drive_params, seek_difference,
                sector_status_list, ecc_span, init_status);

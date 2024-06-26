@@ -1,10 +1,12 @@
 #define VCD 0
 // This routine decodes Corvus formated disks and other disks that use a
 // bunch of 0's followed by one or other pattern to mark start and use rotation
-// time from index to determine when to start looking. 
+// time from index to determine when to start looking. Not sure why this is
+// separate from northstar decoder.
 //
-// Copyright 2022 David Gesswein.
+// Copyright 2024 David Gesswein.
 //
+// 06/26/24 DJG Added CONTROLLER_IMS_A820
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
 // 12/08/22 DJG Changed error message
@@ -182,6 +184,19 @@ static inline float filter(float v, float *delay)
 //      byte 257 unknown
 //      byte 258 xor of bytes 0-257
 //      
+//   CONTROLLER_IMS_A820 (Last digit is revision so should likely will
+//         work for all A82#)
+//      No documenation on format. Disk uses a PLL from index to generate hard 
+//      sector signal for controller
+//      http://www.s100computers.com/Hardware%20Folder/IMS/HDC/Winchester%20Disk%20Controller.htm
+//      lots of bytes of zeros followed by a one bit to mark header.
+//      byte 0 low cylinder
+//      byte 1 high cylinder (guess, drive only had 156 cylinders)
+//      byte 2 head
+//      byte 3 sector
+//      512 bytes of sector data
+//      4 byte ecc
+//
 SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          int total_bytes,
          uint64_t crc, int exp_cyl, int exp_head, int *sector_index,
@@ -244,6 +259,10 @@ SECTOR_DECODE_STATUS corvus_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl = track / drive_params->num_head;
          sector_status.head = track % drive_params->num_head;
          sector_status.sector = 0;
+      } else if (drive_params->controller == CONTROLLER_IMS_A820) {
+         sector_status.cyl = bytes[0] | (bytes[1] << 8);
+         sector_status.head = bytes[2];
+         sector_status.sector = bytes[3];
       } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
          if (bytes[0] != 0xf0) {
             msg(MSG_ERR, "Bad sync byte %x on cyl %d,%d head %d,%d\n",
@@ -422,6 +441,8 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       next_header_time = 10000;
    } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
       next_header_time = 91000;
+   } else if (drive_params->controller == CONTROLLER_IMS_A820) {
+      next_header_time = 99200;
    } else {
       msg(MSG_ERR, "Unknown controller\n");
       exit(1);
@@ -590,6 +611,10 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                         mfm_controller_info[drive_params->controller].data_trailer_bytes +
                         drive_params->data_crc.length / 8;
                   }
+               } else if (drive_params->controller == CONTROLLER_IMS_A820) {
+                  // No more headers
+                  next_header_time = track_time + 184754;
+                  raw_bit_cntr = 0;
                }
 //printf("Next header at %d track time %d\n",next_header_time, track_time);
                decoded_word = 0;
