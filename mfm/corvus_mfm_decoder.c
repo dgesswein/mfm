@@ -6,6 +6,7 @@
 //
 // Copyright 2024 David Gesswein.
 //
+// 07/02/24 DJG Fixed ECC length for CONTROLLER_IMS_A820 and added ext2emu support
 // 06/26/24 DJG Added CONTROLLER_IMS_A820
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
@@ -427,6 +428,30 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    max_delta = nominal_bit_sep_time * 22;
    avg_bit_sep_time = nominal_bit_sep_time;
 
+
+   static int total_track_time = -1;
+   // This drive uses a PLL based on index signal to determine where
+   // the sector boundries are. If first time we need to calculate rotation
+   // time from deltas so we can do similar. We will update after each track.
+   if (drive_params->controller == CONTROLLER_IMS_A820 && total_track_time == -1) {
+      num_deltas = deltas_get_count(0);
+      i = 1;
+      for (; i < num_deltas && num_deltas >= 0;) {
+         total_track_time += deltas[i++];
+     
+         if (i >= num_deltas) {
+            // Finished what we had, any more?
+            // If we didn't get too many last time sleep so delta reader can run.
+            // Thread priorities might be better.
+            if (num_deltas - last_deltas <= 2000) {
+               usleep(500);
+            }
+            last_deltas = num_deltas;
+            num_deltas = deltas_get_count(i);
+         }
+      }
+   }
+     
    if (drive_params->controller == CONTROLLER_CORVUS_H) {
       next_header_time = 71500;
    } else if (drive_params->controller == CONTROLLER_CROMEMCO) {
@@ -442,7 +467,7 @@ SECTOR_DECODE_STATUS corvus_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    } else if (drive_params->controller == CONTROLLER_SAGA_FOX) {
       next_header_time = 91000;
    } else if (drive_params->controller == CONTROLLER_IMS_A820) {
-      next_header_time = 99200;
+      next_header_time = 98100.0 * total_track_time / 3333333;
    } else {
       msg(MSG_ERR, "Unknown controller\n");
       exit(1);
@@ -460,10 +485,10 @@ fprintf(out,"$var wire 1 & sector $end\n");
    // Adjust time for when data capture started
    next_header_time -= drive_params->start_time_ns / CLOCKS_TO_NS;
 
-   num_deltas = deltas_get_count(0);
-
    raw_word = 0;
    i = 1;
+   last_deltas = 0;
+   num_deltas = deltas_get_count(0);
    while (num_deltas >= 0) {
       // We process what we have then check for more.
       for (; i < num_deltas;) {
@@ -613,7 +638,7 @@ printf("Found header at %d %d %d\n",tot_raw_bit_cntr, track_time,
                   }
                } else if (drive_params->controller == CONTROLLER_IMS_A820) {
                   // No more headers
-                  next_header_time = track_time + 184754;
+                  next_header_time = track_time + 178300.0 * total_track_time / 3333333;
                   raw_bit_cntr = 0;
                }
 //printf("Next header at %d track time %d\n",next_header_time, track_time);
@@ -712,5 +737,8 @@ fprintf(out,"#%lld\n0&\n", bit_time);
 #if VCD
 fclose(out);
 #endif
+
+   // Update rotation time estimate
+   total_track_time = track_time;
    return sector_status;
 }

@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 07/02/24 DJG Fix/clarify --ignore_seek_error sector error tracking (sector_good) and ECC print
 // 06/25/24 DJG Added CONTROLLER_IMS_A820
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/24/24 DJG Added Seagate ST11MB support.
@@ -201,10 +202,12 @@ static void dump_bad(void);
 // for the entire disk. It also makes sure a good sector won't be overwritten with a
 // bad sector. A disk I was reading you saw multiple cylinders when
 // reading a track so track at a time error information wasn't accurate.
-//  sector_good 0 = not good, 1 = good, ECC_OFFSET + bits corrected = good 
-//    but ECC corrected
-#define ECC_OFFSET 5
-static char sector_good[MAX_CYL][MAX_HEAD][MAX_SECTORS];
+//    Lower value better data.
+//    sector_good & ECC MASK not zero number of bits corrected. 
+static uint8_t sector_good[MAX_CYL][MAX_HEAD][MAX_SECTORS];
+#define SECTOR_GOOD_BAD 0x80
+#define SECTOR_GOOD_GOOD 0x0
+#define SECTOR_GOOD_ECC_MASK 0x7f
 // CRC of sector data. This detects if good or ECC corrected data differs between
 // reads
 static uint64_t sector_crc[MAX_CYL][MAX_HEAD][MAX_SECTORS];
@@ -390,7 +393,17 @@ static void print_sector_list_status(DRIVE_PARAMS *drive_params,
          msg(MSG_ERR_SUMMARY,"\n");
       }
       if (ecc_corrections) {
-         msg(MSG_ERR_SUMMARY, "ECC Corrections on cylinder %d head %d:",cyl,head);
+         msg(MSG_ERR_SUMMARY, "ECC Corrections on cylinder %d", cyl);
+         for (cntr = 0; cntr < num_sectors; cntr++) {
+            if (!(sector_status_list[cntr].status & SECT_BAD_HEADER)) {
+               if (sector_status_list[cntr].cyl != cyl &&
+                   sector_status_list[cntr].cyl != last_cyl) {
+                  msg(MSG_ERR_SUMMARY, "/%d",sector_status_list[cntr].cyl);
+                  last_cyl = sector_status_list[cntr].cyl;
+               }
+            }
+         }
+         msg(MSG_ERR_SUMMARY, " head %d:",head);
          for (cntr = 0; cntr < num_sectors; cntr++) {
             if (sector_status_list[cntr].status & SECT_ECC_RECOVERED &&
                  !(sector_status_list[cntr].status & SECT_SPARE_BAD)) {
@@ -758,7 +771,7 @@ void mfm_decode_setup(DRIVE_PARAMS *drive_params, int write_files)
    num_cyl = drive_params->num_cyl;
    num_head = drive_params->num_head;
    num_sectors = drive_params->num_sectors;
-   memset(sector_good, 0, sizeof(sector_good));
+   memset(sector_good, SECTOR_GOOD_BAD, sizeof(sector_good));
    memset(sector_crc, 0, sizeof(sector_crc));
 
    if (drive_params->emulation_output && drive_params->ignore_seek_errors) {
@@ -1074,13 +1087,13 @@ static void dump_bad(void) {
       for (int head = 0; head < num_head; head++) {
          int printed = 0;
          for (int sect = 0; sect < num_sectors; sect++) {
-            if (sector_good[cyl][head][sect] != 1) {
+            if (sector_good[cyl][head][sect] != SECTOR_GOOD_GOOD) {
                if (!printed) {
                   msg(MSG_INFO, "BAD cyl %d head %d: ", cyl, head) ;
                   printed = 1;
                }
-               if (sector_good[cyl][head][sect] == 2) {
-                  msg(MSG_INFO, "%dE(%d) ", sect, sector_good[cyl][head][sect] - ECC_OFFSET);
+               if (sector_good[cyl][head][sect] & SECTOR_GOOD_ECC_MASK) {
+                  msg(MSG_INFO, "%dE(%d) ", sect, sector_good[cyl][head][sect] & SECTOR_GOOD_ECC_MASK);
                   ecc_sector_count++;
                } else {
                   msg(MSG_INFO, "%d ", sect);
@@ -1209,33 +1222,42 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
           drive_params->num_head);
       // If good read or previous good read see if data different. Good is CRC
       // matches with or without ECC correction
-      if (!(sector_status->status & SECT_BAD_DATA) && sector_good[sector_status->cyl][sector_status->head][sect_rel0] != 0) {
-         if (crc != sector_crc[sector_status->cyl][sector_status->head][sect_rel0]) {
-            msg(MSG_INFO, "Miscorrected ECC cyl %d head %d sect %d\n",sector_status->cyl,
-                sector_status->head,sect_rel0);
-         }
-      }
-      // Span is only set if we don't have CRC error after correction
-      if (sector_status_list[sect_rel0].ecc_span_corrected_data > 0) {
-         int new_good = ECC_OFFSET + sector_status_list[sect_rel0].ecc_span_corrected_data;
-         // Update CRC so we can see if we are getting false ECC corrections
-         sector_crc[sector_status->cyl][sector_status->head][sect_rel0] = crc;
-         if (sector_good[sector_status->cyl][sector_status->head][sect_rel0] <= new_good) {
-            //printf("Not replacing better sector with ecc error");
-            update = 0;
-         } else {
-            sector_good[sector_status->cyl][sector_status->head][sect_rel0] = new_good;
-         }
-      } else {
-         if ( !(sector_status->status & SECT_BAD_DATA)) {
-            sector_good[sector_status->cyl][sector_status->head][sect_rel0] = 1;
-            sector_crc[sector_status->cyl][sector_status->head][sect_rel0] = crc;
-         } else {
-            // If we had a read without error don't overwrite with bad data
-            if (sector_good[sector_status->cyl][sector_status->head][sect_rel0] > 0) { 
-               update = 0;
+      if (!(sector_status->status & SECT_BAD_DATA)) {
+         if (sector_good[sector_status->cyl][sector_status->head][sect_rel0] != SECTOR_GOOD_BAD) {
+            if (crc != sector_crc[sector_status->cyl][sector_status->head][sect_rel0]) {
+               // If neither current read or previous were corrected by ECC
+               if (sector_status->ecc_span_corrected_data == 0 &&
+                   (sector_good[sector_status->cyl][sector_status->head][sect_rel0] & SECTOR_GOOD_ECC_MASK) == 0) {
+                  msg(MSG_INFO, "Found two reads of sector with different content cyl %d head %d sect %d\n",sector_status->cyl,
+                      sector_status->head,sect_rel0);
+                  // Keep first. Found disk with old format data at end. This
+                  // will report these sectors as bad since they won't
+                  // be written which updates the sector status list
+                  update = 0;
+               } else {
+                  msg(MSG_INFO, "Miscorrected ECC cyl %d head %d sect %d\n",sector_status->cyl,
+                     sector_status->head,sect_rel0);
+               }
             }
          }
+         // Update CRC so we can see if we are getting false ECC corrections
+         sector_crc[sector_status->cyl][sector_status->head][sect_rel0] = crc;
+      }
+      // ECC correction, Span is only set if we don't have CRC error after correction
+      uint8_t new_good;
+      if (sector_status->status & SECT_BAD_DATA) {
+         new_good = SECTOR_GOOD_BAD;
+      } else if (sector_status->ecc_span_corrected_data > 0) {
+         new_good = sector_status->ecc_span_corrected_data;
+      } else {
+         new_good = SECTOR_GOOD_GOOD;
+      }
+      // Need to replace same at least once to write data with CRC error.
+      if (sector_good[sector_status->cyl][sector_status->head][sect_rel0] < new_good) {
+         //printf("Not replacing better sector %d %d\n",sector_good[sector_status->cyl][sector_status->head][sect_rel0], new_good);
+         update = 0;
+      } else {
+         sector_good[sector_status->cyl][sector_status->head][sect_rel0] = new_good;
       }
    }
    if (update) {

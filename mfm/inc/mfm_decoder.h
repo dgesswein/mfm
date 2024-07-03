@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 07/02/24 DJG Fixed ECC length for CONTROLLER_IMS_A820 and added ext2emu support
 // 06/26/24 DJG Added CONTROLLER_IMS_A820
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/24/24 DJG Added Seagate ST11MB support. Make bitfields unique.
@@ -2802,6 +2803,43 @@ DEF_EXTERN TRK_L trk_Adaptec_4000_18sector_512B[]
 }
 #endif
 ;
+
+DEF_EXTERN TRK_L trk_IMS_A820[] 
+#ifdef DEF_DATA
+ = 
+{ { 18, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {27, TRK_FILL, 0x00, NULL},
+        {521, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x01, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {0, FIELD_CYL, 0x00, OP_SET, 16,
+                 (BIT_L []) {
+                    { 16, 8}, // High byte get written to low after reverse
+                    { 8, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 5, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 517, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {30, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {14, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 // CHECK_NONE is used for header formats where some check that is specific
 // to the format is used so can't be generalized. If so the check will need
 // to be done in the header decode and ext2emu as special cases.
@@ -3751,13 +3789,13 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0x0,0x8005,16,0},{0x0,0x8005,16,0}, CONT_MODEL,
          0, 0, 0, 0
       },
-      {"IMS_A820",              256, 10000000,    490000, 
+      {"IMS_A820",              256, 10000000,    485000, 
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
-         4, 0, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 0, NULL, 512, 18, 0, 5209,
+         4, 4, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 0, trk_IMS_A820, 512, 18, 0, 5209,
          0, 0,
-         {0xd1e92a5b,0x140a0445,32,0},{0xd1e92a5b,0x140a0445,32,0}, CONT_MODEL,
+         {0xd1e92a5b,0x140a0445,32,6},{0xd1e92a5b,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0, 0
       },
       {NULL, 0, 0, 0,

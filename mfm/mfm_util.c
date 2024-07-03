@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 07/03/24 DJG Allow --begin_time to override controller default for ext2emu
 // 10/09/23 DJG Remove interleave option except from ext2emu so ext2emu
 //    version can be parsed better
 // 09/12/23 JST Changes to support 5.10 kernel and --sync option
@@ -1057,7 +1058,7 @@ void ext2emu(int argc, char *argv[])
    int calc_size;
    CONTROLLER *controller;
 
-   parse_cmdline(argc, argv, &drive_params, "sgjdlu3rabt", 1, 0, 0, 1);
+   parse_cmdline(argc, argv, &drive_params, "sgjdlu3rat", 1, 0, 0, 1);
 
    parse_validate_options_listed(&drive_params, "hcemf");
 
@@ -1076,7 +1077,9 @@ void ext2emu(int argc, char *argv[])
    drive_params.data_crc = controller->write_data_crc;
    drive_params.header_crc = controller->write_header_crc;
    drive_params.emu_track_data_bytes = controller->track_words * 4;
-   drive_params.start_time_ns = controller->start_time_ns;
+   if (!drive_params.dont_change_start_time) {
+      drive_params.start_time_ns = controller->start_time_ns;
+   }
 
    // Save final parameters
    drive_params.cmdline = parse_print_cmdline(&drive_params, 0, 1);
