@@ -17,6 +17,11 @@ SUBDIRS_TARGETS := \
 
 $(TARGETS) : % : $(addsuffix %,$(SUBDIRS))
 
+update:
+	cd mfm
+	git pull --ff-only
+	make
+
 $(SUBDIRS_TARGETS) :
 	$(MAKE) -C $(@D) $(@F:.%=%)
 	@/bin/echo -e "\n"
@@ -25,6 +30,7 @@ help:
 	@echo "Targets:"
 	@echo "          all:         Build all MFM emulator binaries"
 	@echo "        clean:         Remove all build artifacts"
+	@echo "       update:         Updates code from github and rebuilds"
 	@echo ""
 	@echo "This top-level Makefile recurses over these subdirectories:"
 	@echo "        $(wildcard */)"

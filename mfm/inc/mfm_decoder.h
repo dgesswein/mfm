@@ -2804,6 +2804,8 @@ DEF_EXTERN TRK_L trk_Adaptec_4000_18sector_512B[]
 #endif
 ;
 
+// Code currently can't generate same physical sector ordering.
+// Disk sample has 16 17 0 1 ... This will generate 0 1 2 ...
 DEF_EXTERN TRK_L trk_IMS_A820[] 
 #ifdef DEF_DATA
  = 
