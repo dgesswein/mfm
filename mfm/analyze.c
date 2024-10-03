@@ -9,6 +9,8 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/03/24 DJG Made seek speed test warning if it doesn't work properly.
+//    Fails on some drives but read works anyway.
 // 05/24/24 DJG Added special code to check if spare sector exists to
 //    separate ST11M from ST11MB. Fix max cylinder detection.
 // 05/19/24 DJG Reread track if we change start_time_ns otherwise will get
@@ -1184,8 +1186,9 @@ void analyze_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas,
       if (analyze_seek(drive_params) != 0) {
          drive_params->step_speed = DRIVE_STEP_SLOW;
          if (analyze_seek(drive_params) != 0) {
-            msg(MSG_FATAL, "Drive is not seeking properly\n");
-            exit(1);
+            drive_params->step_speed = DRIVE_STEP_FAST;
+            msg(MSG_INFO, "Seek test didn't work. Trying to read disk anyway with fast seeks.\n");
+            msg(MSG_INFO, "If read successful email djg@pdp8online.com with drive model.\n");
          }
       }
       if (drive_params->step_speed == DRIVE_STEP_FAST) {

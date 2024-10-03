@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 09/13/24 DJG Removed dead code
 // 07/02/24 DJG Fix/clarify --ignore_seek_error sector error tracking (sector_good) and ECC print
 // 06/25/24 DJG Added CONTROLLER_IMS_A820
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
@@ -1214,12 +1215,6 @@ int mfm_write_sector(uint8_t bytes[], DRIVE_PARAMS * drive_params,
       CRC_INFO crc_info = {0x12345678, 0x140a0445000101ll, 56, 0};
    
       uint64_t crc = crc64(bytes, drive_params->sector_size, &crc_info);
-      offset = (sect_rel0) * drive_params->sector_size +
-          sector_status->head * (drive_params->sector_size *
-          drive_params->num_sectors) +
-          (off_t) sector_status->cyl * (drive_params->sector_size *
-          drive_params->num_sectors *
-          drive_params->num_head);
       // If good read or previous good read see if data different. Good is CRC
       // matches with or without ECC correction
       if (!(sector_status->status & SECT_BAD_DATA)) {
