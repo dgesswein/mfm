@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
 // 07/02/24 DJG Fixed ECC length for CONTROLLER_IMS_A820 and added ext2emu support
 // 06/26/24 DJG Added CONTROLLER_IMS_A820
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
@@ -222,6 +223,7 @@ typedef struct {
       CONTROLLER_ELEKTRONIKA_85,
       CONTROLLER_ALTOS_586,
       CONTROLLER_ATT_3B2,
+      CONTROLLER_ATT_3B2_17sector,
       CONTROLLER_CONVERGENT_AWS,
       CONTROLLER_CONVERGENT_AWS_SA1000,
       CONTROLLER_WANG_2275,
@@ -2744,6 +2746,53 @@ DEF_EXTERN TRK_L trk_att_3b2[]
 }
 #endif
 ;
+DEF_EXTERN TRK_L trk_att_3b2_17sector[]
+#ifdef DEF_DATA
+ =
+{ { 16, TRK_FILL, 0x4e, NULL},        // GPL 1
+  { 17, TRK_SUB, 0x00,
+    (TRK_L [])
+    {
+        {13, TRK_FILL, 0x00, NULL },  // PLO SYNC (GPL 2)
+        {7, TRK_FIELD, 0x00,
+          (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              // Upper byte of cylinder is xored with 0xff
+              // Lower byte is unmodified
+              {1, FIELD_FILL, 0xff, OP_SET, 1, NULL},
+              {0, FIELD_CYL, 0x00, OP_XOR, 16, 
+                 (BIT_L []) {
+                    { 8, 16},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+          },
+        },
+	{3, TRK_FILL, 0x4e, NULL},    // ID PAD
+        {13, TRK_FILL, 0x00, NULL},   // PLO SYNC (GPL 2)
+        {516, TRK_FIELD, 0x00,
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {18, TRK_FILL, 0x4e, NULL},   // Data pad (3) + Inter-Record gap (GPL3)
+        {-1, 0, 0, NULL},
+      }
+  },
+  {712, TRK_FILL, 0x4e, NULL},
+  {-1, 0, 0, NULL},
+}
+#endif
+;
 
 
 // 512B 18 sectors per track from Adaptec controller manual
@@ -3155,6 +3204,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_att_3b2, 512, 18, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      {"ATT_3B2_17sector",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_att_3b2_17sector, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
          0, 0, 0, 0

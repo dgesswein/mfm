@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/20/24 DJG Added AT&T 3B2 17 sector format
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/06/24 DJG Added handling of alternate tracks for DTC
 // 04/30/24 DJG Added CONTROLLER_INFORT_PC02_06
@@ -2085,7 +2086,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   exp_head, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
-      } else if (drive_params->controller == CONTROLLER_ATT_3B2) {
+      } else if (drive_params->controller == CONTROLLER_ATT_3B2 ||
+             drive_params->controller == CONTROLLER_ATT_3B2_17sector) {
          sector_status.cyl = bytes[2] | ((bytes[1] ^ 0xff) << 8);
 
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3]);

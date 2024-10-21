@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
 // 09/13/24 DJG Removed dead code
 // 07/02/24 DJG Fix/clarify --ignore_seek_error sector error tracking (sector_good) and ECC print
 // 06/25/24 DJG Added CONTROLLER_IMS_A820
@@ -672,6 +673,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_SEAGATE_ST11MB ||
          drive_params->controller == CONTROLLER_ALTOS_586 ||
          drive_params->controller == CONTROLLER_ATT_3B2 ||
+         drive_params->controller == CONTROLLER_ATT_3B2_17sector ||
          drive_params->controller == CONTROLLER_WANG_2275 ||
          drive_params->controller == CONTROLLER_WANG_2275_B ||
          drive_params->controller == CONTROLLER_CALLAN ||
@@ -1611,6 +1613,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_SEAGATE_ST11MB ||
             drive_params->controller == CONTROLLER_ALTOS_586 ||
             drive_params->controller == CONTROLLER_ATT_3B2 ||
+            drive_params->controller == CONTROLLER_ATT_3B2_17sector ||
             drive_params->controller == CONTROLLER_WANG_2275 ||
             drive_params->controller == CONTROLLER_WANG_2275_B ||
             drive_params->controller == CONTROLLER_CALLAN ||
