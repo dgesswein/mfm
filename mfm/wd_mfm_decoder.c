@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 10/28/24 DJG Added alternate track handling to ST11MB and fixed for ST11M.
 // 10/20/24 DJG Added AT&T 3B2 17 sector format
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
 // 05/06/24 DJG Added handling of alternate tracks for DTC
@@ -673,16 +674,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //   CONTROLLER_SEAGATE_ST11MB
 //      This is from a drive separated from computer so no idea what controller
-//      used. Image IBMTRAN
-//      Similar to ST11M except:
-//      Has 18 sectors per track with last sector number 254. Assume it was 
-//      reserving one sector for spare. Content always 0x6b. None were used 
-//      so unable to determine how spare sector was used.
-//      Drive also has more tracks formatted that expected drive size. Extra
-//      tracks had 0x80 in byte 5 of sectors 254.
-//      Since it looks like it had spare sector on each track removed ST11M
-//      alternate track decoding.
-//      Bits set in header slightly different, see code.
+//      used. Image IBMTRAN. Images with alternate track st_125.tran
+//      Similar to ST11M except Bits set in header slightly different, 
+//      see code. Not sure if should have been separate format.
 //
 //   CONTROLLER_ALTOS_586, Altos 586
 //   5 byte header + 2 byte CRC
@@ -2014,6 +2008,12 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                byte5 = 0;
                mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head, 
                     sector_status.cyl, sector_status.head);
+               // Return where sector is. Alternate track handling will
+               // swap data at end
+               sector_status.cyl = exp_cyl;
+               sector_status.head = exp_head;
+               alt_assigned = 1;
+               alt_assigned_handled = 1;
             }
             if (byte5 == 0x8) {
                is_alternate = 1;
@@ -2021,6 +2021,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                // unexpected values
                byte5 = 0;
                byte2 = byte2 & ~0x20;
+               // Return where sector is. Header has what original track was.
+               // Alternate track handling will swap data at end
+               sector_status.cyl = exp_cyl;
+               sector_status.head = exp_head;
             }
             if (byte5 != 0x0 || (bytes[4] & 0xe0) != 0 || 
                  (byte2 & 0x30) != 0) {
@@ -2051,14 +2055,44 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             sector_status.cyl = (((bytes[2] & 0xc0) << 2) | bytes[3]) + 1;
             sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[2] & 0xf);
             sector_status.sector = bytes[4];
-            if ((bytes[5] != 0x0 && bytes[5] != 0x80) || 
-                 ((bytes[4] & 0xe0) != 0 && (bytes[4] != 0xfe)) ||
-                 (bytes[2] & 0x30) != 0) {
+
+            uint8_t byte5 = bytes[5];
+            uint8_t byte2 = bytes[2];
+
+            if (byte5 == 0x4) {
+               msg(MSG_INFO, "Cylinder %d head %d assigned alternate cyl %d head %d. Extract data fixed\n",
+                  exp_cyl, exp_head, sector_status.cyl, sector_status.head);
+               byte5 = 0;
+               mfm_handle_alt_track_ch(drive_params, exp_cyl, exp_head, 
+                    sector_status.cyl, sector_status.head);
+               // Return where sector is. Alternate track handling will
+               // swap data at end
+               sector_status.cyl = exp_cyl;
+               sector_status.head = exp_head;
+               alt_assigned = 1;
+               alt_assigned_handled = 1;
+            }
+            if (byte5 == 0x8) {
+               is_alternate = 1;
+               // Clear various bits set so check below doesn't report
+               // unexpected values
+               byte5 = 0;
+               byte2 = byte2 & ~0x20;
+               // Return where sector is. Header has what original track was.
+               // Alternate track handling will swap data at end
+               sector_status.cyl = exp_cyl;
+               sector_status.head = exp_head;
+            }
+            if ((byte5 != 0x0 && byte5 != 0x80) || 
+                 ((bytes[4] & 0xe0) != 0 && bytes[4] != 0xfe && bytes[4] != 0xff) ||
+                 (byte2 & 0x30) != 0) {
                msg(MSG_INFO, "Unexpected bytes  %02x, %02x, %02x on cyl %d,%d head %d,%d sector %d\n",
                      bytes[2], bytes[4], bytes[5], exp_cyl, sector_status.cyl,
                      exp_head, sector_status.head, sector_status.sector);
             }
          }
+         // This will mark sectors from track with alternate track assigned 
+         // as bad. Headers don't have valid sector number. Data is all 0x6c
          if ((bytes[4] & 0xe0) == 0xe0) {
             sector_status.status |= SECT_SPARE_BAD;
             sector_status.status |= SECT_BAD_SECTOR_NUMBER;

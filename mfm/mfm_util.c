@@ -1,6 +1,8 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+//    header
 // 07/03/24 DJG Allow --begin_time to override controller default for ext2emu
 // 10/09/23 DJG Remove interleave option except from ext2emu so ext2emu
 //    version can be parsed better
@@ -225,6 +227,11 @@ int main (int argc, char *argv[])
        drive_params.extract_filename == NULL) {
       msg(MSG_FATAL, "Must specify extract file to be generated\n");
       exit(1);
+   }
+
+   if (drive_params.extract_filename != NULL && !drive_params.xebec_skew &&
+     (mfm_controller_info[drive_params.controller].flag & FLAG_XEBEC)) {
+      printf("Check extracted data file. Some Xebec controllers need --xebec_skew option\n  to generate valid extracted data file\n");
    }
 
    // Setup decoding of transitions and possible file to write to

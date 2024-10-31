@@ -4,6 +4,8 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+//    header
 // 05/20/24 DJG Added support for tracks formatted as bad track 
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
@@ -204,11 +206,7 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_status.cyl |= bytes[4];
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5] & 0xf);
          if (!drive_params->analyze_in_progress && 
-            (drive_params->controller == CONTROLLER_EC1841 ||
-            drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B)) {
-            // Controller shifts the sectors by 3 from what is recored
-            // in the header. We only handle 17 512 byte and 32 256 byte
-            // sectors per track. Using num_sectors doesn't work with analyze
+            drive_params->xebec_skew) {
             if (drive_params->first_logical_sector == -1) {
                msg(MSG_FATAL, "%s requires --analyze to determine proper sector mapping\n",
                   mfm_controller_info[drive_params->controller].name);

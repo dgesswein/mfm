@@ -9,6 +9,8 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+//    header
 // 10/03/24 DJG Made seek speed test warning if it doesn't work properly.
 //    Fails on some drives but read works anyway.
 // 05/24/24 DJG Added special code to check if spare sector exists to
@@ -783,8 +785,7 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
     drive_params->num_head = last_good_head+1;
     drive_params->num_sectors = max_sector - min_sector + 1;
     drive_params->first_sector_number = min_sector;
-    if (drive_params->controller == CONTROLLER_EC1841 || 
-        drive_params->controller == CONTROLLER_XEBEC_104527_C0_256B) {
+    if (drive_params->xebec_skew) {
        drive_params->first_logical_sector = interleave[drive_params->num_sectors-1];
        msg(MSG_INFO, "First logical sector %d\n", drive_params->first_logical_sector);
     }

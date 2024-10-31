@@ -9,6 +9,8 @@
 // Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+//    header
 // 02/20/24 DJG Set controller to CONTROLLER_NONE if not valid in file
 // 10/09/23 DJG Only support ext2emu interleave parameters. Drop old mfm_read,
 //    mfm_util format.
@@ -167,6 +169,9 @@ char *parse_print_cmdline(DRIVE_PARAMS *drive_params, int print,
    if (drive_params->ignore_seek_errors) {
       safe_print(&cmdptr, &cmdleft, "--ignore_seek_errors ");
    }
+   if (drive_params->xebec_skew) {
+      safe_print(&cmdptr, &cmdleft, "--xebec_skew ");
+   }
 #if 0
    if (drive_params->note != NULL) {
       char *p;
@@ -254,6 +259,11 @@ void parse_set_drive_params_from_controller(DRIVE_PARAMS *drive_params,
    }
    drive_params->header_crc = contp->write_header_crc;
    drive_params->data_crc = contp->write_data_crc;
+   if (contp->flag & FLAG_XEBEC_SKEW) {
+      drive_params->xebec_skew = 1;
+   } else {
+      drive_params->xebec_skew = drive_params->xebec_skew_cmdline;
+   }
 }
 
 // Parse controller value (track/sector header format). The formats are named
@@ -460,9 +470,10 @@ static struct option long_options[] = {
          {"mark_bad", 1, NULL, 'M'},
          {"track_words", 1, NULL, 'w'},
          {"ignore_seek_errors", 0, NULL, 'I'},
+         {"xebec_skew", 0, NULL, 'x'},
          {NULL, 0, NULL, 0}
 };
-static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:w:I";
+static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:w:Ix";
 
 // Main routine for parsing command lines
 //
@@ -683,6 +694,12 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             break;
          case 'I':
             drive_params->ignore_seek_errors = 1;
+            break;
+         case 'x':
+            drive_params->xebec_skew = 1;
+            // If format doesn't set xebec_skew keep what was set on
+            // command line so we can use that
+            drive_params->xebec_skew_cmdline = 1;
             break;
          default:
             msg(MSG_FATAL, "Didn't process argument %c\n", rc);

@@ -4,8 +4,9 @@
 
 // TODO Make handle more complex interleave like RD53 (cyl to cyl is 8, track
 // to track is -1 or 16)
-// TODO Use recovery line on Seagates to microstep instead of big seeks
 //
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+//    header
 // 10/09/23 Remove interleave as option so ext2emu can be parsed better
 // 09/17/23 Changed to calling pru_exec_program to set correct path for file 
 // to load and board_set_restore_max_cpu_speed to have one copy
@@ -189,6 +190,11 @@ int main(int argc, char *argv[])
    cmdline = parse_print_cmdline(&drive_params, 0, 0);
    drive_params.cmdline = msg_malloc(strlen(cmdline)+1,"main cmdline");
    strcpy(drive_params.cmdline, cmdline);
+   if (drive_params.extract_filename != NULL && !drive_params.xebec_skew &&
+     (mfm_controller_info[drive_params.controller].flag & FLAG_XEBEC)) {
+      printf("Check extracted data file. Some Xebec controllers need --xebec_skew option\n  to generate valid extracted data file\n");
+   }
+       
 
    if (read) {
       drive_setup(&drive_params);

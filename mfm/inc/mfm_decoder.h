@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+//    header
 // 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
 // 07/02/24 DJG Fixed ECC length for CONTROLLER_IMS_A820 and added ext2emu support
 // 06/26/24 DJG Added CONTROLLER_IMS_A820
@@ -366,6 +368,11 @@ typedef struct {
    enum {FORMAT_NONE, FORMAT_ADAPTEC_COUNT_BAD_BLOCKS} format_adjust;
    // Non zero if seek errors should be ignored
    int ignore_seek_errors;
+   // Non zero if sector data follows one sector after header. Only
+   // valid for certain Xebec formats
+   int xebec_skew;
+   // Value set on command line
+   int xebec_skew_cmdline;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so
@@ -2959,10 +2966,14 @@ typedef struct {
    int header_min_delta_bits, data_min_delta_bits;
      // Minimum number of bits from index for first header
    int first_header_min_bits;
-     // Special decoding flags for analyze
+     // Special decoding flags
    int flag;
      // We found a spare sector. Used to separate ST11M and ST11MB
    #define FLAG_ANALYZE_SPARE_SECT 1
+     // This format needs xebec_skew set
+   #define FLAG_XEBEC_SKEW 2
+     // This is a Xebec format. Used to warn xebec_skew might be needed.
+   #define FLAG_XEBEC 4
 } CONTROLLER;
 
 DEF_EXTERN CONTROLLER mfm_controller_info[]
@@ -3701,7 +3712,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0, 0
+         0, 0, 0, FLAG_XEBEC
       },
       {"Xebec_104527_256B",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3710,7 +3721,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_Xebec_104527_256B, 256, 32, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0, 0
+         0, 0, 0, FLAG_XEBEC
       },
       {"Xebec_104527_512B",         256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3719,7 +3730,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0, 0
+         0, 0, 0, FLAG_XEBEC
       },
       // This has data compare byte 0 vs 0xc9 for format above. Also
       // needs begin_time 225000
@@ -3730,7 +3741,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_Xebec_104527_C0_256B, 256, 32, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0, 0
+         0, 0, 0, FLAG_XEBEC_SKEW
       },
 #if 0
       {"TI_2223220",         256, 10000000,      0,
@@ -3750,7 +3761,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 0, 0, 0, 5209,
          0, 0,
          {0,0,0,0},{0,0,0,0}, CONT_ANALYZE,
-         0, 0, 0, 0
+         0, 0, 0, FLAG_XEBEC
       },
       {"EC1841",         256, 10000000,      220000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
@@ -3759,7 +3770,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, trk_EC1841, 512, 17, 0, 5209,
          0, 10,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
-         0, 0, 0, 0
+         0, 0, 0, FLAG_XEBEC_SKEW
       },
       {"Corvus_H",             512, 11000000,  312000,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
