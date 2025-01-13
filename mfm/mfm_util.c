@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
 // 07/03/24 DJG Allow --begin_time to override controller default for ext2emu
@@ -253,6 +254,9 @@ int main (int argc, char *argv[])
       if (last_cyl != cyl || last_head != head) {
          mfm_init_sector_status_list(sector_status_list,
                drive_params.num_sectors);
+         if (last_cyl != -1) {
+            mfm_end_track(&drive_params, last_cyl, last_head);
+         }
       }
       //printf("Decoding new track %d %d\n",cyl, head);
       deltas_update_count(num_deltas, 0);
@@ -292,6 +296,9 @@ int main (int argc, char *argv[])
          num_deltas = emu_file_read_track_deltas(drive_params.emu_fd,
                &emu_file_info, deltas, MAX_DELTAS, &cyl, &head);
       }
+   }
+   if (last_cyl != -1) {
+      mfm_end_track(&drive_params, last_cyl, last_head);
    }
    mfm_decode_done(&drive_params);
    return 0;

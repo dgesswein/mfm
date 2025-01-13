@@ -9,6 +9,8 @@
 // Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
+// 11/06/24 DJG Allow turning off xebec_skew if set in file.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
 // 02/20/24 DJG Set controller to CONTROLLER_NONE if not valid in file
@@ -470,7 +472,7 @@ static struct option long_options[] = {
          {"mark_bad", 1, NULL, 'M'},
          {"track_words", 1, NULL, 'w'},
          {"ignore_seek_errors", 0, NULL, 'I'},
-         {"xebec_skew", 0, NULL, 'x'},
+         {"xebec_skew", 2, NULL, 'x'},
          {NULL, 0, NULL, 0}
 };
 static char short_options[] = "s:h:c:g:d:f:j:l:ui:3r:a::q:b:t:e:m:vn:M:w:Ix";
@@ -527,7 +529,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
       drive_params->analyze = 0;
       drive_params->start_time_ns = 0;
       drive_params->header_crc.length = -1; // 0 is valid
-      drive_params->first_logical_sector = -1;
    }
    // Handle the options. The long options are converted to the short
    // option name for the switch by getopt_long.
@@ -696,10 +697,14 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
             drive_params->ignore_seek_errors = 1;
             break;
          case 'x':
-            drive_params->xebec_skew = 1;
+            if (optarg == NULL) {
+               drive_params->xebec_skew = 1;
+            } else {
+               drive_params->xebec_skew = atoi(optarg) != 0;
+            }
             // If format doesn't set xebec_skew keep what was set on
             // command line so we can use that
-            drive_params->xebec_skew_cmdline = 1;
+            drive_params->xebec_skew_cmdline = drive_params->xebec_skew;
             break;
          default:
             msg(MSG_FATAL, "Didn't process argument %c\n", rc);

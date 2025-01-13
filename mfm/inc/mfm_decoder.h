@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
 // 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
@@ -186,9 +187,6 @@ typedef struct {
    int noretry_head;
    // The number of the first sector. Some disks start at 0 others 1
    int first_sector_number;
-   // First logical sector on track. Only set and used by EC1841 and
-   // XEBEC_104527_C0_256B format. -1 when not set.
-   int first_logical_sector;
    // Size of data area of sector in bytes
    int sector_size;
    // Size of metadata area of sector in bytes
@@ -4050,6 +4048,13 @@ int mfm_get_data_bit_count();
 void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
 int mfm_fix_head(DRIVE_PARAMS *drive_params, int exp_head, int head);
+
+void mfm_end_track(DRIVE_PARAMS *drive_params,
+   unsigned int cyl, unsigned int head);
+void mfm_clear_remap_list(void);
+void mfm_remap_track_sectors(unsigned int from_sector, unsigned int to_sector);
+void mfm_remap_track(DRIVE_PARAMS *drive_params, 
+   unsigned int cyl, unsigned int head);
 
 #undef DEF_EXTERN
 #endif /* MFM_DECODER_H_ */

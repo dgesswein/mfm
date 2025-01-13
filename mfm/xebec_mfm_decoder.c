@@ -4,6 +4,7 @@
 // the byte decoding. The data portion of the sector only has the one
 // sync bit.
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
 // 05/20/24 DJG Added support for tracks formatted as bad track 
@@ -202,29 +203,37 @@ SECTOR_DECODE_STATUS xebec_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_TI_2223220 ||
             drive_params->controller == CONTROLLER_XEBEC_S1420 ||
             drive_params->controller == CONTROLLER_EC1841) {
+         static int last_sector;
+         static int first_sector;
+
          sector_status.cyl = bytes[3]<< 8;
          sector_status.cyl |= bytes[4];
          sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[5] & 0xf);
-         if (!drive_params->analyze_in_progress && 
-            drive_params->xebec_skew) {
-            if (drive_params->first_logical_sector == -1) {
-               msg(MSG_FATAL, "%s requires --analyze to determine proper sector mapping\n",
-                  mfm_controller_info[drive_params->controller].name);
-               exit(1);
-            }
-            if (*sector_index == drive_params->num_sectors && drive_params->first_logical_sector !=  bytes[6]) {
-               msg(MSG_ERR, "Found different first logical sector %d vs %d on cyl %d head %d\n",
-               bytes[6], drive_params->first_logical_sector, exp_cyl, exp_head);
-            }
-            // This format appears to transfer data from the following sector
-            // from the header matched. If we have 3 sectors 0 2 1 the data
-            // is from sectors 2 1 0. Since we don't know the previous sector
-            // for the first sector on the track or we miss a sector header we 
-            // need that to be found by analyze previously.
-            sector_status.sector = (bytes[6] + drive_params->first_logical_sector) % drive_params->num_sectors;
-         } else {
-            sector_status.sector = bytes[6];
+         sector_status.sector = bytes[6];
+         if (*sector_index == 0) {
+            mfm_clear_remap_list();
+            last_sector = -1; // Start of track so we don't know last sector
+            first_sector = sector_status.sector - drive_params->first_sector_number;
          }
+         // When xebec_skew is set:
+         // This format transfers data from the next sector
+         // from the header matched. If we have 3 sectors with sector header
+         // 0 2 1 the data following sector header 0 is really sector 1, then 0,
+         // then 2. Normal controllers the sector data follows directly the header.
+         // Since we don't know the previous sector for the first sector on a
+         // track we create remapping list then fix extracted data file at the
+         // end of the track.
+         // Found one disk that the mapping changed after track with read error/bad
+         // sectors
+         if (drive_params->xebec_skew) {
+            if (last_sector != -1) {
+               mfm_remap_track_sectors(sector_status.sector - drive_params->first_sector_number, last_sector);
+            }
+            // This will keep updating until we get to the last sector of the
+            // track which is the remap for the first sector
+            mfm_remap_track_sectors(first_sector, sector_status.sector - drive_params->first_sector_number);
+         }
+         last_sector = sector_status.sector - drive_params->first_sector_number;
          // Don't know how/if these are encoded in header
          sector_size = drive_params->sector_size;
          bad_block = (bytes[7] & 2) != 0;

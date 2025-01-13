@@ -6,6 +6,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 06/02/2023 DJG Fixed write fault error reading NEC drive
 // 07/05/2019 DJG Added support for using recovery signal
 // 03/09/2018 DJG Added logic to not retry when requested to read more
@@ -232,6 +233,7 @@ void drive_read_disk(DRIVE_PARAMS *drive_params, void *deltas, int max_deltas)
                      recovered ? "from multiple reads " : "", err_cnt, cyl, head);
             }
          }
+         mfm_end_track(drive_params, cyl, head);
       }
    }
 

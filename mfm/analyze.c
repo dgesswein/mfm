@@ -9,6 +9,7 @@
 // Copyright 2021 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
 // 10/03/24 DJG Made seek speed test warning if it doesn't work properly.
@@ -785,10 +786,6 @@ static void analyze_sectors(DRIVE_PARAMS *drive_params, int cyl, void *deltas,
     drive_params->num_head = last_good_head+1;
     drive_params->num_sectors = max_sector - min_sector + 1;
     drive_params->first_sector_number = min_sector;
-    if (drive_params->xebec_skew) {
-       drive_params->first_logical_sector = interleave[drive_params->num_sectors-1];
-       msg(MSG_INFO, "First logical sector %d\n", drive_params->first_logical_sector);
-    }
 
     msg(MSG_INFO, "Number of heads %d number of sectors %d first sector %d\n",
           drive_params->num_head, drive_params->num_sectors,

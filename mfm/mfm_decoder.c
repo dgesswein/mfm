@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
 // 09/13/24 DJG Removed dead code
 // 07/02/24 DJG Fix/clarify --ignore_seek_error sector error tracking (sector_good) and ECC print
@@ -512,6 +513,18 @@ static void update_stats(DRIVE_PARAMS *drive_params, int cyl, int head,
    }
    last_cyl = cyl;
    last_head = head;
+}
+
+// Code that needs to happen after all of a track has been processed including all retries
+// goes in this routine.
+// drive_params: Drive parameters
+// cyl,head: Physical Track data from
+void mfm_end_track(DRIVE_PARAMS *drive_params, 
+   unsigned int cyl, unsigned int head) {
+
+   if (drive_params->xebec_skew) {
+      mfm_remap_track(drive_params, cyl, head); 
+   }
 }
 
 // Sets the sector status list to bad header. This is the default error.
@@ -2086,6 +2099,82 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
            good_cyl, good_head, bad_cyl, bad_head);
    } else {
       free(alt_info);
+   }
+}
+
+// Indexed by from sector. Value is to sector
+int remap_list[MAX_SECTORS];
+
+// Clear the remap list
+void mfm_clear_remap_list(void) {
+   for (int i = 0; i < ARRAYSIZE(remap_list); i++) {
+      remap_list[i] = -1;
+   }
+}
+
+// This is used to remap sectors on a track. Used for --xebec_skew option.
+// This defines the remapping
+//
+// drive_params: Drive parameters
+// from_sector: Sector that should be moved
+// to_sector: Sector it should be moved to
+void mfm_remap_track_sectors(unsigned int from_sector, unsigned int to_sector) {
+
+   if (from_sector >= ARRAYSIZE(remap_list)) {
+      msg(MSG_FATAL, "remap_list overflow\n");
+      exit(1);
+   }
+   remap_list[from_sector] = to_sector;
+}
+      
+// This is used to remap sectors on a track. Used for --xebec_skew option.
+// This does the remapping of the specified track in extracted data file.
+//
+// drive_params: Drive parameters
+// cyl: Cylinder to remap
+// head: Head to remap
+void mfm_remap_track(DRIVE_PARAMS *drive_params,
+   unsigned int cyl, unsigned int head) {
+   off_t offset;
+   uint8_t data_in[MAX_SECTOR_SIZE * MAX_SECTORS];
+   uint8_t data_out[MAX_SECTOR_SIZE * MAX_SECTORS];
+   int rc;
+
+   if (drive_params->ext_fd >= 0) {
+      if (mfm_controller_info[drive_params->controller].analyze_type == CINFO_LBA) {
+
+         msg(MSG_FATAL, "mfm_remap_track_sectors not valid for LBA drive\n");
+         exit(1);
+      }
+      offset = head * (drive_params->sector_size *
+          drive_params->num_sectors) +
+          (off_t) cyl * (drive_params->sector_size *
+              drive_params->num_sectors * drive_params->num_head);
+      int track_size = drive_params->sector_size * drive_params->num_sectors;
+      if ((rc = pread(drive_params->ext_fd, data_in, track_size, offset)) !=
+            track_size) {
+         msg(MSG_FATAL, "remap read failed, rc %d: %s", rc, strerror(errno));
+         exit(1);
+      }
+      int remap_entries = 0;
+      for (int i = 0; i < ARRAYSIZE(remap_list); i++) {
+         if (remap_list[i] != -1) {
+            memcpy(&data_out[remap_list[i] * drive_params->sector_size],
+               &data_in[i * drive_params->sector_size],
+               drive_params->sector_size);
+            remap_entries++;
+         }
+      }
+      if (remap_entries != drive_params->num_sectors) {
+         msg(MSG_INFO, "Skew remap list short cyl %d track %d expected %d have %d\n",
+           cyl, head, drive_params->num_sectors, remap_entries);
+         msg(MSG_INFO, "Read errors can cause this warning. Sectors may not be properly deskewed\n");
+      }
+      if ((rc = pwrite(drive_params->ext_fd, data_out, track_size, offset)) !=
+            track_size) {
+         msg(MSG_FATAL, "remap write failed, rc %d: %s", rc, strerror(errno));
+         exit(1);
+      }
    }
 }
 

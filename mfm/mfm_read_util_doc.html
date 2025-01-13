@@ -3,10 +3,10 @@
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
 	<title></title>
-	<meta name="generator" content="LibreOffice 7.6.7.2 (Linux)"/>
+	<meta name="generator" content="LibreOffice 24.8.4.2 (Linux)"/>
 	<meta name="author" content="David Gesswein"/>
 	<meta name="created" content="2013-12-28T10:05:51"/>
-	<meta name="changed" content="2024-10-31T14:04:45.164838825"/>
+	<meta name="changed" content="2025-01-13T17:22:20.545815501"/>
 	<style type="text/css">
 		@page { size: 8.5in 11in; margin: 0.79in }
 		p { margin-bottom: 0.08in; background: transparent }
@@ -134,12 +134,31 @@ unbuffered/ST506 seeks. Default is buffered/ST412.</p>
 <p style="margin-bottom: 0in">--version -v</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Print program
 version number.</p>
-<p style="margin-bottom: 0in">--xebec_skew -x</p>
+<p style="margin-bottom: 0in">--xebec_skew -x [=0]</p>
 <p style="margin-left: 0.5in; margin-bottom: 0in">Some Xebec
-controller write the data the the sector following the header with
-the matching sector number. This corrects the data written to the
-extracted data file. If generating an extracted data file from a
-Xebec controller check the data is correct. If not try this option.</p>
+controller write the data one sector after the header with the
+matching sector number. Normally sector data immediately follows the
+sector header. This corrects the data written to the extracted data
+file. If generating an extracted data file from a Xebec controller
+check the data is correct. If not try this option.</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">If parameter is set
+in data file you can turn it off with –xebec_skew=0</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Currently Xebec
+controllers are ones with Xebec in name and also TI_2223220 and
+EC1841.</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in"><br/>
+
+</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in">Note that this only
+fixes the extracted data file. All sector numbers printed in messages
+are efore the correction is applied. The emulator file doesn’t need
+correction.</p>
+<p style="margin-left: 0.5in; margin-bottom: 0in"><br/>
+
+</p>
 <p style="margin-bottom: 0in">Long options can be abbreviated to the
 shortest unique name. Option values can't have spaces unless quoted
 as a string.</p>

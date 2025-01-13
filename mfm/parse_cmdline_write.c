@@ -8,6 +8,7 @@
 // Copyright 2024 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 04/29/24 DJG Made separate file for mfm_write since options different than
 //    mfm_util/mfm_read
 //
@@ -133,7 +134,6 @@ void parse_cmdline(int argc, char *argv[], DRIVE_PARAMS *drive_params,
       drive_params->analyze = 0;
       drive_params->start_time_ns = 0;
       drive_params->header_crc.length = -1; // 0 is valid
-      drive_params->first_logical_sector = -1;
       // Default no precompensation
       drive_params->early_precomp_ns = 0;
       drive_params->late_precomp_ns = 0;
