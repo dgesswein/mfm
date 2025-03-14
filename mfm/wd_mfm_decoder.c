@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 01/20/25 SH  Add ext2emu support for corvus_omni
 // 10/28/24 DJG Added alternate track handling to ST11MB and fixed for ST11M.
 // 10/20/24 DJG Added AT&T 3B2 17 sector format
 // 06/12/24 DJG Added CONTROLLER_OMTI_5200_18SECTOR_512B
@@ -207,6 +208,9 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_CORVUS_OMNI 
+//      Same as WD_1006. Added as separate for ext2emu support.
 //
 //   CONTROLLER_RQDX2
 //      Same as WD_1006 execpt data byte 1 is 0xfb on later cylinders
@@ -1530,6 +1534,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_NIXDORF_8870 || 
             drive_params->controller == CONTROLLER_TANDY_8MEG || 
             drive_params->controller == CONTROLLER_TANDY_16B || 
+            drive_params->controller == CONTROLLER_CORVUS_OMNI ||
             drive_params->controller == CONTROLLER_ES7978 || 
             drive_params->controller == CONTROLLER_WD_MICROENGINE || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 

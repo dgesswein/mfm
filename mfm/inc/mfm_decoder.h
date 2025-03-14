@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 03/13/25 DJG Added ext2emu support for Xebec_104527_512B
+// 01/20/25 SH  Add ext2emu support for corvus_omni
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
@@ -212,6 +214,7 @@ typedef struct {
       CONTROLLER_TANDY_8MEG, 
       CONTROLLER_WD_3B1,
       CONTROLLER_TANDY_16B,
+      CONTROLLER_CORVUS_OMNI,
       CONTROLLER_MOTOROLA_VME10, 
       CONTROLLER_DTC, 
       CONTROLLER_DTC_520_256B, 
@@ -682,6 +685,60 @@ DEF_EXTERN TRK_L trk_tandy_16b[]
         },
         {3, TRK_FILL, 0x00, NULL},
         {33, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {388, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+// Corvus Omnidrive
+DEF_EXTERN TRK_L trk_corvus_omni[] 
+#ifdef DEF_DATA
+ = 
+{ { 48, TRK_FILL, 0x4e, NULL },
+  { 18, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {11, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next byte. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 512
+              {1, FIELD_FILL, 0x20, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {15, TRK_FILL, 0x00, NULL},
+        {516, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 514, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {17, TRK_FILL, 0x4e, NULL},
         {-1, 0, 0, NULL},
      }
    },
@@ -2573,6 +2630,64 @@ DEF_EXTERN TRK_L trk_Xebec_104527_256B[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_Xebec_104527_512B[] 
+#ifdef DEF_DATA
+ = 
+{ { 25, TRK_FILL, 0x00, NULL },
+  { 17, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {16, TRK_FILL, 0x00, NULL},
+        {28, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x01, OP_SET, 14, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
+              {2, FIELD_FILL, 0x00, OP_SET, 15, NULL},
+              {1, FIELD_FILL, 0xc2, OP_SET, 17, NULL},
+              // Upper 4 bits in low 4 bits of byte 5, lower 8 bits in
+              // byte 6
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 (BIT_L []) {
+                    { 148, 4},
+                    { 152, 8},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 20, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 21, NULL},
+              {1, FIELD_FILL, 0x80, OP_SET, 22, NULL},
+              {1, FIELD_FILL_LAST_SECTOR, 0x10, OP_XOR, 22, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 23, NULL},
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 24, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {17, TRK_FILL, 0x00, NULL},
+        {519, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_FILL, 0x01, OP_SET, 0, NULL},
+              {0, FIELD_MARK_CRC_START, 0, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0xc9, OP_SET, 2, NULL},
+              {512, FIELD_SECTOR_DATA, 0x00, OP_SET, 3, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 515, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {28, TRK_FILL, 0x00, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {57, TRK_FILL, 0x00, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 DEF_EXTERN TRK_L trk_Xebec_104527_C0_256B[] 
 #ifdef DEF_DATA
  = 
@@ -3113,6 +3228,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_tandy_16b, 512, 17, 1, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      {"CORVUS_OMNI",        512, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_corvus_omni, 512, 18, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
          0, 0, 0, 0
@@ -3725,7 +3849,7 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          9, 2, 0, 0, CHECK_CRC, CHECK_CRC,
-         0, 1, NULL, 512, 17, 0, 5209,
+         0, 1, trk_Xebec_104527_512B, 512, 17, 0, 5209,
          0, 0,
          {0x0,0xa00805,32,2},{0x0,0xa00805,32,2}, CONT_MODEL,
          0, 0, 0, FLAG_XEBEC

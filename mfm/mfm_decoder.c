@@ -1,4 +1,4 @@
-#define PRINT_SPACING 0
+#define PRINT_SPACING 1
 #define DUMP_HEADER 0
 #define DUMP_DATA 0
 // These are the general routines for supporting MFM decoders.
@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 01/20/25 SH  Add ext2emu support for corvus_omni
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
 // 09/13/24 DJG Removed dead code
@@ -653,6 +654,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
          drive_params->controller == CONTROLLER_WD_3B1 ||
          drive_params->controller == CONTROLLER_TANDY_16B ||
+         drive_params->controller == CONTROLLER_CORVUS_OMNI ||
          drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
          drive_params->controller == CONTROLLER_SM_1810_512B ||
          drive_params->controller == CONTROLLER_DSD_5217_512B ||
@@ -1593,6 +1595,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_TANDY_8MEG ||
             drive_params->controller == CONTROLLER_WD_3B1 ||
             drive_params->controller == CONTROLLER_TANDY_16B ||
+            drive_params->controller == CONTROLLER_CORVUS_OMNI ||
             drive_params->controller == CONTROLLER_MOTOROLA_VME10 ||
             drive_params->controller == CONTROLLER_SM_1810_512B ||
             drive_params->controller == CONTROLLER_DSD_5217_512B ||
