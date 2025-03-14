@@ -1,4 +1,4 @@
-#define PRINT_SPACING 1
+#define PRINT_SPACING 0
 #define DUMP_HEADER 0
 #define DUMP_DATA 0
 // These are the general routines for supporting MFM decoders.
