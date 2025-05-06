@@ -4,6 +4,7 @@
 //
 // Copyright 2022 David Gesswein.
 //
+// 05/05/25 DJG Fixed false sync causing false bad sector report.
 // 05/19/24 DJG Changed filter_state to not be static. Bad data can cause it
 //    to get stuck in state that will prevent decoding following tracks.
 // 12/08/22 DJG Changed error message
@@ -407,10 +408,12 @@ fprintf(out,"$var wire 1 & sector $end\n");
             }
          // We need to wait for the one bit to resynchronize.
          } else if (state == HEADER_SYNC || state == HEADER_SYNC2 || state == DATA_SYNC) {
-//printf("Raw %d %d %x %d %d\n",tot_raw_bit_cntr, sync_count, raw_word, track_time, next_header_time);
-            int found = 0;
-            found = (raw_word & 0xffff) == 0xaa55;
-            if (found) {
+//printf("Raw %d %d %x %d %d sync %d\n",tot_raw_bit_cntr, sync_count, raw_word, track_time, next_header_time, sync_count);
+            // Got false sync after only a couple bits. Ignoring some bits
+            // before checking prevents false syncs.
+            sync_count++;
+            if ((raw_word & 0xffff) == 0xaa55 && sync_count > 20) {
+               sync_count = 0;
 #if VCD
 bit_time = track_time / 198e6 * 1e12;
 fprintf(out,"#%lld\n1&\n", bit_time);
