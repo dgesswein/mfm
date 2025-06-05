@@ -1,10 +1,15 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/04/25 DJG Changed trk_Xebec_* to use 5 ID mark patterns to match image
+//    mindset_st225_base.emu. 
+//    https://bitsavers.org/pdf/xebec/Xebec_S1410/104478B_S1410A_Feb84.pdf
+//    says ID pattern is 4 bytes not normal 1. Also adjusted timing midway
+//    between two sample disk images.
 // 03/13/25 DJG Added ext2emu support for Xebec_104527_512B
 // 01/20/25 SH  Add ext2emu support for corvus_omni
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
-// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
+// 10/30/24 DJG Add new option to handle Xebec data skewed one sector from  
 //    header
 // 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
 // 07/02/24 DJG Fixed ECC length for CONTROLLER_IMS_A820 and added ext2emu support
@@ -538,7 +543,7 @@ typedef struct field_l {
       // byte for CRC (check data) calculation. The default
       // includes the all the data from sector start flag byte (a1 etc) to 
       // the CRC.
-   enum {FIELD_FILL, FIELD_A1, FIELD_C0, FIELD_42, FIELD_85, FIELD_0A, FIELD_10,
+   enum {FIELD_FILL, FIELD_A1, FIELD_XEBEC_ID, FIELD_C0, FIELD_42, FIELD_85, FIELD_0A, FIELD_10,
       FIELD_CYL, FIELD_HEAD, FIELD_SECTOR,
       FIELD_LBA, FIELD_HDR_CRC, FIELD_DATA_CRC, FIELD_SECTOR_DATA, 
       FIELD_MARK_CRC_START, FIELD_MARK_CRC_END,
@@ -2582,8 +2587,9 @@ DEF_EXTERN TRK_L trk_Xebec_104527_256B[]
         {8, TRK_FILL, 0x00, NULL},
         {28, TRK_FIELD, 0x00, 
            (FIELD_L []) {
-              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
-              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              // This repeating 7 bit pattern 0001001
+              {5, FIELD_XEBEC_ID, 0xa1, OP_SET, 0, NULL},
+              {9, FIELD_FILL, 0x00, OP_SET, 5, NULL},
               {1, FIELD_FILL, 0x01, OP_SET, 14, NULL},
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
               {2, FIELD_FILL, 0x00, OP_SET, 15, NULL},
@@ -2633,15 +2639,16 @@ DEF_EXTERN TRK_L trk_Xebec_104527_256B[]
 DEF_EXTERN TRK_L trk_Xebec_104527_512B[] 
 #ifdef DEF_DATA
  = 
-{ { 25, TRK_FILL, 0x00, NULL },
+{ { 44, TRK_FILL, 0x00, NULL },
   { 17, TRK_SUB, 0x00, 
      (TRK_L []) 
      {
         {16, TRK_FILL, 0x00, NULL},
         {28, TRK_FIELD, 0x00, 
            (FIELD_L []) {
-              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
-              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              // This repeating 7 bit pattern 0001001
+              {5, FIELD_XEBEC_ID, 0xa1, OP_SET, 0, NULL},
+              {9, FIELD_FILL, 0x00, OP_SET, 5, NULL},
               {1, FIELD_FILL, 0x01, OP_SET, 14, NULL},
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
               {2, FIELD_FILL, 0x00, OP_SET, 15, NULL},
@@ -2682,7 +2689,7 @@ DEF_EXTERN TRK_L trk_Xebec_104527_512B[]
         {-1, 0, 0, NULL},
      }
    },
-   {57, TRK_FILL, 0x00, NULL},
+   {38, TRK_FILL, 0x00, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -2698,8 +2705,9 @@ DEF_EXTERN TRK_L trk_Xebec_104527_C0_256B[]
         {8, TRK_FILL, 0x00, NULL},
         {28, TRK_FIELD, 0x00, 
            (FIELD_L []) {
-              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
-              {13, FIELD_FILL, 0x00, OP_SET, 1, NULL},
+              // This repeating 7 bit pattern 0001001
+              {5, FIELD_XEBEC_ID, 0xa1, OP_SET, 0, NULL},
+              {9, FIELD_FILL, 0x00, OP_SET, 5, NULL},
               {1, FIELD_FILL, 0x01, OP_SET, 14, NULL},
               {0, FIELD_MARK_CRC_START, 0, OP_SET, 15, NULL},
               {2, FIELD_FILL, 0x00, OP_SET, 15, NULL},

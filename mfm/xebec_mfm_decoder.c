@@ -583,6 +583,18 @@ if ((raw_word & 0xffff) == 0x4489) {
          // Using 49 seems to be more reliable than looking for 0x09 for
          // a single one. Bit errors were causing false syncs.
          } else if (state == HEADER_SYNC || state == DATA_SYNC) {
+#if 0
+//printf("Raw S %x %d %d\n",raw_word, tot_raw_bit_cntr, sync_count);
+if ((raw_word & 0xff) == 0x49 && head == 0) {
+   //printf("Mark %d %d\n",tot_raw_bit_cntr, sync_count);
+   printf("Mark %d\n",sync_count);
+}
+// TODO, figure out how to better find proper sync point
+// Data sync count of 170 helped for Mindset_ST225_2.tran Mindset_ST225_2.zip
+// but broke mindset_st225_base.emu mindset-ext2emu.zip
+            if (((sync_count > 50 && state == HEADER_SYNC) |
+                (sync_count > 50)) && (raw_word & 0xff) == 0x49) {
+#endif
             // 0x49 is sync for Xebec drives.
             if (sync_count++ > 50 && (raw_word & 0xff) == 0x49) {
                raw_bit_cntr = 3; // One isn't in data zeros following are

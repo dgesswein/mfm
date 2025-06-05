@@ -1,6 +1,10 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 06/04/25 DJG Added FIELD_XEBEC_ID to insert  5 ID mark patterns to match 
+//    image mindset_st225_base.emu. 
+//    https://bitsavers.org/pdf/xebec/Xebec_S1410/104478B_S1410A_Feb84.pdf
+//    says ID pattern is 4 bytes not normal 1.
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
 //    header
@@ -757,6 +761,24 @@ static void process_field(DRIVE_PARAMS *drive_params,
             special_list[*special_list_ndx].index = start + 
                 field_def[ndx].byte_offset_bit_len;
             special_list[(*special_list_ndx)++].pattern = 0x4489;
+            value = 0xa1;
+         case FIELD_XEBEC_ID:
+            // previous data is 10. This adds repeating 7 bit pattern 0001001
+            // Will only work if 
+            int xebec_id[] = {0x2448, 0x9122, 0x4489, 0x1224, 0x4aaa};
+            if (field_def[ndx].len_bytes != ARRAYSIZE(xebec_id)) {
+               msg(MSG_FATAL, "XEBEC id length wrong\n");
+               exit(1);
+            }
+            for (i = 0; i < field_def[ndx].len_bytes; i++) {
+               if (*special_list_ndx >= special_list_len) {
+                  msg(MSG_FATAL, "Special list overflow\n");
+                  exit(1);
+               }      
+               special_list[*special_list_ndx].index = start + 
+                   field_def[ndx].byte_offset_bit_len + i;
+               special_list[(*special_list_ndx)++].pattern = xebec_id[i];
+            }
             value = 0xa1;
          break;
             // Special 42 with missing clock. We put 42 in the data and fix the
