@@ -147,6 +147,9 @@
 // 1: Wait PRU0_STATE(STATE_READ_DONE)
 // 1: goto 1track_loop
 //
+// 06/06/25 DJG Assesrted selected signal faster to fix errors with DTC
+//   controller. Drive 0 selected is now 195 ns, ready 695 ns. Deselect 470ns.
+//   Drive 1 selected 395ns, ready 768ns. Deselect ready 490ns selected 676ns.
 // 04/29/24 DJG/Elektraglide Adjusted code to avoid host OS errors on Tektronix 4404.
 // 03/20/24 DJG Pulled code cleanup change, deleted some testing code.
 //   Fixed glitch reported if head lines change while not selected or
@@ -764,21 +767,69 @@ select:
    MOV      PRU0_STATE, STATE_READ_DONE
    XOUT     10, PRU0_BUF_STATE, 4
       // Special case of step will restart here when it started
-      // a step but didn't actually need to.
+      // a step but didn't actually need to. Also when drive selected from
+      // not selected state
 step_restart:
-      // If we we aren't selected anymore handle it
+      // Clear GPIO 0 interrupt before reading value so if it changes we will
+      // get a new interrupt and not miss a change
+   MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
+      // Clear all the lines we use
+   MOV      r4, GPIO_DRIVE_HEAD_LINES
+   SBBO     r4, r1, 0, 4
+
    LBCO     CUR_DRIVE_SEL, CONST_PRURAM, PRU0_DRIVE0_SELECT, 4
-   QBEQ     selected0, CUR_DRIVE_SEL, 0      // If zero always selected (radial select)
-   QBBC     selected0, r31, CUR_DRIVE_SEL    // Branch if matches drive 0 select
+   QBEQ     sel0_always, CUR_DRIVE_SEL, 0  // If zero always selected (radial select)
+   QBBC     sel0, r31, CUR_DRIVE_SEL      // Branch if drive 0 selected
+
+   // DTC controller was unhappy about time it took to assert selected.
+   // Real drives set selected directly in hardware from select signal so
+   // do it first. Not going to change for older REV A & B boards.
+
+   // If drive 1 not selected go to not selected logic
    LBCO     CUR_DRIVE_SEL, CONST_PRURAM, PRU0_DRIVE1_SELECT, 4
-   QBEQ     notsel, CUR_DRIVE_SEL, 0          // If zero no second drive
+   QBEQ     notsel, CUR_DRIVE_SEL, 0           // If zero no second drive
    QBBS     notsel, r31, CUR_DRIVE_SEL
 
-      // If this drive is currently selected we don't have to do anything
-   QBEQ     selected, DRIVE_DATA, DRIVE_DATA_BYTES
-   MOV      DRIVE_DATA, DRIVE_DATA_BYTES          // Offset of drive 1 data
-   SET      r30, R30_READY_BIT    
-   SET      r30, R30_SEEK_COMPLETE_BIT 
+   // Turn on drive 1 select and LED and off drive 0
+   CLR      r30, R30_DRIVE0_SEL  
+   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
+   MOV      r1, GPIO0 | GPIO_SETDATAOUT
+   SBBO     r0, r1, 0, 4
+   MOV      r2, 1
+   JMP      step_restart2
+
+sel0_always:
+   // Point to a bit that will always be zero to prevent calling
+   // select
+   MOV      CUR_DRIVE_SEL, 20
+sel0:
+   // Turn on drive 0 select and LED and off drive 1
+   SET      r30, R30_DRIVE0_SEL  
+   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
+   MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
+   SBBO     r0, r1, 0, 4
+   MOV      r2, 0
+
+step_restart2:
+      // Give another 50 ns for head lines to update after select.
+      // This code sequence is what worked best on Tektronix 4404.
+      // Time including changing select lines above. No delay needed
+      // with current code
+   NOP
+   NOP
+
+      // Get new head and select
+   CALL     get_select_head
+      // Clear interrupt status flag in interrupt controller
+   MOV      r0, GPIO0_EVT
+   SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
+   LBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
+   SBCO     r24, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4 // Update
+
+   QBBC     selected0, r2, 0
+
+     // Drive 1 selected
+   MOV      DRIVE_DATA, DRIVE_DATA_BYTES       // Offset of drive 1 data
      // Cylinder of currently selected drive
    LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    QBEQ     track0a, r3, 0
@@ -787,26 +838,16 @@ step_restart:
 track0a:
    SET      r30, R30_TRACK_0_BIT
 finish1:
-   // Turn on drive 1 select and LED and off drive 0
-   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
-   MOV      r1, GPIO0 | GPIO_SETDATAOUT
+   SET      r30, R30_SEEK_COMPLETE_BIT 
+   SET      r30, R30_READY_BIT    
    SBBO     r0, r1, 0, 4
    MOV      r0, (1 << GPIO0_DRIVE1_LED)
    MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
    SBBO     r0, r1, 0, 4
-   CLR      r30, R30_DRIVE0_SEL  
    JMP      selected
 
-selected_always:
-   // Point to a bit that will always be zero to prevent calling
-   // select
-   MOV      CUR_DRIVE_SEL, 20
 selected0:
-      // If this drive is currently selected we don't have to do anything
-   QBEQ     selected, DRIVE_DATA, 0
    MOV      DRIVE_DATA, 0
-   SET      r30, R30_READY_BIT    
-   SET      r30, R30_SEEK_COMPLETE_BIT 
      // Cylinder of currently selected drive
    LBBO     r3, DRIVE_DATA, PRU0_DRIVE0_CUR_CYL, 4
    QBEQ     track0b, r3, 0
@@ -815,14 +856,11 @@ selected0:
 track0b:
    SET      r30, R30_TRACK_0_BIT
 finish2:
-   // Turn on drive 0 select and LED and off drive 1
-   MOV      r0, (1 << GPIO0_DRIVE1_SEL_RECOVERY) | (1 << GPIO0_DRIVE0_LED)
-   MOV      r1, GPIO0 | GPIO_CLEARDATAOUT
-   SBBO     r0, r1, 0, 4
+   SET      r30, R30_SEEK_COMPLETE_BIT 
+   SET      r30, R30_READY_BIT    
    MOV      r0, (1 << GPIO0_DRIVE1_LED)
    MOV      r1, GPIO0 | GPIO_SETDATAOUT
    SBBO     r0, r1, 0, 4
-   SET      r30, R30_DRIVE0_SEL  
 selected:
 restart_lp:
       // Prevent PRU0-PRU1 deadlock from unusual external signals
@@ -833,7 +871,6 @@ not_exiting:
    XIN      10, PRU1_BUF_STATE, 4
    QBNE     selected, PRU1_STATE, STATE_READ_DONE
    XOUT     10, DRIVE_DATA, 4       // Send currently selected drive offset.
-      // We are selected so turn on selected signal
       // If we are not waiting for a command start outputting MFM data else
       // return to waiting for a command
    LBCO     r0, CONST_PRURAM, PRU0_WAITING_CMD, 4
@@ -873,39 +910,10 @@ waitsel:
    SBCO     r31, CONST_PRURAM, PRU0_R31, 4
 
       // Are we selected?
-   QBBC     sel_get_head, r31, R31_SEL1_BIT
-   QBBC     sel_get_head, r31, R31_SEL2_BIT
+   QBBC     step_restart, r31, R31_SEL1_BIT
+   QBBC     step_restart, r31, R31_SEL2_BIT
    JMP      waitsel
 
-sel_get_head:
-      // Clear GPIO 0 interrupt before reading value so if it changes we will
-      // get a new interrupt and not miss a change
-   MOV      r1, GPIO0 | GPIO_IRQSTATUS_0
-      // Clear all the lines we use
-   MOV      r4, GPIO_DRIVE_HEAD_LINES
-   SBBO     r4, r1, 0, 4
-
-      // Give another 50 ns for head lines to update after select.
-      // This code sequence is what worked best on Tektronix 4404.
-   NOP  
-   NOP
-   NOP
-   NOP
-   NOP  
-   NOP
-   NOP
-   NOP
-   NOP
-   NOP
-      // Get new head and select
-   CALL     get_select_head
-      // Clear interrupt status flag in interrupt controller
-   MOV      r0, GPIO0_EVT
-   SBCO     r0, CONST_PRUSSINTC, SICR_OFFSET, 4
-   LBCO     r1, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4
-   SBCO     r24, CONST_PRURAM, PRU0_LAST_SELECT_HEAD, 4 // Update
-
-   JMP      select
 
 handle_head:
       // Stop PRU 1. We will check stopped later
