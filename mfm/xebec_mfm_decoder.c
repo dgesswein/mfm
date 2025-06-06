@@ -542,16 +542,14 @@ SECTOR_DECODE_STATUS xebec_decode_track(DRIVE_PARAMS *drive_params, int cyl,
          tot_raw_bit_cntr += int_bit_pos;
          raw_bit_cntr += int_bit_pos;
 
-         if (state == MARK_ID || state == HEADER_SYNC || state == DATA_SYNC) {
-#if 1
+         // Are we looking for a mark code?
+         if ((state == MARK_ID)) {
+#if 0
 printf("Raw %x %d\n",raw_word, tot_raw_bit_cntr);
 if ((raw_word & 0xffff) == 0x4489) {
    printf("Mark %d %d\n",tot_raw_bit_cntr, sync_count);
 }
 #endif
-         }
-         // Are we looking for a mark code?
-         if ((state == MARK_ID)) {
             // These patterns are MFM encoded all zeros or all ones.
             // We are looking for zeros so we assume they are zeros.
             if (raw_word == 0x55555555 || raw_word == 0xaaaaaaaa) {
