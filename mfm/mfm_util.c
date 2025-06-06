@@ -765,6 +765,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
             special_list[(*special_list_ndx)++].pattern = 0x4489;
             value = 0xa1;
          case FIELD_XEBEC_ID:
+	 {
             // previous data is 10. This adds repeating 7 bit pattern 0001001
             // Will only work if 
             int xebec_id[] = {0x2448, 0x9122, 0x4489, 0x1224, 0x4aaa};
@@ -782,6 +783,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
                special_list[(*special_list_ndx)++].pattern = xebec_id[i];
             }
             value = 0xa1;
+	 }
          break;
             // Special 42 with missing clock. We put 42 in the data and fix the
             // encoded MFM data curing the conversion
