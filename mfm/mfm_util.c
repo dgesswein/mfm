@@ -1,6 +1,8 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 06/06/25 DJG C compiler on Beaglebone didn't like syntax. Newer GCC
+//    on development machine was ok with it.
 // 06/04/25 DJG Added FIELD_XEBEC_ID to insert  5 ID mark patterns to match 
 //    image mindset_st225_base.emu. 
 //    https://bitsavers.org/pdf/xebec/Xebec_S1410/104478B_S1410A_Feb84.pdf
