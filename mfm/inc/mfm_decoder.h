@@ -1,6 +1,8 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 11/06/26 DV Add ext2emu support for Microbee_WD1002_05
+//     reused Intel_iSBC_214_512B - changed start_sector 1 
 // 06/04/25 DJG Changed trk_Xebec_* to use 5 ID mark patterns to match image
 //    mindset_st225_base.emu. 
 //    https://bitsavers.org/pdf/xebec/Xebec_S1410/104478B_S1410A_Feb84.pdf
@@ -3189,6 +3191,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, trk_ISBC214_1024b, 1024, 9, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      // same as Intel_iSBC_214_512B with start_sector 1
+      {"Microbee_WD1002_05",      128, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_ISBC214_512B, 512, 17, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0, 0
