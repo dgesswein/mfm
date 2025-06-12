@@ -1,6 +1,14 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 12/06/25 DV Added 3 Microbee geometry types:
+//   Microbee_1244_10M 
+//      Miniscribe 3012	& 3212, Mitsubishi MR521 (2 heads x 612 cyls)
+//      TEAC SD510 (4 heads x 306 cyls)
+//    Microbee_2460_20M
+//      TEAC SD520 (20.91M, 4 heads × 615 cyls)
+//    Microbee_2448_20M
+//      Mitsubishi MR522 (20.8MB, 4 heads × 612 cyls)
 // 06/04/25 DJG Changed trk_Xebec_* to use 5 ID mark patterns to match image
 //    mindset_st225_base.emu. 
 //    https://bitsavers.org/pdf/xebec/Xebec_S1410/104478B_S1410A_Feb84.pdf
@@ -3193,6 +3201,43 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0, 0
       },
+
+      //    Microbee 10M: Miniscribe 3012 & 3212, Mitsubishi MR521 (2 heads x 612 cyls)
+      //    		  TEAC SD510 (4 heads x 306 cyls)
+      {
+	  "Microbee_1244_10M", 128, 10000000, 0,
+	  4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly),
+	  0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+	  5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+	  0, 1, trk_ISBC214_512B, 512, 17, 1, 1224,
+	  0, 0,
+	  {0xffff, 0x1021, 16, 0}, {0xffffffff, 0x140a0445, 32, 6}, CONT_MODEL,
+	  0, 0, 0, 0
+	},
+	
+	// Microbee 20.91M (2460 tracks) TEAC SD520 (4 heads × 615 cyls)
+	{
+	  "Microbee_2460_20M", 128, 10000000, 0,
+	  4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly),
+	  0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+	  5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+	  0, 1, trk_ISBC214_512B, 512, 17, 1, 2460,
+	  0, 0,
+	  {0xffff, 0x1021, 16, 0}, {0xffffffff, 0x140a0445, 32, 6}, CONT_MODEL,
+	  0, 0, 0, 0
+	},
+	
+	// Microbee 20.8M (2488 tracks) Mitsubishi MR522 (4 heads × 612 cyls)
+	{
+	  "Microbee_2448_20M", 128, 10000000, 0,
+	  4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly),
+	  0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+	  5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+	  0, 1, trk_ISBC214_512B, 512, 17, 1, 2448,
+	  0, 0,
+	  {0xffff, 0x1021, 16, 0}, {0xffffffff, 0x140a0445, 32, 6}, CONT_MODEL,
+	  0, 0, 0, 0
+	},
       // TODO: Analyize currently can't separate this from Intel_iSBC_214_512B
       // since only different for heads >= 8
       {"Tektronix_6130",      128, 10000000,      0,
