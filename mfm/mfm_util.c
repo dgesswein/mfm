@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 06/12/25 DJG Added missing break
 // 06/06/25 DJG C compiler on Beaglebone didn't like syntax. Newer GCC
 //    on development machine was ok with it.
 // 06/04/25 DJG Added FIELD_XEBEC_ID to insert  5 ID mark patterns to match 
@@ -764,6 +765,7 @@ static void process_field(DRIVE_PARAMS *drive_params,
                 field_def[ndx].byte_offset_bit_len;
             special_list[(*special_list_ndx)++].pattern = 0x4489;
             value = 0xa1;
+         break;
          case FIELD_XEBEC_ID:
 	 {
             // previous data is 10. This adds repeating 7 bit pattern 0001001

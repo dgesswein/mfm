@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 01/20/25 SH  Add ext2emu support for corvus_omni
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 10/20/24 DJG Added support for AT&T 3B2 17 sector per track format
@@ -649,6 +650,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_ISBC_214_256B ||
          drive_params->controller == CONTROLLER_ISBC_214_512B ||
          drive_params->controller == CONTROLLER_ISBC_214_1024B ||
+         drive_params->controller == CONTROLLER_MICROBEE_WD1002_05 ||
          drive_params->controller == CONTROLLER_TEKTRONIX_6130 ||
          drive_params->controller == CONTROLLER_NIXDORF_8870 ||
          drive_params->controller == CONTROLLER_TANDY_8MEG ||
@@ -1590,6 +1592,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_ISBC_214_256B ||
             drive_params->controller == CONTROLLER_ISBC_214_512B ||
             drive_params->controller == CONTROLLER_ISBC_214_1024B ||
+            drive_params->controller == CONTROLLER_MICROBEE_WD1002_05 ||
             drive_params->controller == CONTROLLER_TEKTRONIX_6130 ||
             drive_params->controller == CONTROLLER_NIXDORF_8870 ||
             drive_params->controller == CONTROLLER_TANDY_8MEG ||

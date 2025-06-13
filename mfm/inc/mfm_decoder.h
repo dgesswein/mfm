@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 06/04/25 DJG Changed trk_Xebec_* to use 5 ID mark patterns to match image
 //    mindset_st225_base.emu. 
 //    https://bitsavers.org/pdf/xebec/Xebec_S1410/104478B_S1410A_Feb84.pdf
@@ -214,6 +215,7 @@ typedef struct {
       CONTROLLER_ISBC_214_256B,
       CONTROLLER_ISBC_214_512B,
       CONTROLLER_ISBC_214_1024B,
+      CONTROLLER_MICROBEE_WD1002_05,
       CONTROLLER_TEKTRONIX_6130,
       CONTROLLER_NIXDORF_8870, 
       CONTROLLER_TANDY_8MEG, 
@@ -3192,6 +3194,16 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 0,
          {0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0, 0
+      },
+      // DV Microbee format (Intel_iSBC_214_512B with start_sector 1)
+      {"Microbee_WD1002_05",      128, 10000000,      0,
+	4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly),
+	0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+	5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+	0, 1, trk_ISBC214_512B, 512, 17, 1, 5209,
+	0, 0,
+	{0xffff,0x1021,16,0},{0xffffffff,0x140a0445,32,6}, CONT_MODEL,
+	0, 0, 0, 0
       },
       // TODO: Analyize currently can't separate this from Intel_iSBC_214_512B
       // since only different for heads >= 8

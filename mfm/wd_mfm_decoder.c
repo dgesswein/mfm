@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 01/20/25 SH  Add ext2emu support for corvus_omni
 // 10/28/24 DJG Added alternate track handling to ST11MB and fixed for ST11M.
 // 10/20/24 DJG Added AT&T 3B2 17 sector format
@@ -251,6 +252,10 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      byte 1 0xf8
 //      Sector data for sector size
 //      CRC/ECC code
+//
+//   CONTROLLER_MICROBEE_WD1002_05
+//      Same as CONTROLLER_ISBC_214_512B except changes to mfm_decoder.h table
+//      Unknown if it does alternate sector assignment same as ISBC_214_512B
 //
 //   CONTROLLER TEKTRONIX_6130
 //   5 byte header + 2 byte CRC
@@ -1668,7 +1673,8 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       } else if (drive_params->controller == CONTROLLER_ISBC_214_128B || 
             drive_params->controller == CONTROLLER_ISBC_214_256B || 
             drive_params->controller == CONTROLLER_ISBC_214_512B || 
-            drive_params->controller == CONTROLLER_ISBC_214_1024B) {
+            drive_params->controller == CONTROLLER_ISBC_214_1024B || 
+            drive_params->controller == CONTROLLER_MICROBEE_WD1002_05) {
          int sector_size_lookup[4] = {256, 512, 1024, 128};
          int cyl_high_lookup[16] = {0,1,2,3,-1,-1,-1,-1,4,5,6,7,-1,-1,-1,-1};
          int cyl_high;
@@ -2455,6 +2461,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
            drive_params->controller == CONTROLLER_ISBC_214_256B ||
            drive_params->controller == CONTROLLER_ISBC_214_512B ||
            drive_params->controller == CONTROLLER_ISBC_214_1024B ||
+           drive_params->controller == CONTROLLER_MICROBEE_WD1002_05 ||
            drive_params->controller == CONTROLLER_SM_1810_512B ||
            drive_params->controller == CONTROLLER_DSD_5217_512B)
            && alt_assigned) {
