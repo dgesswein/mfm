@@ -69,6 +69,7 @@ void msg(uint32_t level, char *format, ...) {
    }
    if (logfile != NULL && (level & logfile_err_mask)) {
       vfprintf(logfile, format, va);
+      fflush(logfile);
    }
    va_end(va);
 }

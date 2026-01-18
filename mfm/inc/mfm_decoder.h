@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 06/04/25 DJG Changed trk_Xebec_* to use 5 ID mark patterns to match image
 //    mindset_st225_base.emu. 
@@ -165,14 +166,7 @@ typedef struct {
    int emu_data_truncated;
 } STATS;
 
-typedef struct {
-      // Address of bad sector
-   int cyl;
-   int head;
-   int sector;
-      // Non zero if last entry in list
-   int last;
-} MARK_BAD_INFO;
+typedef char MARK_BAD_INFO[MAX_CYL][MAX_HEAD][MAX_SECTORS];
 
 typedef struct alt_struct ALT_INFO;
 struct alt_struct {
@@ -361,8 +355,6 @@ typedef struct {
    int dont_change_start_time;
    // List of sector to mark bad in ext2emu. Sorted ascending
    MARK_BAD_INFO *mark_bad_list;
-   // Index for next entry in array above
-   int next_mark_bad;
    // Linked list of alternate tracks for fixing extracted data file
    ALT_INFO *alt_llist;
    // Cylinder to start write precompensation at. For mfm_write

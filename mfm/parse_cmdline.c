@@ -6,9 +6,10 @@
 // Call parse_validate_options to perform some validation on options that
 //   both mfm_util and mfm_read need
 //
-// Copyright 2024 David Gesswein.
+// Copyright 2025 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 11/06/24 DJG Allow turning off xebec_skew if set in file.
 // 10/30/24 DJG Add new option to handle Xebec data skewed one sector from 
@@ -378,22 +379,6 @@ static void parse_analyze(char *arg, DRIVE_PARAMS *drive_params) {
    }
    drive_params->analyze_head = atoi(tok);
 }
-
-static int mark_bad_compare(const void *a, const void *b) {
-   const MARK_BAD_INFO *mba, *mbb;
-   mba = a;
-   mbb = b;
-   if (mba->cyl > mbb->cyl || (mba->cyl == mbb->cyl && 
-         ((mba->head > mbb->head) || (mba->head == mbb->head && 
-           mba->sector > mbb->sector)))) {
-      return 1;
-   }  else if (mba->cyl == mbb->cyl && mba->head == mbb->head && 
-          mba->sector == mbb->sector) {
-      return 0;
-   } else {
-      return -1;
-   }
-}
 // Parse the mark bad sector information. Format is cyl,head,sect:cyl,head,sect
 //
 // arg: Bad sector information string
@@ -404,6 +389,7 @@ static MARK_BAD_INFO *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
    char *str, *tok;
    int num_bad;
    MARK_BAD_INFO *mark_bad_list;
+   int cyl, head, sector;
 
    str = arg;
    num_bad = 1;
@@ -412,22 +398,20 @@ static MARK_BAD_INFO *parse_mark_bad(char *arg, DRIVE_PARAMS *drive_params) {
          num_bad++;
       }
    }
-   mark_bad_list = msg_malloc(num_bad * sizeof(MARK_BAD_INFO),
-      "Mark bad list");
+   
+   mark_bad_list = msg_malloc(sizeof(MARK_BAD_INFO), "Mark bad list");
 
    str = arg;
    for (i = 0; i < num_bad; i++) {
       tok = strtok(str,":");
-      if (sscanf(tok, "%d,%d,%d", &mark_bad_list[i].cyl, &mark_bad_list[i].head,
-           &mark_bad_list[i].sector) != 3) {
+      if (sscanf(tok, "%d,%d,%d", &cyl, &head,
+           &sector) != 3) {
          msg(MSG_FATAL,"Error parsing mark bad list %s\n",tok); 
          exit(1);
       }
-      mark_bad_list[i].last = 0;
+      (*mark_bad_list)[cyl][head][sector] = 1;
       str = NULL;
    }
-   qsort(mark_bad_list, num_bad, sizeof(MARK_BAD_INFO), mark_bad_compare);
-   mark_bad_list[num_bad-1].last = 1;
 
    return mark_bad_list;
 }

@@ -683,7 +683,7 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //   CONTROLLER_SEAGATE_ST11MB
 //      This is from a drive separated from computer so no idea what controller
-//      used. Image IBMTRAN. Images with alternate track st_125.tran
+//      used. Image IBMTRAN. Images with alternate track st-125.tran
 //      Similar to ST11M except Bits set in header slightly different, 
 //      see code. Not sure if should have been separate format.
 //

@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 06/12/25 DJG Added missing break
 // 06/06/25 DJG C compiler on Beaglebone didn't like syntax. Newer GCC
 //    on development machine was ok with it.
@@ -47,7 +48,7 @@
 // 10/24/14 DJG Changes necessary due to addition of mfm_emu write buffer
 //     using decode options stored in header, and minor reformatting
 //
-// Copyright 2021 David Gesswein.
+// Copyright 2025 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -688,16 +689,10 @@ static void process_field(DRIVE_PARAMS *drive_params,
                &drive_params->data_crc,
                mfm_controller_info[drive_params->controller].data_check);
             if (drive_params->mark_bad_list != NULL) {
-               MARK_BAD_INFO *mark_bad_list = 
-                    &drive_params->mark_bad_list[drive_params->next_mark_bad];
-               if (get_cyl() == mark_bad_list->cyl &&
-                    get_head() == mark_bad_list->head &&  
-                    get_sector(drive_params) == mark_bad_list->sector) {
+               if ((*drive_params->mark_bad_list)[get_cyl()][get_head()]
+                    [get_sector(drive_params)]) {
                   // Invert the check value to invalidiate
                   value = ~value;
-                  if (!mark_bad_list->last) {
-                     drive_params->next_mark_bad++;
-                  }
                }
             }
          break;
