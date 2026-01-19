@@ -9,6 +9,7 @@ all clean:
 
 install: | $(SYSTEMD_UNIT)
 	$(SUDO) cp -r etc/* /etc
+	$(SUDO) cp bb-start-acm-ncm-rndis-old-gadget /usr/bin
 	pwd
 	$(SUDO) cp MFM-EMU-1.dts /opt/source/$(shell ./getdtb.sh $(UNAME_R))/src/arm/overlays
 	$(SUDO) chmod +x /etc/kernel/postinst.d/zzz-mfm-emu
