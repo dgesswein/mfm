@@ -3,7 +3,7 @@
 // 
 // The drive must be at track 0 on startup or drive_seek_track0 called.
 //
-// Copyright 2021 David Gesswein.
+// Copyright 2026 David Gesswein.
 // This file is part of MFM disk utilities.
 //
 // MFM disk utilities is free software: you can redistribute it and/or modify
@@ -19,6 +19,8 @@
 // You should have received a copy of the GNU General Public License
 // along with MFM disk utilities.  If not, see <http://www.gnu.org/licenses/>.
 //
+// 01/30/26 DJG Make sure write data has transitions after end of track data
+//    for mfm_emu
 // 09/07/21 DJG Handle error from write track
 // 03/07/21 DJG Only pad end if non zero
 // 06/30/17 DJG Use emulator file number of heads, not command line.
@@ -85,16 +87,24 @@ void drive_write_disk(DRIVE_PARAMS *drive_params)
          drive_params->emu_file_info, cyl, data,  cyl_size);
 //TODO need to handle this better either in emulator or here.
 // May not be needed now that files are no longer padded with zeros.
-{ int n;
-for (n = 0; n < drive_params->emu_file_info->num_head; n++) {
-   int *d = (int *) data;
-   int index = track_size/4 - 1 + n * track_size/4;
-   // No transitions at end of write will cause emulator to fail
-   if (d[index] == 0) {
-      d[index] = 0x55555555;
-   }
-}
-}
+      int n;
+      for (n = 0; n < drive_params->emu_file_info->num_head; n++) {
+         int *d = (int *) data;
+         int index = track_size/4 - 1 + n * track_size/4;
+        // No transitions at end of write will cause emulator to fail
+        if (d[index] == 0) {
+            d[index] = 0x55555555;
+         }
+         // Make sure data doesn't end with pattern that ends with 0's. mfm_emu
+         // needs transitions to generate index while write is active. This makes
+         // sure mfm_write on one board works with mfm_emu on another
+         if (d[index] & 0x10) {
+            d[index] = (d[index] & 0xfffffff0) | 2;
+         } else {
+           d[index] = (d[index] & 0xfffffff0) | 0xa;
+         }
+      }
+
       pru_write_mem(MEM_DDR, data, cyl_size, 0);
       for (head = 0; head < drive_params->num_head; head++) {
          drive_set_head(head); 
