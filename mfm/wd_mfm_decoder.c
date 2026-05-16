@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 01/20/25 SH  Add ext2emu support for corvus_omni
 // 10/28/24 DJG Added alternate track handling to ST11MB and fixed for ST11M.
@@ -145,6 +146,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
+#include <arpa/inet.h>
 
 #include "msg.h"
 #include "crc_ecc.h"
@@ -164,6 +166,12 @@ static unsigned char rev_lookup[16] = {
    0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
    0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf };
 #define REV_BYTE(n)( (rev_lookup[n&0xf] << 4) | rev_lookup[n>>4])
+
+// Number of bad sectors skipped for track or zone.
+// Used by CONTROLLER_SHUGART_CD9963
+static int sectors_skipped_zone = 0;
+static int sectors_skipped_track = 0;
+static int last_zone = 0;
 
 // Type II PLL. Here so it will inline. Converted from continuous time
 // by bilinear transformation. Coefficients adjusted to work best with
@@ -212,6 +220,13 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //
 //   CONTROLLER_CORVUS_OMNI 
 //      Same as WD_1006. Added as separate for ext2emu support.
+//
+//   CONTROLLER_HP9133XV, 
+//      hp150_dos_3.2.trans, tran-file-8
+//      Same as WD_1006. Added as separate for ext2emu support.
+//      It has the last sector on each track marked with sector 255. Sector
+//      is filled with 0xff. Likely spare sector but example I got had no
+//      bad sectors so couldn't tell how it was used.
 //
 //   CONTROLLER_RQDX2
 //      Same as WD_1006 execpt data byte 1 is 0xfb on later cylinders
@@ -414,6 +429,23 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //   Data
 //      byte 0 0xa1
 //      byte 1 0xf8 (documentation says 0xfb but disk has 0xf8)
+//      Sector data for sector size
+//      ECC code (4 byte)
+//
+//   CONTROLLER_SHUGART_CD9963
+//      shugart_sa1610.raw
+//   6 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder low
+//      byte 3 cylinder high 7-4, 3-0 head
+//      byte 4 sector number
+//      byte 5 bad sectors skipped in this zone. Sector 0 has sectors
+//         skipped before each zone. See CD9963_sect0
+//      byte 6-7 CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
 //      Sector data for sector size
 //      ECC code (4 byte)
 //
@@ -1307,10 +1339,10 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_size = drive_params->sector_size; // Sectore size need from user
          bad_block = 0;
          
-	 cyl_high = ((~bytes[5] ) >> 7) & 0x01; // Get ~T8 from byte 5 and invert it
+         cyl_high = ((~bytes[5] ) >> 7) & 0x01; // Get ~T8 from byte 5 and invert it
          //Format change after cylinder d512. Can detect if T4 bit is not inverted in second copy.
          if (!((bytes[2] ^ bytes[4]) & 0x10)) {
-	    cyl_high |= (((~bytes[4] ) >> 5) & 0x07) << 1;  //Get ~TB,~TA,~T9 from byte 4 and invert it
+            cyl_high |= (((~bytes[4] ) >> 5) & 0x07) << 1;  //Get ~TB,~TA,~T9 from byte 4 and invert it
          }
 
          sector_status.cyl = cyl_high << 8;
@@ -1395,7 +1427,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          sector_size = drive_params->sector_size; // Sectore size need from user
          bad_block = 0;
          
-	      cyl_high = (bytes[2]   & 0x07); // Get high from byte 2
+         cyl_high = (bytes[2]   & 0x07); // Get high from byte 2
          sector_status.cyl = cyl_high << 8;
          sector_status.cyl |= bytes[3]; // Adding low cyl
 
@@ -1481,6 +1513,29 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                   bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
             sector_status.status |= SECT_BAD_HEADER;
          }
+      } else if (drive_params->controller == CONTROLLER_SHUGART_CD9963) {
+         sector_status.cyl = (bytes[3] & 0x70) << 4;
+         sector_status.cyl |= bytes[2];
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[3] & 0x7);
+         sector_status.sector = bytes[4];
+         // Sector 255 is bad sectors that are skipped. The highest sector
+         // numbers won't be used on the track to renumber it to that so we
+         // don't print errors
+         if (bytes[4] == 255) {
+            sectors_skipped_track++;
+            sector_status.sector = drive_params->num_sectors - 
+              sectors_skipped_track + drive_params->first_sector_number;
+            msg(MSG_INFO, "Bad sector spared on cyl %d head %d physical sector %d\n",
+                  sector_status.cyl, sector_status.head, *sector_index);
+         }
+
+         sector_size = drive_params->sector_size;
+
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
       } else if (drive_params->controller == CONTROLLER_IBM_3174) {
          sector_status.cyl = (bytes[3] & 0xe0) << 3;
          sector_status.cyl |= bytes[2];
@@ -1542,6 +1597,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             drive_params->controller == CONTROLLER_CORVUS_OMNI ||
             drive_params->controller == CONTROLLER_ES7978 || 
             drive_params->controller == CONTROLLER_WD_MICROENGINE || 
+            drive_params->controller == CONTROLLER_HP9133XV || 
             (drive_params->controller == CONTROLLER_DEC_RQDX3 && 
                IsOutermostCylinder(drive_params, exp_cyl)) ||
               drive_params->controller == CONTROLLER_WD_3B1) {
@@ -1573,6 +1629,17 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
             // This seems to fix for example with 2 heads
             if (bad_block) {
                sector_status.head ^= 0xf;
+            }
+         }
+         // These may be spare sectors but example had no bad blocks so
+         // don't know how they are handled
+         if (drive_params->controller == CONTROLLER_HP9133XV) {
+            if (sector_status.sector == 0xff) {
+               sector_status.ignore = 1;
+            } else if (*sector_index == 31) {
+               msg(MSG_INFO, "Last sector not 255 on cyl %d,%d head %d,%d sector %d\n",
+                  exp_cyl, sector_status.cyl,
+                  exp_head, sector_status.head, sector_status.sector);
             }
          }
          // 3B1 with P5.1 stores 4th head bit in bit 5 of sector number field.
@@ -2356,6 +2423,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       int id_byte_expected = 0xf8;
       int id_byte_index = 1;
       int id_byte_mask = 0xff;
+      int write_sector = 1;
 
       sector_status.status |= init_status;
 
@@ -2510,6 +2578,65 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
              alt_assigned_handled = 1;
          };
       }
+      if (drive_params->controller == CONTROLLER_SHUGART_CD9963 && 
+         !(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER))) {
+
+         struct s_CD9963_sect0 *s = &drive_params->u.CD9963_sect0;
+         if (sector_status.head == 0 && sector_status.cyl == 0 && 
+            sector_status.sector == 0) {
+            memcpy(s, &bytes[mfm_controller_info[drive_params->controller].data_header_bytes], 
+              sizeof(drive_params->u.CD9963_sect0));
+            if (ntohs(s->sectSize) != drive_params->sector_size) {
+               msg(MSG_ERR, "Drive header sector size mismatch %d %d\n",
+                   ntohs(s->sectSize), drive_params->sector_size);
+            }
+            if (ntohs(s->nCyl) != drive_params->num_cyl) {
+               msg(MSG_ERR, "Drive header number of cylinders mismatch %d %d\n",
+                   ntohs(s->nCyl), drive_params->num_cyl);
+            }
+            if (s->nHeads != drive_params->num_head) {
+               msg(MSG_ERR, "Drive header number of heads mismatch %d %d\n",
+                   s->nHeads, drive_params->num_head);
+            }
+            if (s->nSect != drive_params->num_sectors) {
+               msg(MSG_ERR, "Drive header number of sectors mismatch %d %d\n",
+                   s->nSect, drive_params->num_head);
+            }
+            if (s->nZones1 != s->nZones2) {
+               msg(MSG_ERR, "Drive header number of zones mismatch %d %d\n",
+                   s->nZones1, s->nZones2);
+            }
+
+            mfm_write_metadata((uint8_t *) &drive_params->u.CD9963_sect0, drive_params, &sector_status);
+            write_sector = 0;
+
+         } else {
+
+            // Assume zone size is power of two
+            int size_zones = ceil((float) drive_params->num_cyl / s->nZones1);
+            size_zones = pow(2, ceil(log2(size_zones)));
+            int zone = sector_status.cyl / size_zones;
+            // Count resets each zone since zone table has count for start of
+            // zone
+            if (zone != last_zone) {
+               sectors_skipped_zone = 0;
+               last_zone = zone;
+            }
+            int offset;
+            if (zone == 0) {
+               offset = 1;
+            } else {
+               offset = ntohs(s->zones[zone-1]);
+            }
+            offset += sectors_skipped_zone;
+            // Remapping sectors easiest of we treat drive a LBA
+            int LBA = (sector_status.cyl * drive_params->num_head +
+                sector_status.head) * drive_params->num_sectors +
+                sector_status.sector - offset;
+            sector_status.lba_addr = LBA;
+            sector_status.is_lba = 1;
+         }
+      }
 
       if (crc != 0) {
          sector_status.status |= SECT_BAD_DATA;
@@ -2521,7 +2648,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
       // TODO: If bad sector number the stats such as count of spare/bad
       // sectors is not updated. We need to know the sector # to update
       // our statistics array. This happens with RQDX3
-      if (!(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER))) {
+      if (!(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER)) && write_sector) {
          int dheader_bytes = mfm_controller_info[drive_params->controller].data_header_bytes;
 
          // Bytes[1] is because 0xa1 can't be updated from bytes since
@@ -2652,6 +2779,9 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
    int header_raw_bit_delta = 0;
    // First address mark time in ns 
    int first_addr_mark_ns = 0;
+
+   sectors_skipped_zone += sectors_skipped_track;
+   sectors_skipped_track = 0;
 
    num_deltas = deltas_get_count(0);
    raw_word = 0;
@@ -3013,7 +3143,6 @@ SECTOR_DECODE_STATUS wd_decode_track(DRIVE_PARAMS *drive_params, int cyl,
       msg(MSG_ERR, "Ran out of data on sector index %d, try adding --begin_time %.0f to mfm_read command line\n",
          sector_index, round(begin_time / 1000.0) * 1000.0);
    }
-
 
    // Force last partial word to be saved
    mfm_save_raw_word(drive_params, all_raw_bits_count, 32-all_raw_bits_count, 

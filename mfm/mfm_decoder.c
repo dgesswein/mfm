@@ -21,6 +21,8 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 05/15/26 DJG Ensure entire track written before mfm_remap_track called.
+// 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 01/20/25 SH  Add ext2emu support for corvus_omni
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
@@ -525,6 +527,11 @@ void mfm_end_track(DRIVE_PARAMS *drive_params,
    unsigned int cyl, unsigned int head) {
 
    if (drive_params->xebec_skew) {
+      // Make sure entire track written. If bad header or other errors the
+      // sectors won't be written to the file. This will zero fill.
+      ftruncate(drive_params->ext_fd, (cyl * drive_params->num_head + (head+1)) *
+          drive_params->num_sectors * drive_params->sector_size);
+
       mfm_remap_track(drive_params, cyl, head); 
    }
 }
@@ -640,6 +647,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
    }
    // Change in mfm_process_bytes if this if is changed
    if (drive_params->controller == CONTROLLER_WD_1006 ||
+         drive_params->controller == CONTROLLER_HP9133XV ||
          drive_params->controller == CONTROLLER_RQDX2 ||
          drive_params->controller == CONTROLLER_SOUYZ_NEON ||
          drive_params->controller == CONTROLLER_INFORT_PC02_06 ||
@@ -672,6 +680,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_DJ_II_301 ||
          drive_params->controller == CONTROLLER_MYARC_HFDC ||
          drive_params->controller == CONTROLLER_SHUGART_1610 ||
+         drive_params->controller == CONTROLLER_SHUGART_CD9963 ||
          drive_params->controller == CONTROLLER_MVME320 ||
          drive_params->controller == CONTROLLER_DTC ||
          drive_params->controller == CONTROLLER_DTC_520_512B ||
@@ -1582,6 +1591,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
 
       // If this is changed change in mfm_decode_track also
       if (drive_params->controller == CONTROLLER_WD_1006 ||
+            drive_params->controller == CONTROLLER_HP9133XV ||
             drive_params->controller == CONTROLLER_RQDX2 ||
             drive_params->controller == CONTROLLER_SOUYZ_NEON ||
             drive_params->controller == CONTROLLER_INFORT_PC02_06 ||
@@ -1614,6 +1624,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_DJ_II_301 ||
             drive_params->controller == CONTROLLER_MYARC_HFDC ||
             drive_params->controller == CONTROLLER_SHUGART_1610 ||
+            drive_params->controller == CONTROLLER_SHUGART_CD9963 ||
             drive_params->controller == CONTROLLER_MVME320 ||
             drive_params->controller == CONTROLLER_DTC ||
             drive_params->controller == CONTROLLER_DTC_520_512B ||
@@ -2108,6 +2119,57 @@ void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl,
    }
 }
 
+// This adds to alternate track link list the data that needs to be
+// swapped to put the good data in the proper location in the extracted
+// data file for replacing a sector in LBA format.
+//
+// drive_params: Drive parameters
+// bad_lba: LBA that has alterinate track assigned for
+// good_lba: The alternate LBA assigned
+void mfm_handle_alt_LBA(DRIVE_PARAMS *drive_params, unsigned int bad_LBA, 
+     int good_LBA, int size, int print) {
+   ALT_INFO *alt_info;
+
+   // Don't perform alt track processing if analyzing.
+   if (drive_params->analyze_in_progress) {
+      return;
+   }
+   int disk_size = drive_params->num_cyl * drive_params->num_head * 
+         drive_params->num_sectors;
+   if (bad_LBA >= disk_size || bad_LBA < 0) {
+      msg(MSG_ERR, "Bad alternate LBA %d out of valid range 0 to %d\n",
+         bad_LBA, disk_size);
+      return;
+   }
+   if (good_LBA >= disk_size || good_LBA < 0) {
+      msg(MSG_ERR, "Bad good LBA %d out of valid range 0 to %d\n",
+         good_LBA, disk_size);
+      return;
+   }
+   alt_info = msg_malloc(sizeof(ALT_INFO), "Alt info");
+
+   memset(alt_info, 0, sizeof(ALT_INFO));
+   alt_info->bad_offset = bad_LBA * drive_params->sector_size;
+   alt_info->good_offset = good_LBA * drive_params->sector_size;
+   alt_info->length = size;
+
+   alt_info->next = drive_params->alt_llist; 
+      // Alternate is reported with same information for each
+      // sector. Only add one copy
+   if (drive_params->alt_llist == NULL || 
+         alt_info->bad_offset != drive_params->alt_llist->bad_offset ||
+         alt_info->good_offset != drive_params->alt_llist->good_offset) {
+      drive_params->alt_llist = alt_info;
+
+      if (print) {
+         msg(MSG_INFO,"Alternate track assigned to LBA %d for LBA %d. Extract data fixed\n",
+           good_LBA, bad_LBA);
+      }
+   } else {
+      free(alt_info);
+   }
+}
+
 // Indexed by from sector. Value is to sector
 int remap_list[MAX_SECTORS];
 
@@ -2159,7 +2221,7 @@ void mfm_remap_track(DRIVE_PARAMS *drive_params,
       int track_size = drive_params->sector_size * drive_params->num_sectors;
       if ((rc = pread(drive_params->ext_fd, data_in, track_size, offset)) !=
             track_size) {
-         msg(MSG_FATAL, "remap read failed, rc %d: %s", rc, strerror(errno));
+         msg(MSG_FATAL, "remap read failed offset %d rc %d: %s\n", offset, rc, strerror(errno));
          exit(1);
       }
       int remap_entries = 0;

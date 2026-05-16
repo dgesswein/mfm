@@ -3,6 +3,7 @@
 // board_initialize sets up this module.
 // board_get_revision returns the revision of the MFM emulator board
 // 
+// 05/15/2026 DJG Improved printing board revision
 // 09/17/2023 DJG Moved set_restore_max_cpu_speed to this file as board_
 //   to only have one copy
 // 03/22/2019 DJG Added REV C support
@@ -43,7 +44,7 @@
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 
-// 0 = first/A, 1 = B. Used to index arrays so can't change encoding
+// 0 = first/A, 1 = B, 2 = C or D. Used to index arrays so can't change encoding
 static int board_revision = -1; 
 
 // Perform any setup needed by this module. Call once before any other
@@ -53,6 +54,7 @@ void board_initialize(void) {
    int fd;
    int i;
    char str[128];
+   char *rev_str[] = {"A","B","C or D"};
    if (board_revision == -1) {
          // Default is A
       board_revision = 0;
@@ -72,7 +74,7 @@ void board_initialize(void) {
          }
       }
    }
-   msg(MSG_INFO, "Board revision %c detected\n", 'A' + board_revision);
+   msg(MSG_INFO, "Board revision %s detected\n", rev_str[board_revision]);
 }
 
 // Return board revision 

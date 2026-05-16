@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 06/04/25 DJG Changed trk_Xebec_* to use 5 ID mark patterns to match image
@@ -74,7 +75,7 @@
 //    match format
 // 07/19/19 DJG Added ext2emu support for Xerox 8010. Fixed data for 
 //    trk_omti_5510
-// 06/19/19 DJG Removed DTC_256B since only difference from DEC_520_256B was
+// 06/19/19 DJG Removed DTC_256B since only difference from DTC_520_256B was
 //    error. Added SM1040 format. Fixed Xerox_8010 bitrate. Added recovery 
 //    mode flag
 // 02/09/19 DJG Added CONTROLLER_SAGA_FOX, adjusted trk_ISBC215_1024b to match
@@ -242,6 +243,8 @@ typedef struct {
       CONTROLLER_NEC_4800,
       CONTROLLER_SOUYZ_NEON, 
       CONTROLLER_INFORT_PC02_06,
+      CONTROLLER_HP9133XV,
+      CONTROLLER_SHUGART_CD9963,
       CONTROLLER_SM_1810_512B,
       CONTROLLER_DSD_5217_512B, 
       CONTROLLER_OMTI_5510, 
@@ -373,6 +376,21 @@ typedef struct {
    int xebec_skew;
    // Value set on command line
    int xebec_skew_cmdline;
+   // Extra data needed. Data in this structure is big endian
+   union {
+      struct s_CD9963_sect0 {
+         uint16_t sectSize;
+         uint8_t  nHeads;
+         uint8_t  nSect;
+         uint16_t nCyl;
+         uint16_t unknown1[5];
+         uint16_t SCSInCyl;
+         uint16_t unknown2;
+         uint8_t  nZones1;
+         uint8_t  nZones2;
+         uint16_t zones[245];  // Only 15 used in sample
+      } CD9963_sect0;
+   } u;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so
@@ -801,6 +819,99 @@ DEF_EXTERN TRK_L trk_ISBC214_128b[]
      }
    },
    {251, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
+DEF_EXTERN TRK_L trk_HP9133XV[] 
+#ifdef DEF_DATA
+ = 
+{ { 15, TRK_FILL, 0x4e, NULL },
+  { 31, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {14, TRK_FILL, 0x00, NULL},
+        {7, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              // This adds upper 3 bits of cylinder to bits 3,1,0 of
+              // the 0xfe byte and the rest in the next byte. The cylinder
+              // bits are xored with the 0xfe. Xor with 0 just sets the bits
+              {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+                 (BIT_L []) {
+                    { 12, 1},
+                    { 14, 10},
+                    { -1, -1},
+                 }
+              },
+              // Sector size 256
+              {1, FIELD_FILL, 0x00, OP_SET, 3, NULL},
+              // Add head to lower bits
+              {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+              // Don't support alternate tracks
+              {1, FIELD_SECTOR, 0x00, OP_SET, 4, NULL},
+              {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {16, TRK_FILL, 0x00, NULL},
+        {260, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {256, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {2, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {3, TRK_FILL, 0x00, NULL},
+        {18, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {14, TRK_FILL, 0x00, NULL},
+   {7, TRK_FIELD, 0x00, 
+      (FIELD_L []) {
+         {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+         {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+         // This adds upper 3 bits of cylinder to bits 3,1,0 of
+         // the 0xfe byte and the rest in the next byte. The cylinder
+         // bits are xored with the 0xfe. Xor with 0 just sets the bits
+         {0, FIELD_CYL, 0x00, OP_XOR, 11, 
+            (BIT_L []) {
+               { 12, 1},
+               { 14, 10},
+               { -1, -1},
+            }
+         },
+         // Sector size 256
+         {1, FIELD_FILL, 0x00, OP_SET, 3, NULL},
+         // Add head to lower bits
+         {1, FIELD_HEAD, 0x00, OP_XOR, 3, NULL},
+         // Not sure what the last sector 255 is for
+         {1, FIELD_FILL, 0xff, OP_SET, 4, NULL},
+         {2, FIELD_HDR_CRC, 0x00, OP_SET, 5, NULL},
+         {-1, 0, 0, 0, 0, NULL}
+      }
+   },
+   {16, TRK_FILL, 0x00, NULL},
+   {260, TRK_FIELD, 0x00, 
+      (FIELD_L []) {
+         {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+         {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+         // Just fill with 0xff
+         {256, FIELD_FILL, 0xff, OP_SET, 2, NULL},
+         {2, FIELD_DATA_CRC, 0x00, OP_SET, 258, NULL},
+         {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+         {-1, 0, 0, 0, 0, NULL}
+      }
+   },
+   {3, TRK_FILL, 0x00, NULL},
+   {18, TRK_FILL, 0x4e, NULL},
+   {227, TRK_FILL, 0x4e, NULL},
    {-1, 0, 0, NULL},
 }
 #endif
@@ -3128,7 +3239,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
          4, 1, 0, 0, CHECK_CRC, CHECK_CRC,
          0, 1, NULL, 256, 32, 0, 5209,
-// Should be model after data filled in
          0, 33,
          {0,0x1021,16,0},{0,0x1021,16,0}, CONT_MODEL,
          0, 0, 0, 0
@@ -3486,6 +3596,24 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          3, 1, NULL, 512, 17, 0, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x0,0x140a0445,32,6}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      {"HP9133XV",              256, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         5, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_HP9133XV, 256, 31, 0, 5209,
+         0, 0,
+         {0xffff,0x1021,16,0},{0xffff,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      {"SHUGART_CD9963",          512, 10000000,      0, 
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_shugart_1610, 512, 17, 0, 5209,
+         512, 0,
+         {0xffff,0x1021,16,0},{0xffffffff,0x10183031,32,6}, CONT_MODEL,
          0, 0, 0, 0
       },
       // OMTI_5200 uses initial value 0x409e10aa for data
@@ -4183,6 +4311,8 @@ int mfm_get_data_bit_count();
 
 void mfm_handle_alt_track_ch(DRIVE_PARAMS *drive_params, unsigned int bad_cyl, 
       unsigned int bad_head, unsigned int good_cyl, unsigned int good_head);
+void mfm_handle_alt_LBA(DRIVE_PARAMS *drive_params, unsigned int bad_LBA,
+     int good_LBA, int size, int print);
 int mfm_fix_head(DRIVE_PARAMS *drive_params, int exp_head, int head);
 
 void mfm_end_track(DRIVE_PARAMS *drive_params,

@@ -59,13 +59,16 @@ if [ "$REV" == "0" ]; then
    # 50 read transceiver enable, low enabled
    # 8-11 rev B head, all low is head 0 after inversion
    pins_low="8 9 10 11 31 46 15 26 27 110 50"
+
    # 113 TRACK 0
-   pins_in="113"
+   # 60 MFM emulation tranceiver enable, high is disabled. Can't atomically
+   # set it to high with 11.8 bullseye so leaving it input. Has 5.1k pullup 
+   # which forces it high. When it glitches low trying to set it high it causes
+   # write and select to both be active.
+   pins_in="60 113"
    # 44 emu second driver emulation, disable
-   # 60 MFM emulation tranceiver enable, high is disabled
    # 14,30(C) drive selected LEDS
-   # 60 emulation xcvr en 48 testing(C)
-   pins_high="14 30 44 60"
+   pins_high="14 30 44"
 else
    if [ "$KERNEL_VER" -lt "4" ]; then
       /usr/bin/dtc -O dtb -o $dir/$DTBOAB.dtbo -b 0 -@ $dir/$DTBOAB.dts
