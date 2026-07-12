@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 07/12/26 DJG Fixed Floating point exception when using analyize
 // 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
@@ -376,8 +377,7 @@ typedef struct {
    int xebec_skew;
    // Value set on command line
    int xebec_skew_cmdline;
-   // Extra data needed. Data in this structure is big endian
-   union {
+   // Extra data needed for CD9963. Data in this structure is big endian
       struct s_CD9963_sect0 {
          uint16_t sectSize;
          uint8_t  nHeads;
@@ -390,7 +390,8 @@ typedef struct {
          uint8_t  nZones2;
          uint16_t zones[245];  // Only 15 used in sample
       } CD9963_sect0;
-   } u;
+   // Above data has been written
+   int CD9963_sect0_set;
 } DRIVE_PARAMS;
 
 // This isn't clean programming but keeps it together with structure above so

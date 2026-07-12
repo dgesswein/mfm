@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 07/12/26 DJG Fixed Floating point exception when using analyize
 // 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
 // 01/20/25 SH  Add ext2emu support for corvus_omni
@@ -1521,7 +1522,7 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          // Sector 255 is bad sectors that are skipped. The highest sector
          // numbers won't be used on the track to renumber it to that so we
          // don't print errors
-         if (bytes[4] == 255) {
+         if (bytes[4] == 255 && !drive_params->analyze_in_progress) {
             sectors_skipped_track++;
             sector_status.sector = drive_params->num_sectors - 
               sectors_skipped_track + drive_params->first_sector_number;
@@ -2578,14 +2579,18 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
              alt_assigned_handled = 1;
          };
       }
+      // Don't try to do zone handling with analyze where we will be trying
+      // to processess other drive formats as CD9963
       if (drive_params->controller == CONTROLLER_SHUGART_CD9963 && 
-         !(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER))) {
+         !(sector_status.status & (SECT_BAD_HEADER | SECT_BAD_SECTOR_NUMBER)) &&
+	 !drive_params->analyze_in_progress) {
 
-         struct s_CD9963_sect0 *s = &drive_params->u.CD9963_sect0;
+         struct s_CD9963_sect0 *s = &drive_params->CD9963_sect0;
          if (sector_status.head == 0 && sector_status.cyl == 0 && 
             sector_status.sector == 0) {
             memcpy(s, &bytes[mfm_controller_info[drive_params->controller].data_header_bytes], 
-              sizeof(drive_params->u.CD9963_sect0));
+              sizeof(drive_params->CD9963_sect0));
+	    drive_params->CD9963_sect0_set = 1;
             if (ntohs(s->sectSize) != drive_params->sector_size) {
                msg(MSG_ERR, "Drive header sector size mismatch %d %d\n",
                    ntohs(s->sectSize), drive_params->sector_size);
@@ -2607,15 +2612,22 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
                    s->nZones1, s->nZones2);
             }
 
-            mfm_write_metadata((uint8_t *) &drive_params->u.CD9963_sect0, drive_params, &sector_status);
+            mfm_write_metadata((uint8_t *) &drive_params->CD9963_sect0, drive_params, &sector_status);
             write_sector = 0;
 
-         } else {
+         } else if (drive_params->CD9963_sect0_set) {
 
             // Assume zone size is power of two
             int size_zones = ceil((float) drive_params->num_cyl / s->nZones1);
             size_zones = pow(2, ceil(log2(size_zones)));
-            int zone = sector_status.cyl / size_zones;
+	    int zone;
+	    if (size_zones == 0) {
+               msg(MSG_ERR, "size_zones 0 %d %d\n", drive_params->num_cyl, 
+                  s->nZones1);
+               zone = 0;
+	    } else {
+               zone = sector_status.cyl / size_zones;
+            }
             // Count resets each zone since zone table has count for start of
             // zone
             if (zone != last_zone) {
