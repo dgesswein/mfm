@@ -1,6 +1,7 @@
 #ifndef MFM_DECODER_H_
 #define MFM_DECODER_H_
 //
+// 08/06/26 DJG Added CONTROLLER_SMS_8007
 // 07/12/26 DJG Fixed Floating point exception when using analyize
 // 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
@@ -258,6 +259,7 @@ typedef struct {
       CONTROLLER_DEC_RQDX3, 
       CONTROLLER_MYARC_HFDC, 
       CONTROLLER_IBM_3174,
+      CONTROLLER_SMS_8007,
       CONTROLLER_SEAGATE_ST11M,
       CONTROLLER_SEAGATE_ST11MB,
       CONTROLLER_ISBC_215_128B,
@@ -509,6 +511,9 @@ DEF_EXTERN struct {
      // This is for Convergent AWS on Quantum Q2040 header and data
      {32, 0x920d65c0},
      {32, 0xef26129d},
+     // SMS_8007
+     {32, 0x51361e4e},
+     {32, 0x3516307a},
      {16, 0x8026}, // IBM 3174
      {16, 0x551a}  // Altos
   }
@@ -2440,6 +2445,57 @@ DEF_EXTERN TRK_L trk_shugart_1400[]
 #endif
 ;
 
+DEF_EXTERN TRK_L trk_sms_8007[] 
+#ifdef DEF_DATA
+ = 
+{ { 11, TRK_FILL, 0x4e, NULL },
+  { 9, TRK_SUB, 0x00, 
+     (TRK_L []) 
+     {
+        {13, TRK_FILL, 0x00, NULL},
+        {10, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xfe, OP_SET, 1, NULL},
+              {1, FIELD_FILL, 0xc0, OP_SET, 2, NULL}, // Low bits overwritten
+              {0, FIELD_CYL, 0x00, OP_XOR, 12, 
+                 // List is starting from the high bit. length
+                 // Start at bit 20, low 4 bits of 0xc0 byte and write 12
+                 // bits of cylinder
+                 (BIT_L []) {
+                    { 20, 12},
+                    { -1, -1},
+                 }
+              },
+              {1, FIELD_HEAD, 0x00, OP_SET, 4, NULL},
+              {1, FIELD_SECTOR, 0x00, OP_SET, 5, NULL},
+              // 4 byte ECC, Sector size 1024
+              {4, FIELD_HDR_CRC, 0x00, OP_SET, 6, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {14, TRK_FILL, 0x00, NULL},
+        {1030, TRK_FIELD, 0x00, 
+           (FIELD_L []) {
+              {1, FIELD_A1, 0xa1, OP_SET, 0, NULL},
+              {1, FIELD_FILL, 0xf8, OP_SET, 1, NULL},
+              {1024, FIELD_SECTOR_DATA, 0x00, OP_SET, 2, NULL},
+              {4, FIELD_DATA_CRC, 0x00, OP_SET, 1026, NULL},
+              {0, FIELD_NEXT_SECTOR, 0x00, OP_SET, 0, NULL},
+              {-1, 0, 0, 0, 0, NULL}
+           }
+        },
+        {2, TRK_FILL, 0x00, NULL},
+        {33, TRK_FILL, 0x4e, NULL},
+        {-1, 0, 0, NULL},
+     }
+   },
+   {489, TRK_FILL, 0x4e, NULL},
+   {-1, 0, 0, NULL},
+}
+#endif
+;
+
 // Mixture of datasheet and formatter gap lengths adjusted with actual
 // file. Not sure if really correct. The pad at the end seems a little
 // low.
@@ -3617,9 +3673,6 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          {0xffff,0x1021,16,0},{0xffffffff,0x10183031,32,6}, CONT_MODEL,
          0, 0, 0, 0
       },
-      // OMTI_5200 uses initial value 0x409e10aa for data
-      // Data CRC is really initial value 0 xor of final value of 0xffffffff.
-      // Code doesn't do final xor so initial value is equivalent.
       {"SM_1810_512B",      128, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -3650,6 +3703,9 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          { 0x2605fb9c,0x104c981,32,6},{0xd4d7ca20,0x104c981,32,6}, CONT_ANALYZE,
          0, 0, 0, 0
       },
+      // OMTI_5200 uses initial value 0x409e10aa for data
+      // Data CRC is really initial value 0 xor of final value of 0xffffffff.
+      // Code doesn't do final xor so initial value is equivalent.
       {"OMTI_5200_18sector_512B",            256, 10000000,      0,
          4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
          0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
@@ -3731,6 +3787,15 @@ DEF_EXTERN CONTROLLER mfm_controller_info[]
          0, 1, NULL, 516, 17, 1, 5209,
          0, 0,
          {0xffff,0x1021,16,0},{0x8026,0x1021,16,0}, CONT_MODEL,
+         0, 0, 0, 0
+      },
+      {"SMS_8007",            256, 10000000,      0,
+         4, ARRAYSIZE(mfm_all_poly), 4, ARRAYSIZE(mfm_all_poly), 
+         0, ARRAYSIZE(mfm_all_init), CINFO_CHS,
+         6, 2, 0, 0, CHECK_CRC, CHECK_CRC,
+         0, 1, trk_sms_8007, 1024, 9, 0, 5209,
+         0, 0,
+         {0x51361e4e,0x140a0445,32,6},{0x3516307a,0x140a0445,32,6}, CONT_MODEL,
          0, 0, 0, 0
       },
       {"Seagate_ST11M",        256, 10000000,      0,

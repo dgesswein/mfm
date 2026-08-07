@@ -9,6 +9,7 @@
 // Copyright 2025 David Gesswein.
 // This file is part of MFM disk utilities.
 //
+// 08/06/26 DJG Add cylinder interleave
 // 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 01/13/25 DJG Fixes for xebec_skew processing. Skew not same on all tracks.
 // 11/06/24 DJG Allow turning off xebec_skew if set in file.
@@ -338,14 +339,10 @@ static uint8_t *parse_interleave(char *arg, DRIVE_PARAMS *drive_params) {
       str = NULL;
       sectors[i] = atoi(tok);
    }
-   if (i == 1) {
-      sectors[1] = 0; // Default cylinder to cylinder interleave
-   } else {
-      // allow 2 values for ext2emu
-      if (i != 2) {
-         msg(MSG_FATAL, "Interleave takes one or two comma separated values\n");
-         exit(1);
-      }
+   // allow 1 to 3 values for ext2emu
+   if (i < 1 || i > 3) {
+      msg(MSG_FATAL, "Interleave takes one to three comma separated values\n");
+      exit(1);
    }
    // If "" specified then return null for no sector list
    if (i == 0) 

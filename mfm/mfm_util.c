@@ -1,6 +1,7 @@
 // This is a utility program to process existing MFM delta transition data.
 // Used to extract the sector contents to a file
 //
+// 08/06/26 DJG Add cylinder interleave
 // 05/15/26 DJG Fixed Xebec special list overflow
 // 09/10/25 DJG Fixed ext2emu marking bad sectors when interleave used
 // 06/12/25 DJG Added missing break
@@ -342,6 +343,8 @@ static int track_start_sector;
 static int sector_interleave;
 // Increment to sector to use for start sector of each track
 static int track_interleave;
+// Increment to sector to use for start sector of each cylinder
+static int cyl_interleave;
 
 // Current sector
 static int sector;
@@ -381,12 +384,13 @@ static int get_cyl() {
 //track_interleave_i: Addition to start sector number for tracks
 //   in a cylinder. 0 for all tracks to start with same sector number
 static void set_sector_interleave(DRIVE_PARAMS *drive_params,
-     int sector_interleave_i, int track_interleave_i) {
+     int sector_interleave_i, int track_interleave_i, int cyl_interleave_i) {
 
    list_size_bytes = sizeof(*sector_used_list) * drive_params->num_sectors; 
    sector_interleave = sector_interleave_i;
    sector_used_list = msg_malloc(list_size_bytes,"sector_used_list");
    track_interleave = track_interleave_i;
+   cyl_interleave = cyl_interleave_i;
 
    memset(sector_used_list, 0, list_size_bytes);
 }
@@ -413,8 +417,13 @@ static void start_new_track(DRIVE_PARAMS *drive_params) {
 // start_new_track. Cylinders always start with sector 0 first.
 //
 // drive_params: Drive parameters
-static void start_new_cyl(DRIVE_PARAMS *drive_params) {
-   track_start_sector = 0;
+static void start_new_cyl(DRIVE_PARAMS *drive_params, int cyl) {
+   if (cyl_interleave == 0 || cyl == 0) {
+      track_start_sector = 0;
+   } else {
+      track_start_sector = (track_start_sector + cyl_interleave) %
+       drive_params->num_sectors;
+   }
 }
 
 // Get current sector
@@ -1158,9 +1167,9 @@ void ext2emu(int argc, char *argv[])
       // If interleave values specified set them
    if (drive_params.sector_numbers != NULL) {
       set_sector_interleave(&drive_params, drive_params.sector_numbers[0], 
-         drive_params.sector_numbers[1]);
+         drive_params.sector_numbers[1], drive_params.sector_numbers[2]);
    } else {
-      set_sector_interleave(&drive_params, 1, 0);
+      set_sector_interleave(&drive_params, 1, 0, 0);
    }
 
    memset(special_list, 0, sizeof(special_list));
@@ -1174,7 +1183,7 @@ void ext2emu(int argc, char *argv[])
       if (cyl % 10 == 0)
          msg(MSG_PROGRESS, "At cyl %d\r", cyl);
       set_cyl(cyl);
-      start_new_cyl(&drive_params);
+      start_new_cyl(&drive_params, cyl);
       for (head = 0; head < drive_params.num_head; head++) {
          set_head(head);
          start_new_track(&drive_params);

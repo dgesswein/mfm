@@ -21,6 +21,7 @@
 // for sectors with bad headers. See if resyncing PLL at write boundaries improves performance when
 // data bits are shifted at write boundaries.
 //
+// 08/06/26 DJG Added CONTROLLER_SMS_8007
 // 05/15/26 DJG Ensure entire track written before mfm_remap_track called.
 // 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
@@ -705,6 +706,7 @@ SECTOR_DECODE_STATUS mfm_decode_track(DRIVE_PARAMS * drive_params, int cyl,
          drive_params->controller == CONTROLLER_CALLAN ||
          drive_params->controller == CONTROLLER_IBM_5288 ||
          drive_params->controller == CONTROLLER_IBM_3174 ||
+         drive_params->controller == CONTROLLER_SMS_8007 ||
          drive_params->controller == CONTROLLER_EDAX_PV9900 ||
          drive_params->controller == CONTROLLER_ALTOS ||
          drive_params->controller == CONTROLLER_CONVERGENT_AWS ||
@@ -1649,6 +1651,7 @@ SECTOR_DECODE_STATUS mfm_process_bytes(DRIVE_PARAMS *drive_params,
             drive_params->controller == CONTROLLER_CALLAN ||
             drive_params->controller == CONTROLLER_IBM_5288 ||
             drive_params->controller == CONTROLLER_IBM_3174 ||
+            drive_params->controller == CONTROLLER_SMS_8007 ||
             drive_params->controller == CONTROLLER_EDAX_PV9900 ||
             drive_params->controller == CONTROLLER_ALTOS ||
             drive_params->controller == CONTROLLER_CONVERGENT_AWS ||

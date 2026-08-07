@@ -14,6 +14,7 @@
 // Code has somewhat messy implementation that should use the new data
 // on format to drive processing. Also needs to be added to other decoders.
 //
+// 08/06/26 DJG Added CONTROLLER_SMS_8007
 // 07/12/26 DJG Fixed Floating point exception when using analyize
 // 05/15/26 DJG Added SHUGART_CD9963 & HP9133XV controller
 // 06/12/25 DJG/DV Add CONTROLLER_MICROBEE_WD1002_05
@@ -1032,6 +1033,24 @@ static int IsOutermostCylinder(DRIVE_PARAMS *drive_params, int cyl)
 //      looking at the data the last 4 bytes may be extra data and not
 //      part of the normal sector data.
 //
+//   CONTROLLER_SMC_8007
+//   No manual found describing low level format. as_left_1.emu
+//   6 byte header + 2 byte CRC
+//      byte 0 0xa1
+//      byte 1 0xfe
+//      byte 2 cylinder high in low 4 bits. Upper 4 bits 0xc.
+//      byte 3 cylinder low
+//      byte 4 Head
+//      byte 5 Sector
+//      byte 6-9 CRC
+//   Data
+//      byte 0 0xa1
+//      byte 1 0xf8
+//      Sector data for sector size (1024)
+//      ECC code (4 byte)
+//   Last two cylinders only track 0 formatted. Assume other tracks had
+//      format from previous use of drive.
+//
 //   CONTROLLER_SM1040
 //   No manual found disk1tran
 //   10 byte header + 4 byte CRC
@@ -1550,6 +1569,24 @@ SECTOR_DECODE_STATUS wd_process_data(STATE_TYPE *state, uint8_t bytes[],
          if (bytes[5] != 0x2) {
             msg(MSG_INFO, "Header Byte 5 not 2, byte %02x on cyl %d head %d sector %d\n",
                   bytes[5], sector_status.cyl, sector_status.head, sector_status.sector);
+         }
+
+         if (bytes[1] != 0xfe) {
+            msg(MSG_INFO, "Invalid header id byte %02x on cyl %d head %d sector %d\n",
+                  bytes[1], sector_status.cyl, sector_status.head, sector_status.sector);
+            sector_status.status |= SECT_BAD_HEADER;
+         }
+      } else if (drive_params->controller == CONTROLLER_SMS_8007) {
+         sector_status.cyl = bytes[3] | ((bytes[2] & 0xf) << 8);
+         sector_status.head = mfm_fix_head(drive_params, exp_head, bytes[4]);
+         sector_status.sector = bytes[5];
+         // Don't know how/if these are encoded in header
+         sector_size = drive_params->sector_size;
+         // Don't know what's in this byte. Print a message so it can be
+         // investigated if not the 2 seen previously.
+         if ((bytes[2] & 0xf0) != 0xc0) {
+            msg(MSG_INFO, "Header Byte 2 not expected, byte %02x on cyl %d head %d sector %d\n",
+                  bytes[2], sector_status.cyl, sector_status.head, sector_status.sector);
          }
 
          if (bytes[1] != 0xfe) {
